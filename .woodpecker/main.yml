@@ -1,0 +1,10 @@
+
+steps:
+  build:
+    image: debian:stable
+    commands:
+      - apt-get update
+      - apt-get install -y python3-full
+      - sh scripts/ci-venv.sh
+    when:
+      branch: [master, main, devel]
