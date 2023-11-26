@@ -2,7 +2,7 @@
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import typing
-from typing import Type, Generator, List, Tuple, Any, Optional, Literal
+from typing import Type, Generator, List, Tuple, Any, Optional, Literal, Union
 import itertools
 import equivalib
 from equivalib import GeneratorContext, BoundedInt
@@ -22,6 +22,10 @@ def generate_field_values(ctx: GeneratorContext,
     elif base_type == Literal:
         assert len(args) == 1
         yield (None, args[0])
+    elif base_type == Union:
+        assert len(args) > 0
+        for arg in args:
+            yield from generate_field_values(ctx, name, arg)
     elif base_type == BoundedInt:
         assert len(args) == 2
         low_l, high_l = args

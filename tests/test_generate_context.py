@@ -1,6 +1,6 @@
 
 from dataclasses import dataclass
-from typing import Tuple, Literal
+from typing import Tuple, Literal, Union
 import pytest
 import equivalib
 from equivalib import BoundedInt
@@ -126,3 +126,20 @@ def test_constant():
     assert ctx.assignments \
         == {'a': Const(False, 5),
             'b': Const(True, 5)}
+
+
+@dataclass(frozen=True)
+class UnionAnswer:
+    response: Union[Literal[True], Literal[False], Literal["Unsure"]]
+    received: bool
+
+
+def test_union1():
+    ctx = equivalib.generate_context([UnionAnswer])
+    assert ctx.assignments \
+        == {'a': UnionAnswer(True, False),
+            'b': UnionAnswer(True, True),
+            'c': UnionAnswer(False, False),
+            'd': UnionAnswer(False, True),
+            'e': UnionAnswer('Unsure', False),
+            'f': UnionAnswer('Unsure', True)}
