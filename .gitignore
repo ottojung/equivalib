@@ -4,6 +4,7 @@ __pycache__/
 *.class
 .pytest_cache/
 .mypy_cache/
+.coverage
 
 # C extensions
 *.so
