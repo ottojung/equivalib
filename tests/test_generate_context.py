@@ -143,3 +143,19 @@ def test_union1():
             'd': UnionAnswer(False, True),
             'e': UnionAnswer('Unsure', False),
             'f': UnionAnswer('Unsure', True)}
+
+
+@dataclass(frozen=True)
+class RestrictedAnswer:
+    is_yes: bool
+    received: bool
+
+    def __post_init__(self):
+        assert self.is_yes is True
+
+
+def test_restricted_answer():
+    ctx = equivalib.generate_context([RestrictedAnswer])
+    assert ctx.assignments \
+        == {'a': RestrictedAnswer(True, False),
+            'b': RestrictedAnswer(True, True)}

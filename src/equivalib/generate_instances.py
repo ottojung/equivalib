@@ -51,4 +51,8 @@ def generate_instances(ctx: GeneratorContext, t: Type) -> Generator[Any, None, N
     inputs = itertools.product(*pointwise)
     for named_arguments in inputs:
         arguments = [value for name, value in named_arguments]
-        yield t(*arguments)
+        try:
+            ret = t(*arguments)
+            yield ret
+        except AssertionError:
+            pass
