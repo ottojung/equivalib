@@ -14,8 +14,8 @@ class IntervalUnbounded:
 
 def test_read_type_information_for_valid_dataclass():
     expected = {
-        "start": [int],
-        "end": [int],
+        "start": int,
+        "end": int,
     }
 
     result = equivalib.read_type_information(IntervalUnbounded)
@@ -30,8 +30,8 @@ class Interval:
 
 def test_read_type_information_for_valid_generic_dataclass():
     expected = {
-        "start": [BoundedInt, Literal[0], Literal[999]],
-        "end": [BoundedInt, Literal[0], Literal[999]],
+        "start": BoundedInt[Literal[0], Literal[999]],
+        "end": BoundedInt[Literal[0], Literal[999]],
     }
 
     result = equivalib.read_type_information(Interval)

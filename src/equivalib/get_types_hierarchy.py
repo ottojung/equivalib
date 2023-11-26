@@ -8,6 +8,6 @@ def get_types_hierarchy(types: Iterable[Type]) -> Generator[Set[Type], None, Non
     before = {}
     for t in types:
         information = equivalib.read_type_information(t)
-        before[t] = {values[0] for (field, values) in information.items()}
+        before[t] = set(information.values())
 
     return equivalib.partially_order(types, lambda t: before[t])

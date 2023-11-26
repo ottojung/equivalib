@@ -10,28 +10,30 @@ from equivalib import GeneratorContext, BoundedInt
 
 def generate_field_values(ctx: GeneratorContext,
                           name: str,
-                          type_signature: List[Type]) \
+                          t: Type) \
                           -> Generator[Tuple[Optional[str], Any], None, None]:
-    t = type_signature[0]
-    if t == bool:
-        assert len(type_signature) == 1
+    base_type = typing.get_origin(t) or t
+    args = typing.get_args(t)
+
+    if base_type == bool:
+        assert len(args) == 0
         yield (None, False)
         yield (None, True)
-    elif t == Literal:
-        assert len(type_signature) == 2
-        yield (None, type_signature[1])
-    elif t == BoundedInt:
-        assert len(type_signature) == 3
-        low_l, high_l = type_signature[1:]
+    elif base_type == Literal:
+        assert len(args) == 1
+        yield (None, args[0])
+    elif base_type == BoundedInt:
+        assert len(args) == 2
+        low_l, high_l = args
         low, high = (typing.get_args(low_l)[0], typing.get_args(high_l)[0])
         assert isinstance(low, int)
         assert isinstance(high, int)
         for i in range(low, high + 1):
             yield (None, i)
-    elif len(type_signature) == 1:
+    elif len(args) == 0:
         yield from ((k, v) for (k, v) in ctx.assignments.items() if isinstance(v, t))
     else:
-        raise ValueError(f"Cannot generate values of type {type_signature!r}.")
+        raise ValueError(f"Cannot generate values of type {t!r}.")
 
 
 def generate_instances_fields(ctx: GeneratorContext, t: Type) -> Generator[List[Tuple[Optional[str], Any]], None, None]:
