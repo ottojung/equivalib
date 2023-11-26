@@ -94,3 +94,22 @@ def test_ints():
             'al': Inted(True, 18),
             'am': Inted(True, 19),
             'an': Inted(True, 20)}
+
+
+
+
+@dataclass(frozen=True)
+class Summary:
+    first: Answer
+    second: Answer
+
+
+def test_compound():
+    ctx = equivalib.generate_context([Answer, Summary])
+    assert ctx.assignments \
+        == {'a': Answer(False),
+            'b': Answer(True),
+            'c': Summary(Answer(False), Answer(False)),
+            'd': Summary(Answer(False), Answer(True)),
+            'e': Summary(Answer(True), Answer(False)),
+            'f': Summary(Answer(True), Answer(True))}

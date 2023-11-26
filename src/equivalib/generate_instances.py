@@ -26,7 +26,7 @@ def generate_field_values(ctx: GeneratorContext,
         for i in range(low, high + 1):
             yield (None, i)
     elif len(type_signature) == 1:
-        yield from ((k, v) for (k, v) in ctx.assignments.items() if v == t)
+        yield from ((k, v) for (k, v) in ctx.assignments.items() if isinstance(v, t))
     else:
         raise ValueError(f"Cannot generate values of type {type_signature!r}.")
 
