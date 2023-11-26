@@ -1,13 +1,14 @@
 #! /bin/sh
 
 set -e
-set -x
 
+set -x
 python3 -m venv venv
 
+set +x
 . venv/bin/activate
+set -x
+
 pip3 install .[dev,test]
 
-pytest -v --cov=./src
-mypy
-pylint ./src/ ./tests/
+sh scripts/ci-check.sh
