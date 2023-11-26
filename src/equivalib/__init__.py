@@ -6,3 +6,4 @@ from .read_type_information import *
 from .get_types_hierarchy import *
 from .generator_context import *
 from .generate_instances import *
+from .extend_context import *
