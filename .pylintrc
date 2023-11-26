@@ -13,3 +13,4 @@ disable=
     use-implicit-booleaness-not-comparison,
     cyclic-import,
     too-many-arguments,
+    comparison-with-callable,
