@@ -113,3 +113,16 @@ def test_compound():
             'd': Summary(Answer(False), Answer(True)),
             'e': Summary(Answer(True), Answer(False)),
             'f': Summary(Answer(True), Answer(True))}
+
+
+@dataclass(frozen=True)
+class Const:
+    first: bool
+    second: Literal[5]
+
+
+def test_constant():
+    ctx = equivalib.generate_context([Const])
+    assert ctx.assignments \
+        == {'a': Const(False, 5),
+            'b': Const(True, 5)}
