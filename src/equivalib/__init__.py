@@ -7,3 +7,4 @@ from .get_types_hierarchy import *
 from .generator_context import *
 from .generate_instances import *
 from .extend_context import *
+from .generate_context import *
