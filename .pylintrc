@@ -7,4 +7,9 @@ disable=
     no-else-return,
     line-too-long,
     too-few-public-methods,
-    too-many-arguments
+    unused-argument,
+    superfluous-parens,
+    unnecessary-lambda-assignment,
+    use-implicit-booleaness-not-comparison,
+    cyclic-import,
+    too-many-arguments,
