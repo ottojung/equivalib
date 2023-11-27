@@ -13,8 +13,7 @@ class Answer:
 
 def test_simple():
     theories = equivalib.generate_context([Answer])
-    expected = [GeneratorContext({}),
-                GeneratorContext({'a': Answer(False)}),
+    expected = [GeneratorContext({'a': Answer(False)}),
                 GeneratorContext({'a': Answer(True)}),
                 GeneratorContext({'a': Answer(False), 'b': Answer(True)})]
     assert theories == expected
@@ -29,9 +28,7 @@ class AnswerTuple:
 def test_complex():
     theories = equivalib.generate_context([AnswerTuple])
     sentences = [set(x.assignments.values()) for x in theories]
-
-    expected = [set(),
-                {AnswerTuple(False, False)},
+    expected = [{AnswerTuple(False, False)},
                 {AnswerTuple(False, True)},
                 {AnswerTuple(False, True), AnswerTuple(False, False)},
                 {AnswerTuple(True, False)},
@@ -70,7 +67,7 @@ class Inted:
 
 def test_ints():
     theories = equivalib.generate_context([Inted])
-    assert len(theories) == 64 # 2^(2*3)
+    assert len(theories) == 63 # 2^(2*3)-1
 
 
 @dataclass(frozen=True)
@@ -82,12 +79,9 @@ class Summary:
 def test_compound():
     theories = equivalib.generate_context([Answer, Summary])
     sentences = [set(x.assignments.values()) for x in theories]
-    expected = [set(),
-                {Answer(False)},
-                {Answer(False), Summary(Answer(False), Answer(False))},
-                {Answer(True)},
+
+    expected = [{Answer(False), Summary(Answer(False), Answer(False))},
                 {Summary(Answer(True), Answer(True)), Answer(True)},
-                {Answer(False), Answer(True)},
                 {Answer(False), Answer(True), Summary(Answer(False), Answer(False))},
                 {Answer(False), Answer(True), Summary(Answer(False), Answer(True))},
                 {Answer(False), Answer(True), Summary(Answer(False), Answer(False)), Summary(Answer(False), Answer(True))},
@@ -116,8 +110,7 @@ class Const:
 def test_constant():
     theories = equivalib.generate_context([Const])
     sentences = [set(x.assignments.values()) for x in theories]
-    expected = [set(),
-                {Const(False, 5)},
+    expected = [{Const(False, 5)},
                 {Const(True, 5)},
                 {Const(False, 5), Const(True, 5)}]
 
@@ -132,7 +125,7 @@ class UnionAnswer:
 
 def test_union1():
     theories = equivalib.generate_context([UnionAnswer])
-    assert len(theories) == 64 # 2^(3*2)
+    assert len(theories) == 63 # 2^(3*2)-1
 
 
 @dataclass(frozen=True)
@@ -147,17 +140,9 @@ class RestrictedAnswer:
 def test_restricted_answer():
     theories = equivalib.generate_context([RestrictedAnswer])
     sentences = [set(x.assignments.values()) for x in theories]
-    expected = [set(), set(), set(), set(),
-                {RestrictedAnswer(True, False)},
-                {RestrictedAnswer(True, False)},
-                {RestrictedAnswer(True, False)},
-                {RestrictedAnswer(True, False)},
+
+    expected = [{RestrictedAnswer(True, False)},
                 {RestrictedAnswer(True, True)},
-                {RestrictedAnswer(True, True)},
-                {RestrictedAnswer(True, True)},
-                {RestrictedAnswer(True, True)},
-                {RestrictedAnswer(True, False), RestrictedAnswer(True, True)},
-                {RestrictedAnswer(True, False), RestrictedAnswer(True, True)},
-                {RestrictedAnswer(True, False), RestrictedAnswer(True, True)},
                 {RestrictedAnswer(True, False), RestrictedAnswer(True, True)}]
+
     assert sentences == expected

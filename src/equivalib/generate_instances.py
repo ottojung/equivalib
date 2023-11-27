@@ -68,14 +68,17 @@ def get_subsets(original_set):
     return all_subsets
 
 
-def generate_from_subset(t: Type, subset) -> Generator[Any, None, None]:
+def generate_from_subset(t: Type, subset) -> List[Any]:
+    ret: List[Any] = []
     for named_arguments in subset:
         arguments = [deepcopy(value) for name, value in named_arguments]
         try:
-            ret = t(*arguments)
+            instance = t(*arguments)
+            ret.append(instance)
         except AssertionError:
-            continue
-        yield ret
+            return []
+
+    return ret
 
 
 def generate_instances(ctx: GeneratorContext, t: Type) -> Generator[List[Any], None, None]:
@@ -83,4 +86,6 @@ def generate_instances(ctx: GeneratorContext, t: Type) -> Generator[List[Any], N
     inputs = list(itertools.product(*pointwise))
     subsets = get_subsets(inputs)
     for subset in subsets:
-        yield list(generate_from_subset(t, subset))
+        instances = generate_from_subset(t, subset)
+        if instances:
+            yield instances

@@ -5,9 +5,13 @@ import equivalib
 
 
 def list_memequal(a: List[Any], b: List[Any]) -> bool:
+    if len(a) != len(b):
+        return False
+
     for x in a:
         if x not in b:
             return False
+
     return True
 
 
@@ -19,9 +23,9 @@ class Answer:
 def test_simple():
     ctx = equivalib.GeneratorContext(assignments={})
     instances = list(equivalib.generate_instances(ctx, Answer))
-    assert len(instances) == 4
+    assert len(instances) == 3
 
-    expected = [[], [Answer(False)], [Answer(True)],
+    expected = [[Answer(False)], [Answer(True)],
                 [Answer(False), Answer(True)]]
     assert list_memequal(instances, expected)
 
@@ -35,10 +39,9 @@ class AnswerTuple:
 def test_complex():
     ctx = equivalib.GeneratorContext(assignments={})
     instances = list(equivalib.generate_instances(ctx, AnswerTuple))
-    assert len(instances) == 16
+    assert len(instances) == 15
 
-    expected = [[],
-                [AnswerTuple(False, False)],
+    expected = [[AnswerTuple(False, False)],
                 [AnswerTuple(False, True)],
                 [AnswerTuple(False, False), AnswerTuple(False, True)],
                 [AnswerTuple(True, False)],
