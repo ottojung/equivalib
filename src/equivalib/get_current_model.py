@@ -1,20 +1,9 @@
 ## Copyright (C) 2023  Otto Jung
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from typing import Type, Iterable
-import equivalib
-from equivalib import GeneratorContext
+from equivalib import denv, SentenceModel
 
-
-def extend_by_sentence(ctx, sentence) -> GeneratorContext:
-    new = GeneratorContext(ctx.assignments.copy(), ctx.model.copy())
-    for instance in sentence:
-        name = new.generate_free_name()
-        new.assignments[name] = instance
-    return new
-
-
-def extend_context(ctx: GeneratorContext, t: Type) -> Iterable[GeneratorContext]:
-    sentences = equivalib.generate_instances(ctx, t)
-    for sentence in sentences:
-        yield extend_by_sentence(ctx, sentence)
+def get_current_model() -> SentenceModel:
+    model = denv.model
+    assert isinstance(model, SentenceModel)
+    return model

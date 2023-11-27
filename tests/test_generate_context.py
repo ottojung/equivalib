@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Tuple, Literal, Union
 import pytest
 import equivalib
-from equivalib import GeneratorContext, BoundedInt
+from equivalib import BoundedInt
 
 
 @dataclass(frozen=True)
@@ -13,10 +13,11 @@ class Answer:
 
 def test_simple():
     theories = equivalib.generate_context([Answer])
-    expected = [GeneratorContext({'a': Answer(False)}, None),
-                GeneratorContext({'a': Answer(True)}, None),
-                GeneratorContext({'a': Answer(False), 'b': Answer(True)}, None)]
-    assert theories == expected
+    expected = [{'a': Answer(False)},
+                {'a': Answer(True)},
+                {'a': Answer(False), 'b': Answer(True)}]
+    assignments = [x.assignments for x in theories]
+    assert assignments == expected
 
 
 @dataclass(frozen=True)
