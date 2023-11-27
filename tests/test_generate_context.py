@@ -102,6 +102,30 @@ def test_compound():
 
 
 @dataclass(frozen=True)
+class Summary2a:
+    elem: Answer
+
+
+@dataclass(frozen=True)
+class Summary2b:
+    elem: Summary2a
+
+
+def test_compound2():
+    theories = equivalib.generate_context([Answer, Summary2a, Summary2b])
+    sentences = [set(x.assignments.values()) for x in theories]
+    assert len(sentences) == 7 # 2^3-1
+    expected = [{Answer(False), Summary2b(Summary2a(Answer(False))), Summary2a(Answer(False))},
+                {Summary2b(Summary2a(Answer(True))), Answer(True), Summary2a(Answer(True))},
+                {Answer(False), Answer(True), Summary2b(Summary2a(Answer(False))), Summary2a(Answer(False))},
+                {Answer(False), Answer(True), Summary2b(Summary2a(Answer(True))), Summary2a(Answer(True))},
+                {Summary2a(Answer(True)), Answer(True), Summary2a(Answer(False)), Answer(False), Summary2b(Summary2a(Answer(False)))},
+                {Summary2a(Answer(True)), Answer(True), Summary2b(Summary2a(Answer(True))), Summary2a(Answer(False)), Answer(False)},
+                {Summary2a(Answer(True)), Answer(True), Summary2b(Summary2a(Answer(True))), Summary2a(Answer(False)), Answer(False), Summary2b(Summary2a(Answer(False)))}]
+    assert sentences == expected
+
+
+@dataclass(frozen=True)
 class Const:
     first: bool
     second: Literal[5]
