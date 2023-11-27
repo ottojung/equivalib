@@ -13,12 +13,11 @@ class Answer:
 
 def test_simple():
     theories = equivalib.generate_context([Answer])
-    assert theories == \
-        [[],
-         [GeneratorContext({'a': Answer(False)})],
-         [GeneratorContext({'a': Answer(True)})],
-         [GeneratorContext({'a': Answer(False)}),
-          GeneratorContext({'a': Answer(True)})]]
+    expected = [GeneratorContext({}),
+                GeneratorContext({'a': Answer(False)}),
+                GeneratorContext({'a': Answer(True)}),
+                GeneratorContext({'a': Answer(False), 'b': Answer(True)})]
+    assert theories == expected
 
 
 # @dataclass(frozen=True)

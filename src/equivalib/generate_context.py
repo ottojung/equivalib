@@ -6,18 +6,13 @@ from equivalib import GeneratorContext
 import equivalib
 
 
-def generate_suffixes(t: Type, ret: List[GeneratorContext]) -> Iterable[List[GeneratorContext]]:
+def generate_suffixes(t: Type, ret: List[GeneratorContext]) -> Iterable[GeneratorContext]:
     for prefix in ret:
-        yield from equivalib.extend_context(prefix, t)
+        yield from list(equivalib.extend_context(prefix, t))
 
 
-def extend_prefixes(t, ret: List[List[GeneratorContext]]) -> Iterable[List[GeneratorContext]]:
-    for sentence in ret:
-        yield from generate_suffixes(t, sentence)
-
-
-def generate_context(types: Iterable[Type]) -> List[List[GeneratorContext]]:
-    ret = [[GeneratorContext({})]]
+def generate_context(types: Iterable[Type]) -> List[GeneratorContext]:
+    ret = [GeneratorContext({})]
     for t in types:
-        ret = list(extend_prefixes(t, ret))
+        ret = list(generate_suffixes(t, ret))
     return ret
