@@ -71,7 +71,7 @@ def get_subsets(original_set):
 def generate_from_subset(t: Type, subset) -> List[Any]:
     ret: List[Any] = []
     for named_arguments in subset:
-        arguments = [deepcopy(value) for name, value in named_arguments]
+        arguments = (deepcopy(value) for name, value in named_arguments)
         try:
             instance = t(*arguments)
             ret.append(instance)
