@@ -2,6 +2,7 @@
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from copy import deepcopy
+from dataclasses import is_dataclass
 import typing
 from typing import Type, Generator, List, Tuple, Any, Optional, Literal, Union
 import itertools
@@ -35,7 +36,7 @@ def generate_field_values(ctx: GeneratorContext,
         assert isinstance(high, int)
         for i in range(low, high + 1):
             yield (None, i)
-    elif len(args) == 0:
+    elif is_dataclass(base_type):
         yield from ((k, v) for (k, v) in ctx.assignments.items() if isinstance(v, t))
     else:
         raise ValueError(f"Cannot generate values of type {t!r}.")
