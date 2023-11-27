@@ -13,9 +13,9 @@ class Answer:
 
 def test_simple():
     theories = equivalib.generate_context([Answer])
-    expected = [GeneratorContext({'a': Answer(False)}),
-                GeneratorContext({'a': Answer(True)}),
-                GeneratorContext({'a': Answer(False), 'b': Answer(True)})]
+    expected = [GeneratorContext({'a': Answer(False)}, None),
+                GeneratorContext({'a': Answer(True)}, None),
+                GeneratorContext({'a': Answer(False), 'b': Answer(True)}, None)]
     assert theories == expected
 
 

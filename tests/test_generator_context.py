@@ -3,7 +3,7 @@ from equivalib import GeneratorContext
 
 
 def test_first_40():
-    ctx = GeneratorContext({})
+    ctx = GeneratorContext.empty()
     for i in range(40):
         name = ctx.generate_free_name()
         ctx.assignments[name] = i

@@ -21,7 +21,7 @@ class Answer:
 
 
 def test_simple():
-    ctx = equivalib.GeneratorContext(assignments={})
+    ctx = equivalib.GeneratorContext.empty()
     instances = list(equivalib.generate_instances(ctx, Answer))
     assert len(instances) == 3
 
@@ -37,7 +37,7 @@ class AnswerTuple:
 
 
 def test_complex():
-    ctx = equivalib.GeneratorContext(assignments={})
+    ctx = equivalib.GeneratorContext.empty()
     instances = list(equivalib.generate_instances(ctx, AnswerTuple))
     assert len(instances) == 15
 

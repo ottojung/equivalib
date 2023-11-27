@@ -12,7 +12,7 @@ def generate_suffixes(t: Type, ret: List[GeneratorContext]) -> Iterable[Generato
 
 
 def generate_context(types: Iterable[Type]) -> List[GeneratorContext]:
-    ret = [GeneratorContext({})]
+    ret = [GeneratorContext.empty()]
     for t in types:
         ret = list(generate_suffixes(t, ret))
     return ret
