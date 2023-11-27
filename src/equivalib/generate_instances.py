@@ -1,6 +1,7 @@
 ## Copyright (C) 2023  Otto Jung
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+from copy import deepcopy
 import typing
 from typing import Type, Generator, List, Tuple, Any, Optional, Literal, Union
 import itertools
@@ -46,13 +47,40 @@ def generate_instances_fields(ctx: GeneratorContext, t: Type) -> Generator[List[
         yield list(generate_field_values(ctx, field, type_signature))
 
 
-def generate_instances(ctx: GeneratorContext, t: Type) -> Generator[Any, None, None]:
-    pointwise = generate_instances_fields(ctx, t)
-    inputs = itertools.product(*pointwise)
-    for named_arguments in inputs:
-        arguments = [value for name, value in named_arguments]
+def get_subsets(original_set):
+    if len(original_set) == 0:
+        return [[]]
+
+    # Take an element of the original set
+    element = original_set.pop()
+
+    # Get all subsets without the element
+    without_element = get_subsets(original_set)
+
+    with_element = []
+    for subset in without_element:
+        # Add a subset with the element to a list
+        new_subset = subset + [element]
+        with_element.append(new_subset)
+
+    # Combine the subsets with and without the element
+    all_subsets = without_element + with_element
+    return all_subsets
+
+
+def generate_from_subset(t: Type, subset) -> Generator[Any, None, None]:
+    for named_arguments in subset:
+        arguments = [deepcopy(value) for name, value in named_arguments]
         try:
             ret = t(*arguments)
-            yield ret
         except AssertionError:
-            pass
+            continue
+        yield ret
+
+
+def generate_instances(ctx: GeneratorContext, t: Type) -> Generator[List[Any], None, None]:
+    pointwise = generate_instances_fields(ctx, t)
+    inputs = list(itertools.product(*pointwise))
+    subsets = get_subsets(inputs)
+    for subset in subsets:
+        yield list(generate_from_subset(t, subset))
