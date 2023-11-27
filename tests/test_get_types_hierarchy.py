@@ -1,5 +1,5 @@
 
-from typing import Literal
+from typing import Literal, Union
 from dataclasses import dataclass
 import pytest
 from equivalib import get_types_hierarchy
@@ -58,3 +58,13 @@ def test_discard_some():
 def test_get_ground_types():
     with pytest.raises(TypeError):
         get_types_hierarchy([BoundedInt, Interval])
+
+
+@dataclass
+class UnionRec:
+    a: Union[EmptyType, Interval]
+
+
+def test_union1():
+    hierarchy = list(get_types_hierarchy([EmptyType, Interval, UnionRec]))
+    assert hierarchy == [{EmptyType, Interval}, {UnionRec}]
