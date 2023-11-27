@@ -1,9 +1,9 @@
 
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Tuple, Literal, Union
 import pytest
 import equivalib
-from equivalib import GeneratorContext
+from equivalib import GeneratorContext, BoundedInt
 
 
 @dataclass(frozen=True)
@@ -20,19 +20,34 @@ def test_simple():
     assert theories == expected
 
 
-# @dataclass(frozen=True)
-# class AnswerTuple:
-#     is_yes: bool
-#     is_sure: bool
+@dataclass(frozen=True)
+class AnswerTuple:
+    is_yes: bool
+    is_sure: bool
 
 
-# def test_complex():
-#     ctx = equivalib.generate_context([AnswerTuple])
-#     assert ctx.assignments \
-#         == {'a': AnswerTuple(False, False),
-#             'b': AnswerTuple(False, True),
-#             'c': AnswerTuple(True, False),
-#             'd': AnswerTuple(True, True)}
+def test_complex():
+    theories = equivalib.generate_context([AnswerTuple])
+    sentences = [set(x.assignments.values()) for x in theories]
+
+    expected = [set(),
+                {AnswerTuple(False, False)},
+                {AnswerTuple(False, True)},
+                {AnswerTuple(False, True), AnswerTuple(False, False)},
+                {AnswerTuple(True, False)},
+                {AnswerTuple(True, False), AnswerTuple(False, False)},
+                {AnswerTuple(False, True), AnswerTuple(True, False)},
+                {AnswerTuple(False, True), AnswerTuple(True, False), AnswerTuple(False, False)},
+                {AnswerTuple(True, True)},
+                {AnswerTuple(True, True), AnswerTuple(False, False)},
+                {AnswerTuple(False, True), AnswerTuple(True, True)},
+                {AnswerTuple(False, True), AnswerTuple(True, True), AnswerTuple(False, False)},
+                {AnswerTuple(True, False), AnswerTuple(True, True)},
+                {AnswerTuple(True, False), AnswerTuple(True, True), AnswerTuple(False, False)},
+                {AnswerTuple(False, True), AnswerTuple(True, False), AnswerTuple(True, True)},
+                {AnswerTuple(False, True), AnswerTuple(True, False), AnswerTuple(True, True), AnswerTuple(False, False)}]
+
+    assert sentences == expected
 
 
 @dataclass(frozen=True)
@@ -47,83 +62,102 @@ def test_invalid():
 
 
 
-# @dataclass(frozen=True)
-# class Inted:
-#     is_yes: bool
-#     confidence: BoundedInt[Literal[1], Literal[3]]
+@dataclass(frozen=True)
+class Inted:
+    is_yes: bool
+    confidence: BoundedInt[Literal[1], Literal[3]]
 
 
-# def test_ints():
-#     theories = equivalib.generate_context([Inted])
-
-#     assert len(theories) == 64
-
-#     # [[], [GeneratorContext({'a': Inted(False, 1)})], [GeneratorContext({'a': Inted(False, 2)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 2)})], [GeneratorContext({'a': Inted(False, 3)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 3)})], [GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(False, 3)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(False, 3)})], [GeneratorContext({'a': Inted(True, 1)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(True, 1)})], [GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(True, 1)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(True, 1)})], [GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 1)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 1)})], [GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 1)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 1)})], [GeneratorContext({'a': Inted(True, 2)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(True, 2)})], [GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(True, 2)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(True, 2)})], [GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 2)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 2)})], [GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 2)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 2)})], [GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 2)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 2)})], [GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 2)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 2)})], [GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 2)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 2)})], [GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 2)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 2)})], [GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(True, 2)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(True, 2)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(True, 2)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(True, 2)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 2)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 2)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 2)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 2)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 2)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 2)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 2)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 2)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 2)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 2)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 2)}), GeneratorContext({'a': Inted(True, 3)})], [GeneratorContext({'a': Inted(False, 1)}), GeneratorContext({'a': Inted(False, 2)}), GeneratorContext({'a': Inted(False, 3)}), GeneratorContext({'a': Inted(True, 1)}), GeneratorContext({'a': Inted(True, 2)}), GeneratorContext({'a': Inted(True, 3)})]]
-#     # print("")
-#     # print("")
-#     # print(f"theories: {theories}")
-#     # print("")
-#     # print("")
+def test_ints():
+    theories = equivalib.generate_context([Inted])
+    assert len(theories) == 64 # 2^(2*3)
 
 
-# # @dataclass(frozen=True)
-# # class Summary:
-# #     first: Answer
-# #     second: Answer
+@dataclass(frozen=True)
+class Summary:
+    first: Answer
+    second: Answer
 
 
-# # def test_compound():
-# #     ctx = equivalib.generate_context([Answer, Summary])
-# #     assert ctx.assignments \
-# #         == {'a': Answer(False),
-# #             'b': Answer(True),
-# #             'c': Summary(Answer(False), Answer(False)),
-# #             'd': Summary(Answer(False), Answer(True)),
-# #             'e': Summary(Answer(True), Answer(False)),
-# #             'f': Summary(Answer(True), Answer(True))}
+def test_compound():
+    theories = equivalib.generate_context([Answer, Summary])
+    sentences = [set(x.assignments.values()) for x in theories]
+    expected = [set(),
+                {Answer(False)},
+                {Answer(False), Summary(Answer(False), Answer(False))},
+                {Answer(True)},
+                {Summary(Answer(True), Answer(True)), Answer(True)},
+                {Answer(False), Answer(True)},
+                {Answer(False), Answer(True), Summary(Answer(False), Answer(False))},
+                {Answer(False), Answer(True), Summary(Answer(False), Answer(True))},
+                {Answer(False), Answer(True), Summary(Answer(False), Answer(False)), Summary(Answer(False), Answer(True))},
+                {Answer(False), Answer(True), Summary(Answer(True), Answer(False))},
+                {Answer(False), Answer(True), Summary(Answer(False), Answer(False)), Summary(Answer(True), Answer(False))},
+                {Answer(False), Answer(True), Summary(Answer(True), Answer(False)), Summary(Answer(False), Answer(True))},
+                {Summary(Answer(False), Answer(True)), Summary(Answer(True), Answer(False)), Answer(True), Summary(Answer(False), Answer(False)), Answer(False)},
+                {Answer(False), Answer(True), Summary(Answer(True), Answer(True))},
+                {Answer(False), Answer(True), Summary(Answer(False), Answer(False)), Summary(Answer(True), Answer(True))},
+                {Answer(False), Answer(True), Summary(Answer(True), Answer(True)), Summary(Answer(False), Answer(True))},
+                {Summary(Answer(False), Answer(True)), Summary(Answer(True), Answer(True)), Answer(True), Summary(Answer(False), Answer(False)), Answer(False)},
+                {Answer(False), Answer(True), Summary(Answer(True), Answer(True)), Summary(Answer(True), Answer(False))},
+                {Summary(Answer(True), Answer(True)), Summary(Answer(True), Answer(False)), Answer(True), Summary(Answer(False), Answer(False)), Answer(False)},
+                {Summary(Answer(False), Answer(True)), Summary(Answer(True), Answer(True)), Summary(Answer(True), Answer(False)), Answer(True), Answer(False)},
+                {Summary(Answer(False), Answer(True)), Summary(Answer(True), Answer(True)), Summary(Answer(True), Answer(False)), Answer(True), Summary(Answer(False), Answer(False)), Answer(False)}]
+
+    assert sentences == expected
 
 
-# # @dataclass(frozen=True)
-# # class Const:
-# #     first: bool
-# #     second: Literal[5]
+@dataclass(frozen=True)
+class Const:
+    first: bool
+    second: Literal[5]
 
 
-# # def test_constant():
-# #     ctx = equivalib.generate_context([Const])
-# #     assert ctx.assignments \
-# #         == {'a': Const(False, 5),
-# #             'b': Const(True, 5)}
+def test_constant():
+    theories = equivalib.generate_context([Const])
+    sentences = [set(x.assignments.values()) for x in theories]
+    expected = [set(),
+                {Const(False, 5)},
+                {Const(True, 5)},
+                {Const(False, 5), Const(True, 5)}]
+
+    assert sentences == expected
 
 
-# # @dataclass(frozen=True)
-# # class UnionAnswer:
-# #     response: Union[Literal[True], Literal[False], Literal["Unsure"]]
-# #     received: bool
+@dataclass(frozen=True)
+class UnionAnswer:
+    response: Union[Literal[True], Literal[False], Literal["Unsure"]]
+    received: bool
 
 
-# # def test_union1():
-# #     ctx = equivalib.generate_context([UnionAnswer])
-# #     assert ctx.assignments \
-# #         == {'a': UnionAnswer(True, False),
-# #             'b': UnionAnswer(True, True),
-# #             'c': UnionAnswer(False, False),
-# #             'd': UnionAnswer(False, True),
-# #             'e': UnionAnswer('Unsure', False),
-# #             'f': UnionAnswer('Unsure', True)}
+def test_union1():
+    theories = equivalib.generate_context([UnionAnswer])
+    assert len(theories) == 64 # 2^(3*2)
 
 
-# # @dataclass(frozen=True)
-# # class RestrictedAnswer:
-# #     is_yes: bool
-# #     received: bool
+@dataclass(frozen=True)
+class RestrictedAnswer:
+    is_yes: bool
+    received: bool
 
-# #     def __post_init__(self):
-# #         assert self.is_yes is True
+    def __post_init__(self):
+        assert self.is_yes is True
 
 
-# # def test_restricted_answer():
-# #     ctx = equivalib.generate_context([RestrictedAnswer])
-# #     assert ctx.assignments \
-# #         == {'a': RestrictedAnswer(True, False),
-# #             'b': RestrictedAnswer(True, True)}
+def test_restricted_answer():
+    theories = equivalib.generate_context([RestrictedAnswer])
+    sentences = [set(x.assignments.values()) for x in theories]
+    expected = [set(), set(), set(), set(),
+                {RestrictedAnswer(True, False)},
+                {RestrictedAnswer(True, False)},
+                {RestrictedAnswer(True, False)},
+                {RestrictedAnswer(True, False)},
+                {RestrictedAnswer(True, True)},
+                {RestrictedAnswer(True, True)},
+                {RestrictedAnswer(True, True)},
+                {RestrictedAnswer(True, True)},
+                {RestrictedAnswer(True, False), RestrictedAnswer(True, True)},
+                {RestrictedAnswer(True, False), RestrictedAnswer(True, True)},
+                {RestrictedAnswer(True, False), RestrictedAnswer(True, True)},
+                {RestrictedAnswer(True, False), RestrictedAnswer(True, True)}]
+    assert sentences == expected
