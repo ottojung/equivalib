@@ -27,7 +27,7 @@ class Super(Generic[W]):
             low, high = BoundedInt.unpack_type(base_type, args)
             var = current_model.model.NewIntVar(low, high, name)
         elif base_type == bool:
-            var = current_model.model.NewBoolVar(low, high, name)
+            var = current_model.model.NewBoolVar(name)
         else:
             # TODO: extend to dataclasses
             raise ValueError("Only bool and BoundedInt can have Super values")
