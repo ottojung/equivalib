@@ -25,6 +25,9 @@ class Super(Generic[W]):
             var = current_model.model.NewIntVar(low, high, 'x')
         elif base_type == bool:
             var = current_model.model.NewBoolVar(low, high, 'x')
+        else:
+            # TODO: extend to dataclasses
+            raise ValueError("Only bool and BoundedInt can have Super values")
 
         return Super(var.Index)
 
