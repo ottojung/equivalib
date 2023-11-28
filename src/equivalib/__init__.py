@@ -6,9 +6,9 @@ from .read_type_information import *
 from .get_types_hierarchy import *
 from .sentence_model import *
 from .generator_context import *
-from .generate_instances import *
-from .extend_context import *
-from .generate_context import *
 from .dynamic import *
 from .get_current_model import *
 from .super import *
+from .generate_instances import *
+from .extend_context import *
+from .generate_context import *

@@ -1,16 +1,32 @@
 ## Copyright (C) 2023  Otto Jung
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+from dataclasses import dataclass
+import typing
 from typing import TypeVar, Generic, Any, Tuple
 import equivalib
+from equivalib import BoundedInt
 
 W = TypeVar('W')
 
+@dataclass(frozen=True)
 class Super(Generic[W]):
-    def __init__(self: 'Super'):
+    index: int
+
+
+    @staticmethod
+    def make(t):
         current_model = equivalib.get_current_model()
-        var = current_model.model.NewIntVar(0, 10, 'x')
-        self.index = var.index
+
+        base_type = typing.get_origin(t) or t
+        args = typing.get_args(t)
+        if base_type == BoundedInt:
+            low, high = BoundedInt.unpack_type(base_type, args)
+            var = current_model.model.NewIntVar(low, high, 'x')
+        elif base_type == bool:
+            var = current_model.model.NewBoolVar(low, high, 'x')
+
+        return Super(var.Index)
 
 
     def get_var(self: 'Super'):

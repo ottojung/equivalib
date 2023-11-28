@@ -6,7 +6,7 @@ import typing
 from typing import Type, Generator, List, Tuple, Any, Optional, Literal, Union
 import itertools
 import equivalib
-from equivalib import GeneratorContext, BoundedInt
+from equivalib import GeneratorContext, BoundedInt, denv, Super
 
 
 def generate_field_values(ctx: GeneratorContext,
@@ -27,12 +27,12 @@ def generate_field_values(ctx: GeneratorContext,
         assert len(args) > 0
         for arg in args:
             yield from generate_field_values(ctx, name, arg)
+    elif base_type == Super:
+        assert len(args) == 1
+        yield (None, [base_type, args[0]])
     elif base_type == BoundedInt:
         assert len(args) == 2
-        low_l, high_l = args
-        low, high = (typing.get_args(low_l)[0], typing.get_args(high_l)[0])
-        assert isinstance(low, int)
-        assert isinstance(high, int)
+        low, high = BoundedInt.unpack_type(base_type, args)
         for i in range(low, high + 1):
             yield (None, i)
     elif is_dataclass(base_type):
@@ -68,18 +68,26 @@ def get_subsets(original_set):
     return all_subsets
 
 
+def handle_supers(value: Any) -> Any:
+    if isinstance(value, list):
+        return Super.make(value[1])
+    else:
+        return value
+
+
 def generate_from_subset(ctx: GeneratorContext, t: Type, subset) -> Optional[GeneratorContext]:
     new = ctx.copy()
 
-    for named_arguments in subset:
-        arguments = (value for name, value in named_arguments)
-        try:
-            instance = t(*arguments)
-        except AssertionError:
-            return None
+    with denv.let(model = new.model):
+        for named_arguments in subset:
+            arguments = (handle_supers(value) for name, value in named_arguments)
+            try:
+                instance = t(*arguments)
+            except AssertionError:
+                return None
 
-        name = new.generate_free_name()
-        new.assignments[name] = instance
+            name = new.generate_free_name()
+            new.assignments[name] = instance
 
     return new
 

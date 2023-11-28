@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Tuple, Literal, Union
 import pytest
 import equivalib
-from equivalib import BoundedInt
+from equivalib import BoundedInt, Super
 
 
 @dataclass(frozen=True)
@@ -171,3 +171,14 @@ def test_restricted_answer():
                 {RestrictedAnswer(True, False), RestrictedAnswer(True, True)}]
 
     assert sentences == expected
+
+
+@dataclass(frozen=True)
+class Superposed:
+    value: Super[BoundedInt[Literal[0], Literal[9]]]
+
+
+def test_super_simple():
+    theories = equivalib.generate_context([Superposed])
+    sentences = [set(x.assignments.values()) for x in theories]
+    assert len(sentences) == 1
