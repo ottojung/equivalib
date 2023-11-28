@@ -89,7 +89,7 @@ class Super(Generic[W]):
         return model.check_satisfiability()
 
 
-    def __neq__(self, other: Any) -> bool:
+    def __ne__(self, other: Any) -> bool:
         model, left, right = self._to_left_right(other)
         model.add(left != right)
         return model.check_satisfiability()

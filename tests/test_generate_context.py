@@ -198,3 +198,20 @@ def test_super_bounded():
 
     assert len(sentences) == 1
     assert len(sentences[0]) == 2
+
+
+@dataclass(frozen=True)
+class SuperEntangled:
+    a: Super[bool]
+    b: Super[bool]
+
+    def __post_init__(self):
+        assert self.a != self.b
+
+
+def test_super_entangled():
+    theories = equivalib.generate_context([SuperEntangled])
+    sentences = [set(x.assignments.values()) for x in theories]
+
+    assert len(sentences) == 1
+    assert len(sentences[0]) == 3
