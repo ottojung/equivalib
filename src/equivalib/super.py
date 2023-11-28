@@ -38,14 +38,16 @@ class Super(Generic[W]):
 
 
     def get_var(self: 'Super'):
-        model = equivalib.get_current_model()
-        var = model.model.GetIntVarFromProtoIndex(self.index)
+        current_context = equivalib.get_current_context()
+        current_model = current_context.model
+        var = current_model.model.GetIntVarFromProtoIndex(self.index)
         return var
 
 
     def _to_left_right(self, other: Any) -> Tuple[equivalib.SentenceModel, Any, Any]:
-        model = equivalib.get_current_model()
-        left = model.model.GetIntVarFromProtoIndex(self.index)
+        current_context = equivalib.get_current_context()
+        current_model = current_context.model
+        left = current_model.model.GetIntVarFromProtoIndex(self.index)
 
         if isinstance(other, Super):
             right = other.get_var()
@@ -54,7 +56,7 @@ class Super(Generic[W]):
         else:
             raise ValueError("Only support ints and super ints")
 
-        return (model, left, right)
+        return (current_model, left, right)
 
 
     def __lt__(self, other: Any) -> bool:
