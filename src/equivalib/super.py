@@ -2,37 +2,21 @@
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from dataclasses import dataclass
-import typing
 from typing import TypeVar, Generic, Any, Tuple
 import equivalib
-from equivalib import BoundedInt
 
 W = TypeVar('W')
 
 @dataclass(frozen=True)
 class Super(Generic[W]):
-    index: int
+    name: str
 
 
     @staticmethod
     def make(t):
         current_sentence = equivalib.get_current_sentence()
-        current_model = current_sentence.model
-
-        name = current_sentence.generate_free_name()
-
-        base_type = typing.get_origin(t) or t
-        args = typing.get_args(t)
-        if base_type == BoundedInt:
-            low, high = BoundedInt.unpack_type(base_type, args)
-            var = current_model.model.NewIntVar(low, high, name)
-        elif base_type == bool:
-            var = current_model.model.NewBoolVar(name)
-        else:
-            # TODO: extend to dataclasses
-            raise ValueError("Only bool and BoundedInt can have Super values")
-
-        ret = Super(var.Index())
+        name = current_sentence.add_super_variable(t)
+        ret = Super(name)
         current_sentence.assignments[name] = ret
         return ret
 
@@ -40,14 +24,14 @@ class Super(Generic[W]):
     def get_var(self: 'Super'):
         current_sentence = equivalib.get_current_sentence()
         current_model = current_sentence.model
-        var = current_model.model.GetIntVarFromProtoIndex(self.index)
+        var = current_model.get_variable(self.name)
         return var
 
 
     def _to_left_right(self, other: Any) -> Tuple[equivalib.SentenceModel, Any, Any]:
         current_sentence = equivalib.get_current_sentence()
         current_model = current_sentence.model
-        left = current_model.model.GetIntVarFromProtoIndex(self.index)
+        left = current_model.get_variable(self.name)
 
         if isinstance(other, Super):
             right = other.get_var()
