@@ -4,6 +4,6 @@
 from equivalib import denv, Sentence
 
 def get_current_sentence() -> Sentence:
-    context = denv.context
-    assert isinstance(context, Sentence)
-    return context
+    sentence = denv.sentence
+    assert isinstance(sentence, Sentence)
+    return sentence

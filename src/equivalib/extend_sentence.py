@@ -78,7 +78,7 @@ def handle_supers(value: Any) -> Any:
 def generate_from_subset(ctx: Sentence, t: Type, subset) -> Optional[Sentence]:
     new = ctx.copy()
 
-    with denv.let(context = new):
+    with denv.let(sentence = new):
         for named_arguments in subset:
             arguments = (handle_supers(value) for name, value in named_arguments)
             try:
