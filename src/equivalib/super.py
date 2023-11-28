@@ -16,10 +16,10 @@ class Super(Generic[W]):
 
     @staticmethod
     def make(t):
-        current_context = equivalib.get_current_context()
-        current_model = current_context.model
+        current_sentence = equivalib.get_current_sentence()
+        current_model = current_sentence.model
 
-        name = current_context.generate_free_name()
+        name = current_sentence.generate_free_name()
 
         base_type = typing.get_origin(t) or t
         args = typing.get_args(t)
@@ -33,20 +33,20 @@ class Super(Generic[W]):
             raise ValueError("Only bool and BoundedInt can have Super values")
 
         ret = Super(var.Index())
-        current_context.assignments[name] = ret
+        current_sentence.assignments[name] = ret
         return ret
 
 
     def get_var(self: 'Super'):
-        current_context = equivalib.get_current_context()
-        current_model = current_context.model
+        current_sentence = equivalib.get_current_sentence()
+        current_model = current_sentence.model
         var = current_model.model.GetIntVarFromProtoIndex(self.index)
         return var
 
 
     def _to_left_right(self, other: Any) -> Tuple[equivalib.SentenceModel, Any, Any]:
-        current_context = equivalib.get_current_context()
-        current_model = current_context.model
+        current_sentence = equivalib.get_current_sentence()
+        current_model = current_sentence.model
         left = current_model.model.GetIntVarFromProtoIndex(self.index)
 
         if isinstance(other, Super):
