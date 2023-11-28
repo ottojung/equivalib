@@ -14,7 +14,7 @@ class SuperEntangled2:
 
 
 def test_super_entangled():
-    theories = equivalib.generate_sentence([SuperEntangled2])
+    theories = equivalib.generate_sentences([SuperEntangled2])
 
     assert len(theories) == 1
 
