@@ -8,6 +8,7 @@ from .sentence_model import *
 from .generator_context import *
 from .dynamic import *
 from .get_current_model import *
+from .get_current_context import *
 from .super import *
 from .generate_instances import *
 from .extend_context import *
