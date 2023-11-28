@@ -5,7 +5,7 @@ from copy import deepcopy
 import dataclasses
 import typing
 from ortools.sat.python import cp_model
-from equivalib import Super, Sentence, denv
+from equivalib import Super, Sentence, denv, Dict, Any
 
 def set_int_fields_to_value(instance, lookup):
     instance = deepcopy(instance)
@@ -23,6 +23,7 @@ def arbitrary_collapse(self: Sentence) -> Sentence:
 
     solver = cp_model.CpSolver()
     solver.Solve(self.model.model)
+    supers: Dict[str, Any] = {}
 
     with denv.let(sentence = self):
         for k, v in self.assignments.items():
@@ -30,8 +31,8 @@ def arbitrary_collapse(self: Sentence) -> Sentence:
             if isinstance(v, Super):
                 var = v.get_var()
                 val = solver.Value(var)
-                ret.assignments[k] = val
+                supers[k] = val
             elif dataclasses.is_dataclass(v):
-                ret.assignments[k] = set_int_fields_to_value(v, ret.assignments)
+                ret.assignments[k] = set_int_fields_to_value(v, supers)
 
     return ret
