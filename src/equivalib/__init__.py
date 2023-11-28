@@ -9,6 +9,5 @@ from .sentence import *
 from .dynamic import *
 from .get_current_sentence import *
 from .super import *
-from .generate_instances import *
 from .extend_sentence import *
 from .generate_sentence import *

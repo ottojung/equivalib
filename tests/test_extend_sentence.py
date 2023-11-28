@@ -22,7 +22,7 @@ class Answer:
 
 def test_simple():
     ctx = equivalib.Sentence.empty()
-    news = list(equivalib.generate_instances(ctx, Answer))
+    news = list(equivalib.extend_sentence(ctx, Answer))
     instances = [list(x.assignments.values()) for x in news]
     assert len(instances) == 3
 
@@ -39,7 +39,7 @@ class AnswerTuple:
 
 def test_complex():
     ctx = equivalib.Sentence.empty()
-    news = list(equivalib.generate_instances(ctx, AnswerTuple))
+    news = list(equivalib.extend_sentence(ctx, AnswerTuple))
     instances = [list(x.assignments.values()) for x in news]
     assert len(instances) == 15
 
