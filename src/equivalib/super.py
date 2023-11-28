@@ -32,7 +32,7 @@ class Super(Generic[W]):
             # TODO: extend to dataclasses
             raise ValueError("Only bool and BoundedInt can have Super values")
 
-        ret = Super(var.Index)
+        ret = Super(var.Index())
         current_context.assignments[name] = ret
         return ret
 

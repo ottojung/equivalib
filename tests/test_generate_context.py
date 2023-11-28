@@ -182,3 +182,19 @@ def test_super_simple():
     theories = equivalib.generate_context([Superposed])
     sentences = [set(x.assignments.values()) for x in theories]
     assert len(sentences) == 1
+
+
+@dataclass(frozen=True)
+class SuperposedBounded:
+    value: Super[BoundedInt[Literal[0], Literal[9]]]
+
+    def __post_init__(self):
+        assert self.value < 5
+
+
+def test_super_bounded():
+    theories = equivalib.generate_context([SuperposedBounded])
+    sentences = [set(x.assignments.values()) for x in theories]
+
+    assert len(sentences) == 1
+    assert len(sentences[0]) == 2
