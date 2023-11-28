@@ -5,7 +5,7 @@ from .partially_order import *
 from .read_type_information import *
 from .get_types_hierarchy import *
 from .sentence_model import *
-from .generator_context import *
+from .sentence import *
 from .dynamic import *
 from .get_current_context import *
 from .super import *

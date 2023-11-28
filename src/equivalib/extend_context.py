@@ -3,8 +3,8 @@
 
 from typing import Type, Generator
 import equivalib
-from equivalib import GeneratorContext
+from equivalib import Sentence
 
 
-def extend_context(ctx: GeneratorContext, t: Type) -> Generator[GeneratorContext, None, None]:
+def extend_context(ctx: Sentence, t: Type) -> Generator[Sentence, None, None]:
     yield from equivalib.generate_instances(ctx, t)

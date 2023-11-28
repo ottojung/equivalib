@@ -6,18 +6,18 @@ from dataclasses import dataclass
 from equivalib import SentenceModel
 
 @dataclass
-class GeneratorContext:
+class Sentence:
     assignments: Dict[str, Any]
     model: SentenceModel
 
 
     @staticmethod
-    def empty() -> 'GeneratorContext':
-        return GeneratorContext({}, SentenceModel.empty())
+    def empty() -> 'Sentence':
+        return Sentence({}, SentenceModel.empty())
 
 
-    def copy(self) -> 'GeneratorContext':
-        return GeneratorContext(self.assignments.copy(), self.model.copy())
+    def copy(self) -> 'Sentence':
+        return Sentence(self.assignments.copy(), self.model.copy())
 
 
     def generate_free_name(self) -> str:

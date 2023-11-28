@@ -6,10 +6,10 @@ import typing
 from typing import Type, Generator, List, Tuple, Any, Optional, Literal, Union
 import itertools
 import equivalib
-from equivalib import GeneratorContext, BoundedInt, denv, Super
+from equivalib import Sentence, BoundedInt, denv, Super
 
 
-def generate_field_values(ctx: GeneratorContext,
+def generate_field_values(ctx: Sentence,
                           name: str,
                           t: Type) \
                           -> Generator[Tuple[Optional[str], Any], None, None]:
@@ -41,7 +41,7 @@ def generate_field_values(ctx: GeneratorContext,
         raise ValueError(f"Cannot generate values of type {t!r}.")
 
 
-def generate_instances_fields(ctx: GeneratorContext, t: Type) -> Generator[List[Tuple[Optional[str], Any]], None, None]:
+def generate_instances_fields(ctx: Sentence, t: Type) -> Generator[List[Tuple[Optional[str], Any]], None, None]:
     information = equivalib.read_type_information(t)
     for field, type_signature in information.items():
         yield list(generate_field_values(ctx, field, type_signature))
@@ -75,7 +75,7 @@ def handle_supers(value: Any) -> Any:
         return value
 
 
-def generate_from_subset(ctx: GeneratorContext, t: Type, subset) -> Optional[GeneratorContext]:
+def generate_from_subset(ctx: Sentence, t: Type, subset) -> Optional[Sentence]:
     new = ctx.copy()
 
     with denv.let(context = new):
@@ -92,7 +92,7 @@ def generate_from_subset(ctx: GeneratorContext, t: Type, subset) -> Optional[Gen
     return new
 
 
-def generate_instances(ctx: GeneratorContext, t: Type) -> Generator[GeneratorContext, None, None]:
+def generate_instances(ctx: Sentence, t: Type) -> Generator[Sentence, None, None]:
     pointwise = generate_instances_fields(ctx, t)
     inputs = list(itertools.product(*pointwise))
     subsets = get_subsets(inputs)

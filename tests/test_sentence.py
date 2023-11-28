@@ -1,9 +1,9 @@
 
-from equivalib import GeneratorContext
+from equivalib import Sentence
 
 
 def test_first_40():
-    ctx = GeneratorContext.empty()
+    ctx = Sentence.empty()
     for i in range(40):
         name = ctx.generate_free_name()
         ctx.assignments[name] = i
