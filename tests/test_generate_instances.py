@@ -22,7 +22,8 @@ class Answer:
 
 def test_simple():
     ctx = equivalib.GeneratorContext.empty()
-    instances = list(equivalib.generate_instances(ctx, Answer))
+    news = list(equivalib.generate_instances(ctx, Answer))
+    instances = [list(x.assignments.values()) for x in news]
     assert len(instances) == 3
 
     expected = [[Answer(False)], [Answer(True)],
@@ -38,7 +39,8 @@ class AnswerTuple:
 
 def test_complex():
     ctx = equivalib.GeneratorContext.empty()
-    instances = list(equivalib.generate_instances(ctx, AnswerTuple))
+    news = list(equivalib.generate_instances(ctx, AnswerTuple))
+    instances = [list(x.assignments.values()) for x in news]
     assert len(instances) == 15
 
     expected = [[AnswerTuple(False, False)],

@@ -69,24 +69,28 @@ def get_subsets(original_set):
     return all_subsets
 
 
-def generate_from_subset(t: Type, subset) -> List[Any]:
-    ret: List[Any] = []
+def generate_from_subset(ctx: GeneratorContext, t: Type, subset) -> Optional[GeneratorContext]:
+    new = GeneratorContext(ctx.assignments.copy(), ctx.model.copy())
+
     for named_arguments in subset:
         arguments = (deepcopy(value) for name, value in named_arguments)
         try:
             instance = t(*arguments)
-            ret.append(instance)
         except AssertionError:
-            return []
+            return None
 
-    return ret
+        name = new.generate_free_name()
+        new.assignments[name] = instance
+
+    return new
 
 
-def generate_instances(ctx: GeneratorContext, t: Type) -> Generator[List[Any], None, None]:
+def generate_instances(ctx: GeneratorContext, t: Type) -> Generator[GeneratorContext, None, None]:
     pointwise = generate_instances_fields(ctx, t)
     inputs = list(itertools.product(*pointwise))
     subsets = get_subsets(inputs)
     for subset in subsets:
-        instances = generate_from_subset(t, subset)
-        if instances:
-            yield instances
+        if subset:
+            new = generate_from_subset(ctx, t, subset)
+            if new:
+                yield new
