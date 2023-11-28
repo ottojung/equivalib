@@ -14,3 +14,4 @@ disable=
     cyclic-import,
     too-many-arguments,
     comparison-with-callable,
+    fixme,
