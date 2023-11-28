@@ -70,7 +70,7 @@ def get_subsets(original_set):
 
 
 def generate_from_subset(ctx: GeneratorContext, t: Type, subset) -> Optional[GeneratorContext]:
-    new = GeneratorContext(ctx.assignments.copy(), ctx.model.copy())
+    new = ctx.copy()
 
     for named_arguments in subset:
         arguments = (deepcopy(value) for name, value in named_arguments)

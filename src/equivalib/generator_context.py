@@ -16,6 +16,10 @@ class GeneratorContext:
         return GeneratorContext({}, SentenceModel.empty())
 
 
+    def copy(self) -> 'GeneratorContext':
+        return GeneratorContext(self.assignments.copy(), self.model.copy())
+
+
     def generate_free_name(self) -> str:
         """
         Returns the (lexicographically) smallest string
