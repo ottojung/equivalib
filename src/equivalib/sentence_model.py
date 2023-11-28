@@ -9,16 +9,17 @@ from ortools.sat.python import cp_model
 class SentenceModel:
     _model: Optional[cp_model.CpModel]
 
+
     @staticmethod
     def empty() -> 'SentenceModel':
         return SentenceModel(None)
 
 
     def copy(self) -> 'SentenceModel':
-        if self.model is None:
+        if self._model is None:
             return SentenceModel.empty()
         else:
-            return SentenceModel(self.model.Clone())
+            return SentenceModel(self._model.Clone())
 
 
     def add(self, expr: Any):
