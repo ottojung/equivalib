@@ -16,20 +16,25 @@ class Super(Generic[W]):
 
     @staticmethod
     def make(t):
-        current_model = equivalib.get_current_model()
+        current_context = equivalib.get_current_context()
+        current_model = current_context.model
+
+        name = current_context.generate_free_name()
 
         base_type = typing.get_origin(t) or t
         args = typing.get_args(t)
         if base_type == BoundedInt:
             low, high = BoundedInt.unpack_type(base_type, args)
-            var = current_model.model.NewIntVar(low, high, 'x')
+            var = current_model.model.NewIntVar(low, high, name)
         elif base_type == bool:
-            var = current_model.model.NewBoolVar(low, high, 'x')
+            var = current_model.model.NewBoolVar(low, high, name)
         else:
             # TODO: extend to dataclasses
             raise ValueError("Only bool and BoundedInt can have Super values")
 
-        return Super(var.Index)
+        ret = Super(var.Index)
+        current_context.assignments[name] = ret
+        return ret
 
 
     def get_var(self: 'Super'):
