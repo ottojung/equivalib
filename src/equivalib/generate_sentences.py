@@ -9,11 +9,7 @@ import equivalib
 def generate_suffixes(t: GeneratorType, ret: List[Sentence]) -> Generator[Sentence, None, None]:
     for prefix in ret:
         if isinstance(t, MaxgreedyType):
-            result = list(equivalib.extend_sentence_maxgreedily(prefix, t.x))
-            if result:
-                yield from result
-            else:
-                yield prefix
+            yield from list(equivalib.extend_sentence_maxgreedily(prefix, t.x))
         else:
             yield from list(equivalib.extend_sentence(prefix, t))
 
