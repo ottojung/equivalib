@@ -68,11 +68,13 @@ def get_subsets(original_set):
     return all_subsets
 
 
-def handle_supers(value: Any) -> Any:
+def handle_supers(p: Tuple[Optional[str], Any]) -> Tuple[Optional[str], Any]:
+    name, value = p
     if isinstance(value, list):
-        return Super.make(value[1])
+        s = Super.make(value[1])
+        return (s.name, s)
     else:
-        return value
+        return (name, value)
 
 
 def generate_from_subset(ctx: Sentence, t: Type, subset) -> Optional[Sentence]:
@@ -80,7 +82,8 @@ def generate_from_subset(ctx: Sentence, t: Type, subset) -> Optional[Sentence]:
 
     with denv.let(sentence = new):
         for named_arguments in subset:
-            arguments = (handle_supers(value) for name, value in named_arguments)
+            renamed_arguments = list(map(handle_supers, named_arguments))
+            arguments = (value for name, value in renamed_arguments)
             try:
                 instance = t(*arguments)
             except AssertionError:
@@ -88,6 +91,7 @@ def generate_from_subset(ctx: Sentence, t: Type, subset) -> Optional[Sentence]:
 
             name = new.generate_free_name()
             new.assignments[name] = instance
+            new.structure[name] = (t, [name or value for name, value in renamed_arguments])
 
     return new
 
