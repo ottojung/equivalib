@@ -71,7 +71,12 @@ class Sentence:
 
     def __str__(self) -> str:
         assignments = []
-        for k, v in sorted(self.structure.items()):
+
+        def sortkey(p: Tuple[str, Any]):
+            k, _v = p
+            return (len(k), k)
+
+        for k, v in sorted(self.structure.items(), key=sortkey):
             (ty, args_names) = v
             if ty in (bool, int):
                 value = ty(args_names[0])
@@ -80,4 +85,5 @@ class Sentence:
                 value = f"{ty.__name__}({args})"
             a = f"{k} = {value}"
             assignments.append(a)
+
         return '; '.join(assignments) + ';'
