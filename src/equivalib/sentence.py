@@ -1,14 +1,14 @@
 ## Copyright (C) 2023  Otto Jung
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from typing import Any, Dict, Type, List, Tuple
+from typing import Any, Dict, Type, List, Tuple, Union
 from dataclasses import dataclass
-from equivalib import SentenceModel, denv
+from equivalib import SentenceModel, denv, Constant
 
 @dataclass
 class Sentence:
     assignments: Dict[str, Any]
-    structure: Dict[str, Tuple[Type, List[str]]]
+    structure: Dict[str, Tuple[Type, List[Union[str, Constant]]]]
     model: SentenceModel
 
 
@@ -50,14 +50,14 @@ class Sentence:
 
 
     @staticmethod
-    def from_structure(structure: Dict[str, Tuple[Type, List[str]]]) -> 'Sentence':
+    def from_structure(structure: Dict[str, Tuple[Type, List[Union[str, Constant]]]]) -> 'Sentence':
         ret = Sentence.empty()
         ret.structure = structure
 
-        def get(name: str):
+        def get(name: str) -> Any:
             if name not in ret.assignments:
                 (ty, args_names) = structure[name]
-                args = [get(name) if name in structure else name for name in args_names]
+                args = [get(name) if isinstance(name, str) else name for name in args_names]
                 ret.assignments[name] = ty(*args)
 
             return ret.assignments[name]
@@ -76,7 +76,7 @@ class Sentence:
             if ty in (bool, int):
                 value = ty(args_names[0])
             else:
-                args = ', '.join(args_names)
+                args = ', '.join(map(str, args_names))
                 value = f"{ty.__name__}({args})"
             a = f"{k} = {value}"
             assignments.append(a)

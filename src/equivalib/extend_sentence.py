@@ -6,7 +6,7 @@ import typing
 from typing import Type, Generator, List, Tuple, Any, Optional, Literal, Union
 import itertools
 import equivalib
-from equivalib import Sentence, BoundedInt, denv, Super
+from equivalib import Sentence, BoundedInt, denv, Super, Constant
 
 
 def generate_field_values(ctx: Sentence,
@@ -91,7 +91,7 @@ def generate_from_subset(ctx: Sentence, t: Type, subset) -> Optional[Sentence]:
 
             name = new.generate_free_name()
             new.assignments[name] = instance
-            new.structure[name] = (t, [name or value for name, value in renamed_arguments])
+            new.structure[name] = (t, [name or Constant(value) for name, value in renamed_arguments])
 
     return new
 
