@@ -215,3 +215,20 @@ def test_super_entangled():
 
     assert len(sentences) == 1
     assert len(sentences[0]) == 3
+
+
+@dataclass(frozen=True)
+class SuperEntangledBoring:
+    a: Super[bool]
+    b: Super[bool]
+
+    def __post_init__(self):
+        assert self.a == True
+
+
+def test_super_entangled_boring():
+    theories = equivalib.generate_sentences([SuperEntangledBoring])
+    sentences = [set(x.assignments.values()) for x in theories]
+
+    assert len(sentences) == 1
+    assert len(sentences[0]) == 3

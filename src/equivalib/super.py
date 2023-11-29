@@ -33,12 +33,11 @@ class Super(Generic[W]):
         current_model = current_sentence.model
         left = current_model.get_variable(self.name)
 
+        assert isinstance(other, (Super, int, bool)), "Only support ints, bools and supervalues"
         if isinstance(other, Super):
             right = other.get_var()
-        elif isinstance(other, int):
+        elif isinstance(other, (int, bool)):
             right = other
-        else:
-            raise ValueError("Only support ints and super ints")
 
         return (current_model, left, right)
 
