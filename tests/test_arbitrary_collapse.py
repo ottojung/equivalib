@@ -4,8 +4,9 @@ import equivalib
 from equivalib import Super
 
 
+# pylint: disable=duplicate-code
 @dataclass
-class SuperEntangled2:
+class SuperEntangled:
     a: Super[bool]
     b: Super[bool]
 
@@ -14,15 +15,15 @@ class SuperEntangled2:
 
 
 def test_super_entangled():
-    theories = equivalib.generate_sentences([SuperEntangled2])
+    theories = equivalib.generate_sentences([SuperEntangled])
 
     assert len(theories) == 1
 
     sentence = equivalib.arbitrary_collapse(theories[0])
     assert sentence.assignments \
-        in [{'a': True, 'b': False, 'c': SuperEntangled2(True, False)},
-            {'a': False, 'b': True, 'c': SuperEntangled2(False, True)}]
+        in [{'a': True, 'b': False, 'c': SuperEntangled(True, False)},
+            {'a': False, 'b': True, 'c': SuperEntangled(False, True)}]
 
     assert str(sentence) \
-        in ('a = True; b = False; c = SuperEntangled2(a, b);',
-            'a = False; b = True; c = SuperEntangled2(a, b);')
+        in ('a = True; b = False; c = SuperEntangled(a, b);',
+            'a = False; b = True; c = SuperEntangled(a, b);')
