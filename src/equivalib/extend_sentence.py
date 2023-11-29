@@ -89,23 +89,20 @@ def handle_supers(ctx, name: Optional[str], value: Any) -> Tuple[Optional[str], 
         return (name, value)
 
 
-def generate_from_subset(ctx: Sentence, t: Type, subset) -> Optional[Sentence]:
-    new = ctx.copy()
-
-    with denv.let(sentence = new):
-        for named_arguments in subset:
-            renamed_arguments = [handle_supers(ctx, k, v) for k, v in named_arguments]
-            arguments = (value for name, value in renamed_arguments)
-            try:
+def add_instances(ctx: Sentence, t: Type, instances) -> bool:
+    with denv.let(sentence = ctx):
+        try:
+            for named_arguments in instances:
+                renamed_arguments = [handle_supers(ctx, k, v) for k, v in named_arguments]
+                arguments = (value for name, value in renamed_arguments)
                 instance = t(*arguments)
-            except AssertionError:
-                return None
 
-            name = new.generate_free_name()
-            new.assignments[name] = instance
-            new.structure[name] = (t, [name or Constant(value) for name, value in renamed_arguments])
-
-    return new
+                name = ctx.generate_free_name()
+                ctx.assignments[name] = instance
+                ctx.structure[name] = (t, [name or Constant(value) for name, value in renamed_arguments])
+        except AssertionError:
+            return False
+    return True
 
 
 def extend_sentence(ctx: Sentence, t: Type) -> Generator[Sentence, None, None]:
@@ -114,6 +111,6 @@ def extend_sentence(ctx: Sentence, t: Type) -> Generator[Sentence, None, None]:
     subsets = get_subsets(inputs)
     for subset in subsets:
         if subset:
-            new = generate_from_subset(ctx, t, subset)
-            if new:
+            new = ctx.copy()
+            if add_instances(new, t, subset):
                 yield new
