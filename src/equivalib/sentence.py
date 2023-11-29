@@ -52,6 +52,7 @@ class Sentence:
     @staticmethod
     def from_structure(structure: Dict[str, Tuple[Type, List[str]]]) -> 'Sentence':
         ret = Sentence.empty()
+        ret.structure = structure
 
         def get(name: str):
             if name not in ret.assignments:
@@ -66,3 +67,17 @@ class Sentence:
                 get(key)
 
         return ret
+
+
+    def __str__(self) -> str:
+        assignments = []
+        for k, v in sorted(self.structure.items()):
+            (ty, args_names) = v
+            if ty in (bool, int):
+                value = ty(args_names[0])
+            else:
+                args = ', '.join(args_names)
+                value = f"{ty.__name__}({args})"
+            a = f"{k} = {value}"
+            assignments.append(a)
+        return '; '.join(assignments) + ';'

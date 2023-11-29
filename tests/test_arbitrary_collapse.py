@@ -22,3 +22,7 @@ def test_super_entangled():
     assert sentence.assignments \
         in [{'a': True, 'b': False, 'c': SuperEntangled2(True, False)},
             {'a': False, 'b': True, 'c': SuperEntangled2(False, True)}]
+
+    assert str(sentence) \
+        in ('a = True; b = False; c = SuperEntangled2(a, b);',
+            'a = False; b = True; c = SuperEntangled2(a, b);')
