@@ -20,5 +20,5 @@ def test_super_entangled():
 
     sentence = equivalib.arbitrary_collapse(theories[0])
     assert sentence.assignments \
-        in [{'a': 1, 'b': 0, 'c': SuperEntangled2(1, 0)},
-            {'a': 0, 'b': 1, 'c': SuperEntangled2(0, 1)}]
+        in [{'a': True, 'b': False, 'c': SuperEntangled2(True, False)},
+            {'a': False, 'b': True, 'c': SuperEntangled2(False, True)}]
