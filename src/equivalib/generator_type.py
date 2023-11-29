@@ -10,4 +10,9 @@ class MaxgreedyType:
     x: Type
 
 
-GeneratorType = Union[Type, MaxgreedyType]
+@dataclass(frozen=True)
+class GreedyType:
+    x: Type
+
+
+GeneratorType = Union[Type, GreedyType, MaxgreedyType]

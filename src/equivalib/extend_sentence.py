@@ -126,3 +126,15 @@ def extend_sentence_maxgreedily(ctx: Sentence, t: Type) -> Generator[Sentence, N
             ctx = new
 
     yield ctx
+
+
+def extend_sentence_greedily(ctx: Sentence, t: Type) -> Generator[Sentence, None, None]:
+    pointwise = generate_instances_fields(ctx, t)
+    inputs = list(itertools.product(*pointwise))
+
+    yield ctx
+    for inp in inputs:
+        new = ctx.copy()
+        if add_instances(new, t, [inp]):
+            yield new
+            ctx = new
