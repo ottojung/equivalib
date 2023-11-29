@@ -47,3 +47,21 @@ class Sentence:
             candidate = next_alpha_name(candidate)
 
         return candidate
+
+
+    @staticmethod
+    def from_structure(structure: Dict[str, Tuple[Type, List[str]]]) -> 'Sentence':
+        ret = Sentence.empty()
+
+        def get(name: str):
+            if name not in ret.assignments:
+                (ty, args_names) = structure[name]
+                args = [get(name) if name in structure else name for name in args_names]
+                ret.assignments[name] = ty(*args)
+
+            return ret.assignments[name]
+
+        for key in structure:
+            get(key)
+
+        return ret
