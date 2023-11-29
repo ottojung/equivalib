@@ -2,9 +2,18 @@
 from dataclasses import dataclass
 from typing import Literal, Union
 import os
+import random
 import pytest
 import equivalib
-from equivalib import Super, BoundedInt
+from equivalib import Super, BoundedInt, MaxgreedyType
+
+
+# Define the fixture to fix the random seed
+@pytest.fixture(scope='function', autouse=True)
+def fixed_random_seed():
+    random.seed(42)
+    yield
+    random.seed()
 
 
 # pylint: disable=duplicate-code
@@ -191,13 +200,107 @@ def test_super_compound():
     theories = equivalib.generate_sentences([Interval2, SuperOverlap])
     strings = list(map(str, map(equivalib.arbitrary_collapse, theories)))
 
+    assert len(theories) == 3
     dedup = list(set(strings))
     assert len(dedup) == len(strings)
     assert sorted(dedup) == sorted(strings)
 
     assert strings in \
-        (["a = 1; b = 2; c = Interval2('A', a, b); d = c; e = c; f = SuperOverlap(d, e);", "a = 1; b = 2; c = Interval2('B', a, b); d = c; e = c; f = SuperOverlap(d, e);", "a = 1; b = 2; c = Interval2('A', a, b); d = 1; e = 2; f = Interval2('B', d, e); g = c; h = c; i = SuperOverlap(g, h);"],
-         ["a = 1; b = 2; c = Interval2('A', a, b); d = c; e = c; f = SuperOverlap(d, e);", "a = 1; b = 2; c = Interval2('B', a, b); d = c; e = c; f = SuperOverlap(d, e);", "a = 1; b = 2; c = Interval2('A', a, b); d = 1; e = 2; f = Interval2('B', d, e); g = c; h = f; i = SuperOverlap(g, h);"],
-         ["a = 1; b = 2; c = Interval2('A', a, b); d = c; e = c; f = SuperOverlap(d, e);", "a = 1; b = 2; c = Interval2('B', a, b); d = c; e = c; f = SuperOverlap(d, e);", "a = 1; b = 2; c = Interval2('A', a, b); d = 1; e = 2; f = Interval2('B', d, e); g = f; h = c; i = SuperOverlap(g, h);"],
-         ["a = 1; b = 2; c = Interval2('A', a, b); d = c; e = c; f = SuperOverlap(d, e);", "a = 1; b = 2; c = Interval2('B', a, b); d = c; e = c; f = SuperOverlap(d, e);", "a = 1; b = 2; c = Interval2('A', a, b); d = 1; e = 2; f = Interval2('B', d, e); g = f; h = f; i = SuperOverlap(g, h);"],
+        (["a = 1; b = 2; c = Interval2('A', a, b); d = c; e = c; f = SuperOverlap(d, e);",
+          "a = 1; b = 2; c = Interval2('B', a, b); d = c; e = c; f = SuperOverlap(d, e);",
+          "a = 1; b = 2; c = Interval2('A', a, b); d = 1; e = 2; f = Interval2('B', d, e); g = c; h = c; i = SuperOverlap(g, h);"],
+         ["a = 1; b = 2; c = Interval2('A', a, b); d = c; e = c; f = SuperOverlap(d, e);",
+          "a = 1; b = 2; c = Interval2('B', a, b); d = c; e = c; f = SuperOverlap(d, e);",
+          "a = 1; b = 2; c = Interval2('A', a, b); d = 1; e = 2; f = Interval2('B', d, e); g = c; h = f; i = SuperOverlap(g, h);"],
+         ["a = 1; b = 2; c = Interval2('A', a, b); d = c; e = c; f = SuperOverlap(d, e);",
+          "a = 1; b = 2; c = Interval2('B', a, b); d = c; e = c; f = SuperOverlap(d, e);",
+          "a = 1; b = 2; c = Interval2('A', a, b); d = 1; e = 2; f = Interval2('B', d, e); g = f; h = c; i = SuperOverlap(g, h);"],
+         ["a = 1; b = 2; c = Interval2('A', a, b); d = c; e = c; f = SuperOverlap(d, e);",
+          "a = 1; b = 2; c = Interval2('B', a, b); d = c; e = c; f = SuperOverlap(d, e);",
+          "a = 1; b = 2; c = Interval2('A', a, b); d = 1; e = 2; f = Interval2('B', d, e); g = f; h = f; i = SuperOverlap(g, h);"],
          )
+
+
+
+@dataclass(frozen=True)
+class SuperOverlap2:
+    a: Super[Interval2]
+    b: Super[Interval2]
+
+
+def test_super_compound_2():
+    theories = equivalib.generate_sentences([Interval2, SuperOverlap, SuperOverlap2])
+    strings = list(map(str, map(equivalib.arbitrary_collapse, theories)))
+
+    assert len(theories) == 3
+    dedup = list(set(strings))
+    assert len(dedup) == len(strings)
+    assert sorted(dedup) == sorted(strings)
+
+    assert strings \
+        == ["a = 1; b = 2; c = Interval2('A', a, b); d = c; e = c; f = SuperOverlap(d, e); g = c; h = c; i = SuperOverlap2(g, h);",
+            "a = 1; b = 2; c = Interval2('B', a, b); d = c; e = c; f = SuperOverlap(d, e); g = c; h = c; i = SuperOverlap2(g, h);",
+            "a = 1; b = 2; c = Interval2('A', a, b); d = 1; e = 2; f = Interval2('B', d, e); g = f; h = c; i = SuperOverlap(g, h); j = c; k = c; l = SuperOverlap2(j, k);"]
+
+
+@dataclass(frozen=True)
+class Then:
+    a: Interval3
+    b: Interval3
+
+    def __post_init__(self):
+        assert self.a.y < self.b.x
+
+
+@dataclass(frozen=True)
+class Tangent:
+    a: Interval3
+    b: Interval3
+
+    def __post_init__(self):
+        assert self.a.y == self.b.x
+
+
+@dataclass(frozen=True)
+class Kissing:
+    a: Interval3
+    b: Interval3
+
+    def __post_init__(self):
+        if isinstance(self.a.y, int):
+            return
+
+        model, left, right = self.a.y.to_left_right(self.b.x)
+        model.add(left + 1 == right)
+        assert model.check_satisfiability()
+
+
+@pytest.mark.skipif(not os.getenv('CI'), reason="This test takes too long, it is for CI only")
+def test_super_compound_3():
+    theories = equivalib.generate_sentences([Interval3, Then, Tangent, Kissing])
+    assert len(theories) == 54
+
+
+def test_super_compound_maxgreedy1():
+    theories = equivalib.generate_sentences([MaxgreedyType(Interval3), MaxgreedyType(Then)])
+    strings = list(map(str, map(equivalib.arbitrary_collapse, theories)))
+
+    assert len(theories) == 1
+    dedup = list(set(strings))
+    assert len(dedup) == len(strings)
+    assert sorted(dedup) == sorted(strings)
+    assert strings \
+        == ["a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = 8; h = 9; i = Interval3('C', g, h); j = Then(c, f); k = Then(c, i); l = Then(f, i);"]
+
+
+def test_super_compound_maxgreedy2():
+    theories = equivalib.generate_sentences([MaxgreedyType(Interval3), MaxgreedyType(Then),
+                                             MaxgreedyType(Tangent), MaxgreedyType(Kissing)])
+    strings = list(map(str, map(equivalib.arbitrary_collapse, theories)))
+
+    assert len(theories) == 1
+    dedup = list(set(strings))
+    assert len(dedup) == len(strings)
+    assert sorted(dedup) == sorted(strings)
+    assert strings \
+        == ["a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 7; f = Interval3('B', d, e); g = 8; h = 9; i = Interval3('C', g, h); j = Then(c, f); k = Then(c, i); l = Then(f, i); m = Kissing(c, f); n = Kissing(f, i);"]

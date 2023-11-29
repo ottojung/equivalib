@@ -4,6 +4,7 @@ from .dynamic import *
 from .constant import *
 from .link import *
 from .bounded_int import *
+from .generator_type import *
 from .partially_order import *
 from .read_type_information import *
 from .get_types_hierarchy import *

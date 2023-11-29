@@ -89,7 +89,7 @@ def handle_supers(ctx, name: Optional[str], value: Any) -> Tuple[Optional[str], 
         return (name, value)
 
 
-def add_instances(ctx: Sentence, t: Type, instances) -> bool:
+def add_instances(ctx: Sentence, t: Type, instances: List[Tuple[Optional[str], Any]]) -> bool:
     with denv.let(sentence = ctx):
         try:
             for named_arguments in instances:
@@ -114,3 +114,18 @@ def extend_sentence(ctx: Sentence, t: Type) -> Generator[Sentence, None, None]:
             new = ctx.copy()
             if add_instances(new, t, subset):
                 yield new
+
+
+def extend_sentence_maxgreedily(ctx: Sentence, t: Type) -> Generator[Sentence, None, None]:
+    pointwise = generate_instances_fields(ctx, t)
+    inputs = list(itertools.product(*pointwise))
+
+    found = False
+    for inp in inputs:
+        new = ctx.copy()
+        if add_instances(new, t, [inp]):
+            found = True
+            ctx = new
+
+    if found:
+        yield ctx

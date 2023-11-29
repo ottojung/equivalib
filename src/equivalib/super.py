@@ -28,7 +28,7 @@ class Super(Generic[W]):
         return var
 
 
-    def _to_left_right(self, other: Any) -> Tuple[equivalib.SentenceModel, Any, Any]:
+    def to_left_right(self, other: Any) -> Tuple[equivalib.SentenceModel, Any, Any]:
         current_sentence = equivalib.get_current_sentence()
         current_model = current_sentence.model
         left = current_model.get_variable(self.name)
@@ -43,36 +43,36 @@ class Super(Generic[W]):
 
 
     def __lt__(self, other: Any) -> bool:
-        model, left, right = self._to_left_right(other)
+        model, left, right = self.to_left_right(other)
         model.add(left < right)
         return model.check_satisfiability()
 
 
     def __gt__(self, other: Any) -> bool:
-        model, left, right = self._to_left_right(other)
+        model, left, right = self.to_left_right(other)
         model.add(left > right)
         return model.check_satisfiability()
 
 
     def __le__(self, other: Any) -> bool:
-        model, left, right = self._to_left_right(other)
+        model, left, right = self.to_left_right(other)
         model.add(left <= right)
         return model.check_satisfiability()
 
 
     def __ge__(self, other: Any) -> bool:
-        model, left, right = self._to_left_right(other)
+        model, left, right = self.to_left_right(other)
         model.add(left >= right)
         return model.check_satisfiability()
 
 
     def __eq__(self, other: Any) -> bool:
-        model, left, right = self._to_left_right(other)
+        model, left, right = self.to_left_right(other)
         model.add(left == right)
         return model.check_satisfiability()
 
 
     def __ne__(self, other: Any) -> bool:
-        model, left, right = self._to_left_right(other)
+        model, left, right = self.to_left_right(other)
         model.add(left != right)
         return model.check_satisfiability()
