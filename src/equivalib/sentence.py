@@ -3,7 +3,7 @@
 
 from typing import Any, Dict, Type, List, Tuple
 from dataclasses import dataclass
-from equivalib import SentenceModel
+from equivalib import SentenceModel, denv
 
 @dataclass
 class Sentence:
@@ -61,7 +61,8 @@ class Sentence:
 
             return ret.assignments[name]
 
-        for key in structure:
-            get(key)
+        with denv.let(sentence = ret):
+            for key in structure:
+                get(key)
 
         return ret
