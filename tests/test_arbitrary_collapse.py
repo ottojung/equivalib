@@ -400,3 +400,51 @@ def test_super_compound_greedy_maxgreedy1():
             "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = 8; h = 9; i = Interval3('C', g, h); j = Then(c, f); k = Then(c, i); l = Then(f, i);",
             "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = 8; h = 9; i = Interval3('C', g, h); j = Then(c, f); k = Then(c, i); l = Then(f, i); m = Kissing(c, f);",
             "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 7; f = Interval3('B', d, e); g = 8; h = 9; i = Interval3('C', g, h); j = Then(c, f); k = Then(c, i); l = Then(f, i); m = Kissing(c, f); n = Kissing(f, i);"]
+
+
+@dataclass(frozen=True)
+class IntervalMany:
+    name: Union[Literal["A"], Literal["B"], Literal["C"], Literal["D"], Literal["E"], Literal["F"], Literal["G"], Literal["H"]]
+    x: Super[BoundedInt[Literal[1], Literal[9]]]
+    y: Super[BoundedInt[Literal[1], Literal[9]]]
+
+    def __post_init__(self):
+        assert self.y > self.x
+
+
+@dataclass(frozen=True)
+class ThenMany:
+    a: IntervalMany
+    b: IntervalMany
+
+    def __post_init__(self):
+        assert self.a.y < self.b.x
+
+
+@dataclass(frozen=True)
+class TangentMany:
+    a: IntervalMany
+    b: IntervalMany
+
+    def __post_init__(self):
+        assert self.a.y == self.b.x
+
+
+@dataclass(frozen=True)
+class KissingMany:
+    a: IntervalMany
+    b: IntervalMany
+
+    def __post_init__(self):
+        if isinstance(self.a.y, int):
+            return
+
+        model, left, right = self.a.y.to_left_right(self.b.x)
+        model.add(left + 1 == right)
+        assert model.check_satisfiability()
+
+
+@pytest.mark.skipif(not os.getenv('CI'), reason="This test takes too long, it is for CI only")
+def test_super_compound_manygreedy_maxgreedy1():
+    theories = equivalib.generate_sentences([MaxgreedyType(IntervalMany), GreedyType(ThenMany), GreedyType(TangentMany), GreedyType(KissingMany)])
+    assert len(theories) == 1261
