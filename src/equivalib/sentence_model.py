@@ -3,14 +3,14 @@
 
 from dataclasses import dataclass
 import typing
-from typing import Optional, Any, Dict, Type, Tuple
+from typing import Optional, Any, Dict, Type, Tuple, List, Union
 from ortools.sat.python import cp_model
 from equivalib import BoundedInt
 
 @dataclass
 class SentenceModel:
     _model: Optional[cp_model.CpModel]
-    _names: Dict[str, Tuple[int, Type]]
+    _names: Dict[str, Tuple[Type, Union[int, List[Any]]]]
 
 
     @staticmethod
@@ -25,34 +25,34 @@ class SentenceModel:
             return SentenceModel(self._model.Clone(), self._names.copy())
 
 
-    def add_variable(self, name: str, t: Type):
+    def add_variable(self, name: str, t: Type, arg: List[Any]):
         base_type = typing.get_origin(t) or t
         args = typing.get_args(t)
 
-        # TODO: extend to dataclasses and Union's
-        assert base_type in (BoundedInt, bool), f"Only bool and BoundedInt can have Super values, got {base_type!r}"
         if base_type == BoundedInt:
             low, high = BoundedInt.unpack_type(base_type, args)
             var = self.model.NewIntVar(low, high, name)
         elif base_type == bool:
             var = self.model.NewBoolVar(name)
+        else:
+            var = None
 
-        index = var.Index()
-        self._names[name] = (index, base_type)
+        vals = var.Index() if len(arg) == 0 else arg
+        self._names[name] = (base_type, vals)
 
 
     def get_variable(self, name: str):
-        (index, base_type) = self._names[name]
-        assert base_type in (BoundedInt, bool)
+        (base_type, arg) = self._names[name]
         if base_type == BoundedInt:
-            var = self.model.GetIntVarFromProtoIndex(index)
+            return self.model.GetIntVarFromProtoIndex(arg)
         elif base_type == bool:
-            var = self.model.GetBoolVarFromProtoIndex(index)
-        return var
+            return self.model.GetBoolVarFromProtoIndex(arg)
+        else:
+            return arg
 
 
     def get_super_type(self, name: str) -> Type:
-        (_index, base_type) = self._names[name]
+        (base_type, _arg) = self._names[name]
         if base_type == BoundedInt:
             return int
         else:

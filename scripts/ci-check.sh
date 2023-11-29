@@ -3,6 +3,6 @@
 set -e
 set -x
 
-pytest -s -v --cov=./src
 mypy
+pytest -s -v --cov=./src
 pylint ./src/ ./tests/

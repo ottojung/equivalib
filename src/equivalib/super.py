@@ -2,7 +2,7 @@
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from dataclasses import dataclass
-from typing import TypeVar, Generic, Any, Tuple
+from typing import TypeVar, Generic, Any, Tuple, List, Type
 import equivalib
 
 W = TypeVar('W')
@@ -13,10 +13,10 @@ class Super(Generic[W]):
 
 
     @staticmethod
-    def make(t):
+    def make(t: Type, arg: List[Any]):
         current_sentence = equivalib.get_current_sentence()
-        name = current_sentence.add_super_variable(t)
-        ret = Super(name)
+        name = current_sentence.add_super_variable(t, arg)
+        ret: Super = Super(name)
         current_sentence.assignments[name] = ret
         return ret
 

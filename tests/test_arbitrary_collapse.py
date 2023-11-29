@@ -179,3 +179,25 @@ def test_3_overlaping_intervals():
             "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(i, c); k = Overlap3(i, f);",
             "a = 1; b = 3; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(c, f); k = Overlap3(i, c); l = Overlap3(i, f);",
             "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 3; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(f, c); k = Overlap3(i, c); l = Overlap3(i, f);"]
+
+
+@dataclass(frozen=True)
+class SuperOverlap:
+    a: Super[Interval2]
+    b: Super[Interval2]
+
+
+def test_super_compound():
+    theories = equivalib.generate_sentences([Interval2, SuperOverlap])
+    strings = list(map(str, map(equivalib.arbitrary_collapse, theories)))
+
+    dedup = list(set(strings))
+    assert len(dedup) == len(strings)
+    assert sorted(dedup) == sorted(strings)
+
+    assert strings in \
+        (["a = 1; b = 2; c = Interval2('A', a, b); d = c; e = c; f = SuperOverlap(d, e);", "a = 1; b = 2; c = Interval2('B', a, b); d = c; e = c; f = SuperOverlap(d, e);", "a = 1; b = 2; c = Interval2('A', a, b); d = 1; e = 2; f = Interval2('B', d, e); g = c; h = c; i = SuperOverlap(g, h);"],
+         ["a = 1; b = 2; c = Interval2('A', a, b); d = c; e = c; f = SuperOverlap(d, e);", "a = 1; b = 2; c = Interval2('B', a, b); d = c; e = c; f = SuperOverlap(d, e);", "a = 1; b = 2; c = Interval2('A', a, b); d = 1; e = 2; f = Interval2('B', d, e); g = c; h = f; i = SuperOverlap(g, h);"],
+         ["a = 1; b = 2; c = Interval2('A', a, b); d = c; e = c; f = SuperOverlap(d, e);", "a = 1; b = 2; c = Interval2('B', a, b); d = c; e = c; f = SuperOverlap(d, e);", "a = 1; b = 2; c = Interval2('A', a, b); d = 1; e = 2; f = Interval2('B', d, e); g = f; h = c; i = SuperOverlap(g, h);"],
+         ["a = 1; b = 2; c = Interval2('A', a, b); d = c; e = c; f = SuperOverlap(d, e);", "a = 1; b = 2; c = Interval2('B', a, b); d = c; e = c; f = SuperOverlap(d, e);", "a = 1; b = 2; c = Interval2('A', a, b); d = 1; e = 2; f = Interval2('B', d, e); g = f; h = f; i = SuperOverlap(g, h);"],
+         )

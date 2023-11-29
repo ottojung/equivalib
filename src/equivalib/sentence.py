@@ -3,7 +3,7 @@
 
 from typing import Any, Dict, Type, List, Tuple, Union
 from dataclasses import dataclass
-from equivalib import SentenceModel, denv, Constant
+from equivalib import SentenceModel, denv, Constant, Link
 
 @dataclass
 class Sentence:
@@ -21,9 +21,9 @@ class Sentence:
         return Sentence(self.assignments.copy(), self.structure.copy(), self.model.copy())
 
 
-    def add_super_variable(self, t: Type) -> str:
+    def add_super_variable(self, t: Type, arg: List[Any]) -> str:
         name = self.generate_free_name()
-        self.model.add_variable(name, t)
+        self.model.add_variable(name, t, arg)
         return name
 
 
@@ -78,8 +78,8 @@ class Sentence:
 
         for k, v in sorted(self.structure.items(), key=sortkey):
             (ty, args_names) = v
-            if ty in (bool, int):
-                value = ty(args_names[0])
+            if ty in (bool, int, Link):
+                value = repr(ty(args_names[0]))
             else:
                 args = ', '.join(map(str, args_names))
                 value = f"{ty.__name__}({args})"

@@ -10,7 +10,6 @@ from equivalib import Sentence, BoundedInt, denv, Super, Constant
 
 
 def generate_field_values(ctx: Sentence,
-                          name: str,
                           t: Type) \
                           -> Generator[Tuple[Optional[str], Any], None, None]:
     base_type = typing.get_origin(t) or t
@@ -20,31 +19,38 @@ def generate_field_values(ctx: Sentence,
         assert len(args) == 0
         yield (None, False)
         yield (None, True)
+
     elif base_type == Literal:
         assert len(args) == 1
         yield (None, args[0])
+
     elif base_type == Union:
         assert len(args) > 0
         for arg in args:
-            yield from generate_field_values(ctx, name, arg)
+            yield from generate_field_values(ctx, arg)
+
     elif base_type == Super:
         assert len(args) == 1
-        yield (None, [base_type, args[0]])
+        parameter = args[0]
+        yield (None, [base_type, parameter])
+
     elif base_type == BoundedInt:
         assert len(args) == 2
         low, high = BoundedInt.unpack_type(base_type, args)
         for i in range(low, high + 1):
             yield (None, i)
+
     elif is_dataclass(base_type):
         yield from ((k, v) for (k, v) in ctx.assignments.items() if isinstance(v, t))
+
     else:
         raise ValueError(f"Cannot generate values of type {t!r}.")
 
 
 def generate_instances_fields(ctx: Sentence, t: Type) -> Generator[List[Tuple[Optional[str], Any]], None, None]:
     information = equivalib.read_type_information(t)
-    for field, type_signature in information.items():
-        yield list(generate_field_values(ctx, field, type_signature))
+    for type_signature in information.values():
+        yield list(generate_field_values(ctx, type_signature))
 
 
 def get_subsets(original_set):
@@ -68,10 +74,16 @@ def get_subsets(original_set):
     return all_subsets
 
 
-def handle_supers(p: Tuple[Optional[str], Any]) -> Tuple[Optional[str], Any]:
-    name, value = p
+def handle_supers(ctx, name: Optional[str], value: Any) -> Tuple[Optional[str], Any]:
     if isinstance(value, list):
-        s = Super.make(value[1])
+        parameter = value[1]
+        parameter_base = typing.get_origin(parameter) or parameter
+        if parameter_base in (BoundedInt, bool):
+            arg = []
+        else:
+            arg = list(generate_field_values(ctx, parameter))
+
+        s = Super.make(parameter, arg)
         return (s.name, s)
     else:
         return (name, value)
@@ -82,7 +94,7 @@ def generate_from_subset(ctx: Sentence, t: Type, subset) -> Optional[Sentence]:
 
     with denv.let(sentence = new):
         for named_arguments in subset:
-            renamed_arguments = list(map(handle_supers, named_arguments))
+            renamed_arguments = [handle_supers(ctx, k, v) for k, v in named_arguments]
             arguments = (value for name, value in renamed_arguments)
             try:
                 instance = t(*arguments)
