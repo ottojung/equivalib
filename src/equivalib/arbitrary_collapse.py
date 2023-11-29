@@ -16,6 +16,7 @@ def arbitrary_collapse(self: Sentence) -> Sentence:
             if isinstance(v, Super):
                 var = v.get_var()
                 val = solver.Value(var)
-                struct[k] = (int, [val])
+                ty = self.model.get_super_type(v.name)
+                struct[k] = (ty, [val])
 
     return Sentence.from_structure(struct)

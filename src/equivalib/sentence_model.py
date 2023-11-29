@@ -51,6 +51,14 @@ class SentenceModel:
         return var
 
 
+    def get_super_type(self, name: str) -> Type:
+        (_index, base_type) = self._names[name]
+        if base_type == BoundedInt:
+            return int
+        else:
+            return base_type
+
+
     def add(self, expr: Any):
         self.model.Add(expr)
 
