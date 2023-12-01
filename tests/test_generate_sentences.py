@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Tuple, Literal, Union
 import pytest
 import equivalib
-from equivalib import BoundedInt, Super
+from equivalib import BoundedInt, Super, MaxgreedyType
 
 
 @dataclass(frozen=True)
@@ -217,7 +217,7 @@ def test_super_entangled():
     assert len(sentences[0]) == 3
 
 
-@dataclass(frozen=True)
+@dataclass
 class SuperEntangledBoring:
     a: Super[bool]
     b: Super[bool]
@@ -228,7 +228,39 @@ class SuperEntangledBoring:
 
 def test_super_entangled_boring():
     theories = equivalib.generate_sentences([SuperEntangledBoring])
-    sentences = [set(x.assignments.values()) for x in theories]
+    sentences = [list(x.assignments.values()) for x in theories]
 
     assert len(sentences) == 1
     assert len(sentences[0]) == 3
+
+
+@dataclass
+class Fizz:
+    n: BoundedInt[Literal[1], Literal[100]]
+
+    def __post_init__(self):
+        assert self.n % 3 == 0
+
+
+@dataclass
+class Buzz:
+    n: BoundedInt[Literal[1], Literal[100]]
+
+    def __post_init__(self):
+        assert self.n % 5 == 0
+
+
+@dataclass
+class FizzBuzz:
+    n: BoundedInt[Literal[1], Literal[100]]
+
+    def __post_init__(self):
+        assert self.n % 5 == 0
+        assert self.n % 3 == 0
+
+
+def test_fizzbuzz():
+    theories = equivalib.generate_sentences([MaxgreedyType(Fizz), MaxgreedyType(Buzz), MaxgreedyType(FizzBuzz)])
+    sentences = [str(x) for x in theories]
+    assert len(sentences) == 1
+    assert len(theories[0].assignments) == 59
