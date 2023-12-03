@@ -3,7 +3,7 @@
 
 import random
 from ortools.sat.python import cp_model
-from equivalib import Super, Sentence, denv, Link
+from equivalib import Super, Sentence, denv, Link, Constant
 
 
 def arbitrary_collapse(self: Sentence) -> Sentence:
@@ -18,7 +18,8 @@ def arbitrary_collapse(self: Sentence) -> Sentence:
                 var = v.get_var()
                 if isinstance(var, list):
                     ty = Link
-                    val = random.choice(var)
+                    chosen_name, chosen_value = random.choice(var)
+                    val = chosen_name or Constant(chosen_value)
                 else:
                     val = solver.Value(var)
                     ty = self.model.get_super_type(v.name)
