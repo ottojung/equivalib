@@ -3,7 +3,7 @@
 
 from dataclasses import is_dataclass
 import typing
-from typing import Type, Generator, List, Tuple, Any, Optional, Literal, Union
+from typing import Type, Generator, List, Tuple, Any, Optional, Literal, Union, Iterable
 import itertools
 import equivalib
 from equivalib import Sentence, BoundedInt, denv, Super, Constant
@@ -89,17 +89,23 @@ def handle_supers(ctx, name: Optional[str], value: Any) -> Tuple[Optional[str], 
         return (name, value)
 
 
-def add_instances(ctx: Sentence, t: Type, instances: List[Tuple[Optional[str], Any]]) -> bool:
+def make_instance(ctx, t: Type, renamed_arguments: Iterable[Tuple[Optional[str], Union[str, Constant]]]) -> None:
+    struct = (t, tuple(name or Constant(value) for name, value in renamed_arguments))
+    if struct in ctx.reverse:
+        return
+
+    name = ctx.generate_free_name()
+    arguments = (value for name, value in renamed_arguments)
+    instance = t(*arguments)
+    ctx.insert_value(name, instance, struct)
+
+
+def add_instances(ctx: Sentence, t: Type, instances: Iterable[Tuple[Optional[str], Any]]) -> bool:
     with denv.let(sentence = ctx):
         try:
             for named_arguments in instances:
                 renamed_arguments = [handle_supers(ctx, k, v) for k, v in named_arguments]
-                arguments = (value for name, value in renamed_arguments)
-                instance = t(*arguments)
-
-                name = ctx.generate_free_name()
-                struct = (t, tuple(name or Constant(value) for name, value in renamed_arguments))
-                ctx.insert_value(name, instance, struct)
+                make_instance(ctx, t, renamed_arguments)
         except AssertionError:
             return False
     return True
