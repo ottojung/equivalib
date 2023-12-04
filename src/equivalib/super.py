@@ -17,7 +17,8 @@ class Super(Generic[W]):
         current_sentence = equivalib.get_current_sentence()
         name = current_sentence.add_super_variable(t, arg)
         ret: Super = Super(name)
-        current_sentence.assignments[name] = ret
+        struct = (Super, tuple([name]))
+        current_sentence.insert_value(name, ret, struct)
         return ret
 
 
