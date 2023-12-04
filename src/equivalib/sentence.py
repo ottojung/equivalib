@@ -5,20 +5,31 @@ from typing import Any, Dict, Type, List, Tuple, Union
 from dataclasses import dataclass
 from equivalib import SentenceModel, denv, Constant, Link
 
+
+Structure = Tuple[Type, Tuple[Union[str, Constant], ...]]
+
+
 @dataclass
 class Sentence:
     assignments: Dict[str, Any]
-    structure: Dict[str, Tuple[Type, List[Union[str, Constant]]]]
+    structure: Dict[str, Structure]
+    reverse: Dict[Structure, Union[str, Tuple[str]]]
     model: SentenceModel
 
 
     @staticmethod
     def empty() -> 'Sentence':
-        return Sentence({}, {}, SentenceModel.empty())
+        return Sentence({}, {}, {}, SentenceModel.empty())
 
 
     def copy(self) -> 'Sentence':
-        return Sentence(self.assignments.copy(), self.structure.copy(), self.model.copy())
+        return Sentence(self.assignments.copy(), self.structure.copy(), self.reverse.copy(), self.model.copy())
+
+
+    def insert_value(self, name: str, value: Any, struct: Structure) -> None:
+        self.assignments[name] = value
+        self.structure[name] = struct
+        self.reverse[struct] = name
 
 
     def add_super_variable(self, t: Type, arg: List[Any]) -> str:
@@ -50,7 +61,7 @@ class Sentence:
 
 
     @staticmethod
-    def from_structure(structure: Dict[str, Tuple[Type, List[Union[str, Constant]]]]) -> 'Sentence':
+    def from_structure(structure: Dict[str, Structure]) -> 'Sentence':
         ret = Sentence.empty()
         ret.structure = structure
 

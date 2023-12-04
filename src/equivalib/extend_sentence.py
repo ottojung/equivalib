@@ -98,8 +98,8 @@ def add_instances(ctx: Sentence, t: Type, instances: List[Tuple[Optional[str], A
                 instance = t(*arguments)
 
                 name = ctx.generate_free_name()
-                ctx.assignments[name] = instance
-                ctx.structure[name] = (t, [name or Constant(value) for name, value in renamed_arguments])
+                struct = (t, tuple(name or Constant(value) for name, value in renamed_arguments))
+                ctx.insert_value(name, instance, struct)
         except AssertionError:
             return False
     return True

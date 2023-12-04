@@ -23,6 +23,6 @@ def arbitrary_collapse(self: Sentence) -> Sentence:
                 else:
                     val = solver.Value(var)
                     ty = self.model.get_super_type(v.name)
-                struct[k] = (ty, [val])
+                struct[k] = (ty, tuple([val]))
 
     return Sentence.from_structure(struct)
