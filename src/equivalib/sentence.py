@@ -13,7 +13,7 @@ Structure = Tuple[Type, Tuple[Union[str, Constant], ...]]
 class Sentence:
     assignments: Dict[str, Any]
     structure: Dict[str, Structure]
-    reverse: Dict[Structure, Union[str, Tuple[str]]]
+    reverse: Dict[Structure, Union[str, List[str]]]
     model: SentenceModel
 
 
@@ -29,7 +29,14 @@ class Sentence:
     def insert_value(self, name: str, value: Any, struct: Structure) -> None:
         self.assignments[name] = value
         self.structure[name] = struct
-        self.reverse[struct] = name
+        if struct in self.reverse:
+            existing = self.reverse[struct]
+            if isinstance(existing, str):
+                self.reverse[struct] = [existing, name]
+            else:
+                existing.append(name)
+        else:
+            self.reverse[struct] = name
 
 
     def add_super_variable(self, t: Type, arg: List[Any]) -> str:
@@ -69,7 +76,8 @@ class Sentence:
             if name not in ret.assignments:
                 (ty, args_names) = structure[name]
                 args = [get(name) if isinstance(name, str) else name for name in args_names]
-                ret.assignments[name] = ty(*args)
+                struct = (ty, args_names)
+                ret.insert_value(name, ty(*args), struct)
 
             return ret.assignments[name]
 
