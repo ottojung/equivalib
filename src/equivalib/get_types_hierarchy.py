@@ -2,13 +2,14 @@
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import typing
-from typing import Set, Type, Iterable, Generator
+from typing import Set, Iterable, Generator
 import equivalib
+from equivalib import MyType
 
-def get_types_hierarchy(types: Iterable[Type]) -> Generator[Set[Type], None, None]:
+def get_types_hierarchy(types: Iterable[MyType]) -> Generator[Set[MyType], None, None]:
     before = {}
 
-    def get_all_types(t: Type) -> Generator[Type, None, None]:
+    def get_all_types(t: MyType) -> Generator[MyType, None, None]:
         base = typing.get_origin(t)
         args = typing.get_args(t)
         if args:

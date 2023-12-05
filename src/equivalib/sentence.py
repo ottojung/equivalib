@@ -1,12 +1,12 @@
 ## Copyright (C) 2023  Otto Jung
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from typing import Dict, Type, List, Tuple, Union, Sequence
+from typing import Dict, List, Tuple, Union, Sequence
 from dataclasses import dataclass
-from equivalib import SentenceModel, denv, Constant, Link
+from equivalib import SentenceModel, denv, Constant, Link, MyType
 
 
-Structure = Tuple[Type, Tuple[Union[str, Constant], ...]]
+Structure = Tuple[MyType, Tuple[Union[str, Constant], ...]]
 
 
 @dataclass
@@ -39,7 +39,7 @@ class Sentence:
             self.reverse[struct] = name
 
 
-    def add_super_variable(self, t: Type, arg: Sequence[object]) -> str:
+    def add_super_variable(self, t: MyType, arg: Sequence[object]) -> str:
         name = self.generate_free_name()
         self.model.add_variable(name, t, arg)
         return name

@@ -5,7 +5,7 @@ import os
 import random
 import pytest
 import equivalib
-from equivalib import Super, BoundedInt, MaxgreedyType, GreedyType
+from equivalib import Super, BoundedInt, MaxgreedyMyType, GreedyMyType
 
 
 # Define the fixture to fix the random seed
@@ -282,7 +282,7 @@ def test_super_compound_3():
 
 
 def test_super_compound_maxgreedy1():
-    theories = equivalib.generate_sentences([MaxgreedyType(Interval3), MaxgreedyType(Then)])
+    theories = equivalib.generate_sentences([MaxgreedyMyType(Interval3), MaxgreedyMyType(Then)])
     strings = list(map(str, map(equivalib.arbitrary_collapse, theories)))
 
     assert len(theories) == 1
@@ -294,8 +294,8 @@ def test_super_compound_maxgreedy1():
 
 
 def test_super_compound_maxgreedy2():
-    theories = equivalib.generate_sentences([MaxgreedyType(Interval3), MaxgreedyType(Then),
-                                             MaxgreedyType(Tangent), MaxgreedyType(Kissing)])
+    theories = equivalib.generate_sentences([MaxgreedyMyType(Interval3), MaxgreedyMyType(Then),
+                                             MaxgreedyMyType(Tangent), MaxgreedyMyType(Kissing)])
     strings = list(map(str, map(equivalib.arbitrary_collapse, theories)))
 
     assert len(theories) == 1
@@ -309,7 +309,7 @@ def test_super_compound_maxgreedy2():
 
 
 def test_super_compound_greedy1():
-    theories = equivalib.generate_sentences([GreedyType(Interval3), GreedyType(Then)])
+    theories = equivalib.generate_sentences([GreedyMyType(Interval3), GreedyMyType(Then)])
     strings = list(map(str, map(equivalib.arbitrary_collapse, theories)))
 
     assert len(theories) == 7
@@ -329,7 +329,7 @@ def test_super_compound_greedy1():
 
 
 def test_super_compound_greedy2():
-    theories = equivalib.generate_sentences([GreedyType(Interval3), GreedyType(Then), GreedyType(Tangent), GreedyType(Kissing)])
+    theories = equivalib.generate_sentences([GreedyMyType(Interval3), GreedyMyType(Then), GreedyMyType(Tangent), GreedyMyType(Kissing)])
     strings = list(map(str, map(equivalib.arbitrary_collapse, theories)))
 
     assert len(theories) == 27
@@ -369,7 +369,7 @@ def test_super_compound_greedy2():
 
 
 def test_super_compound_greedy_maxgreedy1():
-    theories = equivalib.generate_sentences([MaxgreedyType(Interval3), GreedyType(Then), GreedyType(Tangent), GreedyType(Kissing)])
+    theories = equivalib.generate_sentences([MaxgreedyMyType(Interval3), GreedyMyType(Then), GreedyMyType(Tangent), GreedyMyType(Kissing)])
     strings = list(map(str, map(equivalib.arbitrary_collapse, theories)))
 
     assert len(theories) == 21
@@ -446,5 +446,5 @@ class KissingMany:
 
 @pytest.mark.skipif(not os.getenv('CI'), reason="This test takes too long, it is for CI only")
 def test_super_compound_manygreedy_maxgreedy1():
-    theories = equivalib.generate_sentences([MaxgreedyType(IntervalMany), GreedyType(ThenMany), GreedyType(TangentMany), GreedyType(KissingMany)])
+    theories = equivalib.generate_sentences([MaxgreedyMyType(IntervalMany), GreedyMyType(ThenMany), GreedyMyType(TangentMany), GreedyMyType(KissingMany)])
     assert len(theories) == 1261

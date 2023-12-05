@@ -3,9 +3,10 @@
 
 import dataclasses
 from dataclasses import is_dataclass
-from typing import Type, Dict
+from typing import Dict
+from equivalib import MyType
 
-def read_type_information(t: Type[object]) -> Dict[str, Type[object]]:
+def read_type_information(t: MyType) -> Dict[str, MyType]:
     """
     Returns a list of fields, ziped with their type information
 
@@ -20,7 +21,7 @@ def read_type_information(t: Type[object]) -> Dict[str, Type[object]]:
     {"start": BoundedInt[0, 999],
      "end": BoundedInt[0, 999]}
 
-    Input argument t must be a dataclass, otherwise this function raises TypeError.
+    Input argument t must be a dataclass, otherwise this function raises MyTypeError.
     """
 
     if not is_dataclass(t):

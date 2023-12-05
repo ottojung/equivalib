@@ -3,14 +3,14 @@
 
 from dataclasses import is_dataclass
 import typing
-from typing import Type, Generator, List, Tuple, Optional, Literal, Union, Iterable, Any, Sequence
+from typing import Generator, List, Tuple, Optional, Literal, Union, Iterable, Any, Sequence
 import itertools
 import equivalib
-from equivalib import Sentence, BoundedInt, denv, Super, Constant
+from equivalib import Sentence, BoundedInt, denv, Super, Constant, MyType
 
 
 def generate_field_values(ctx: Sentence,
-                          t: Type) \
+                          t: MyType) \
                           -> Generator[Tuple[Optional[str], Union[object, List[object]]], None, None]:
     base_type = typing.get_origin(t) or t
     args = typing.get_args(t)
@@ -47,7 +47,7 @@ def generate_field_values(ctx: Sentence,
         raise ValueError(f"Cannot generate values of type {t!r}.")
 
 
-def generate_instances_fields(ctx: Sentence, t: Type) -> Generator[List[Tuple[Optional[str], object]], None, None]:
+def generate_instances_fields(ctx: Sentence, t: MyType) -> Generator[List[Tuple[Optional[str], object]], None, None]:
     information = equivalib.read_type_information(t)
     for type_signature in information.values():
         yield list(generate_field_values(ctx, type_signature))
@@ -89,7 +89,7 @@ def handle_supers(ctx, name: Optional[str], value: Union[object, List[object]]) 
         return (name, value)
 
 
-def make_instance(ctx, t: Type, renamed_arguments: Iterable[Tuple[Optional[str], object]]) -> None:
+def make_instance(ctx, t: MyType, renamed_arguments: Iterable[Tuple[Optional[str], object]]) -> None:
     struct = (t, tuple(name or Constant(value) for name, value in renamed_arguments))
     if struct in ctx.reverse:
         return
@@ -100,7 +100,7 @@ def make_instance(ctx, t: Type, renamed_arguments: Iterable[Tuple[Optional[str],
     ctx.insert_value(name, instance, struct)
 
 
-def add_instances(ctx: Sentence, t: Type, instances: Iterable[Sequence[Tuple[Optional[str], List[object]]]]) -> bool:
+def add_instances(ctx: Sentence, t: MyType, instances: Iterable[Sequence[Tuple[Optional[str], List[object]]]]) -> bool:
     with denv.let(sentence = ctx):
         try:
             for named_arguments in instances:
@@ -111,7 +111,7 @@ def add_instances(ctx: Sentence, t: Type, instances: Iterable[Sequence[Tuple[Opt
     return True
 
 
-def extend_sentence(ctx: Sentence, t: Type) -> Generator[Sentence, None, None]:
+def extend_sentence(ctx: Sentence, t: MyType) -> Generator[Sentence, None, None]:
     pointwise = generate_instances_fields(ctx, t)
     inputs = list(itertools.product(*pointwise))
     subsets = get_subsets(inputs)
@@ -122,7 +122,7 @@ def extend_sentence(ctx: Sentence, t: Type) -> Generator[Sentence, None, None]:
                 yield new
 
 
-def extend_sentence_maxgreedily(ctx: Sentence, t: Type) -> Generator[Sentence, None, None]:
+def extend_sentence_maxgreedily(ctx: Sentence, t: MyType) -> Generator[Sentence, None, None]:
     pointwise = generate_instances_fields(ctx, t)
     inputs = list(itertools.product(*pointwise))
 
@@ -134,7 +134,7 @@ def extend_sentence_maxgreedily(ctx: Sentence, t: Type) -> Generator[Sentence, N
     yield ctx
 
 
-def extend_sentence_greedily(ctx: Sentence, t: Type) -> Generator[Sentence, None, None]:
+def extend_sentence_greedily(ctx: Sentence, t: MyType) -> Generator[Sentence, None, None]:
     pointwise = generate_instances_fields(ctx, t)
     inputs = list(itertools.product(*pointwise))
 

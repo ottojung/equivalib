@@ -35,19 +35,19 @@ def test_simple():
 
 
 @dataclass
-class EmptyType:
+class EmptyMyType:
     pass
 
 
 @dataclass
 class Overlap2:
-    a: EmptyType
-    b: EmptyType
+    a: EmptyMyType
+    b: EmptyMyType
 
 
 def test_empty_base():
-    hierarchy = list(get_types_hierarchy([EmptyType, Overlap2]))
-    assert hierarchy == [{EmptyType}, {Overlap2}]
+    hierarchy = list(get_types_hierarchy([EmptyMyType, Overlap2]))
+    assert hierarchy == [{EmptyMyType}, {Overlap2}]
 
 
 def test_discard_some():
@@ -62,9 +62,9 @@ def test_get_ground_types():
 
 @dataclass
 class UnionRec:
-    a: Union[EmptyType, Interval]
+    a: Union[EmptyMyType, Interval]
 
 
 def test_union1():
-    hierarchy = list(get_types_hierarchy([EmptyType, Interval, UnionRec]))
-    assert hierarchy == [{EmptyType, Interval}, {UnionRec}]
+    hierarchy = list(get_types_hierarchy([EmptyMyType, Interval, UnionRec]))
+    assert hierarchy == [{EmptyMyType, Interval}, {UnionRec}]

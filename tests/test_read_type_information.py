@@ -49,9 +49,9 @@ def test_read_type_information_for_invalid_class():
 
 
 @dataclass
-class EmptyType:
+class EmptyMyType:
     pass
 
 
 def test_read_type_information_empty():
-    assert {} == equivalib.read_type_information(EmptyType)
+    assert {} == equivalib.read_type_information(EmptyMyType)
