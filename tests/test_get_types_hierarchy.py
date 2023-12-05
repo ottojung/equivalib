@@ -1,9 +1,8 @@
 
-from typing import Literal, Union
+from typing import Literal, Union, Iterable
 from dataclasses import dataclass
 import pytest
-from equivalib import get_types_hierarchy
-from equivalib.bounded_int import BoundedInt
+from equivalib import get_types_hierarchy, BoundedInt, BannedType
 
 
 @dataclass
@@ -68,3 +67,14 @@ class UnionRec:
 def test_union1():
     hierarchy = list(get_types_hierarchy([EmptyMyType, Interval, UnionRec]))
     assert hierarchy == [{EmptyMyType, Interval}, {UnionRec}]
+
+
+
+@dataclass
+class NonUnionRec:
+    a: Iterable[Interval]
+
+
+def test_non_union1():
+    with pytest.raises(BannedType):
+        list(get_types_hierarchy([Interval, NonUnionRec]))
