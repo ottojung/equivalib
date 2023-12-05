@@ -91,14 +91,14 @@ class Sentence:
     def __str__(self) -> str:
         assignments = []
 
-        def sortkey(p: Tuple[str, object]):
+        def sortkey(p: Tuple[str, object]) -> Tuple[int, str]:
             k, _v = p
             return (len(k), k)
 
         for k, v in sorted(self.structure.items(), key=sortkey):
             (ty, args_names) = v
             if ty in (bool, int, Link):
-                value = repr(ty(args_names[0]))
+                value = repr(ty(args_names[0])) # type: ignore
             else:
                 args = ', '.join(map(str, args_names))
                 value = f"{ty.__name__}({args})"

@@ -74,7 +74,7 @@ def get_subsets(original_set):
     return all_subsets
 
 
-def handle_supers(ctx, name: Optional[str], value: Union[object, List[object]]) -> Tuple[Optional[str], object]:
+def handle_supers(ctx: Sentence, name: Optional[str], value: Union[object, List[object]]) -> Tuple[Optional[str], object]:
     if isinstance(value, list):
         parameter: Any = value[1]
         parameter_base = typing.get_origin(parameter) or parameter
@@ -83,13 +83,13 @@ def handle_supers(ctx, name: Optional[str], value: Union[object, List[object]]) 
         else:
             arg = list(generate_field_values(ctx, parameter))
 
-        s = Super.make(parameter, arg)
+        s: Super[object] = Super.make(parameter, arg)
         return (s.name, s)
     else:
         return (name, value)
 
 
-def make_instance(ctx, t: MyType, renamed_arguments: Iterable[Tuple[Optional[str], object]]) -> None:
+def make_instance(ctx: Sentence, t: MyType, renamed_arguments: Iterable[Tuple[Optional[str], object]]) -> None:
     struct = (t, tuple(name or Constant(value) for name, value in renamed_arguments))
     if struct in ctx.reverse:
         return

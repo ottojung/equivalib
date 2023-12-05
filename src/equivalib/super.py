@@ -2,7 +2,7 @@
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from dataclasses import dataclass
-from typing import TypeVar, Generic, Tuple, Sequence
+from typing import Generic, Tuple, Sequence, TypeVar
 import equivalib
 from equivalib import MyType
 
@@ -14,16 +14,16 @@ class Super(Generic[W]):
 
 
     @staticmethod
-    def make(t: MyType, arg: Sequence[object]):
+    def make(t: MyType, arg: Sequence[object]) -> 'Super[W]':
         current_sentence = equivalib.get_current_sentence()
         name = current_sentence.add_super_variable(t, arg)
-        ret: Super = Super(name)
+        ret: Super[W] = Super(name)
         struct = (Super, tuple([name]))
         current_sentence.insert_value(name, ret, struct)
         return ret
 
 
-    def get_var(self: 'Super'):
+    def get_var(self: 'Super[W]') -> equivalib.Comparable:
         current_sentence = equivalib.get_current_sentence()
         current_model = current_sentence.model
         var = current_model.get_variable(self.name)

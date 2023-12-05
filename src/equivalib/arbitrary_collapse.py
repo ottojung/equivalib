@@ -17,7 +17,7 @@ def arbitrary_collapse(self: Sentence) -> Sentence:
             if isinstance(v, Super):
                 var = v.get_var()
                 if isinstance(var, list):
-                    ty = Link
+                    ty: type[object] = Link
                     chosen_name, chosen_value = random.choice(var)
                     val = chosen_name or Constant(chosen_value)
                 else:
