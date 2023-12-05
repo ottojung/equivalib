@@ -5,7 +5,7 @@ import dataclasses
 from dataclasses import is_dataclass
 from typing import Type, Dict
 
-def read_type_information(t: Type) -> Dict[str, Type]:
+def read_type_information(t: Type[object]) -> Dict[str, Type[object]]:
     """
     Returns a list of fields, ziped with their type information
 

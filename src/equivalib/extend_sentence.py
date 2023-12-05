@@ -3,7 +3,7 @@
 
 from dataclasses import is_dataclass
 import typing
-from typing import Type, Generator, List, Tuple, Any, Optional, Literal, Union, Iterable
+from typing import Type, Generator, List, Tuple, Optional, Literal, Union, Iterable, Any, Sequence
 import itertools
 import equivalib
 from equivalib import Sentence, BoundedInt, denv, Super, Constant
@@ -11,7 +11,7 @@ from equivalib import Sentence, BoundedInt, denv, Super, Constant
 
 def generate_field_values(ctx: Sentence,
                           t: Type) \
-                          -> Generator[Tuple[Optional[str], Any], None, None]:
+                          -> Generator[Tuple[Optional[str], Union[object, List[object]]], None, None]:
     base_type = typing.get_origin(t) or t
     args = typing.get_args(t)
 
@@ -47,7 +47,7 @@ def generate_field_values(ctx: Sentence,
         raise ValueError(f"Cannot generate values of type {t!r}.")
 
 
-def generate_instances_fields(ctx: Sentence, t: Type) -> Generator[List[Tuple[Optional[str], Any]], None, None]:
+def generate_instances_fields(ctx: Sentence, t: Type) -> Generator[List[Tuple[Optional[str], object]], None, None]:
     information = equivalib.read_type_information(t)
     for type_signature in information.values():
         yield list(generate_field_values(ctx, type_signature))
@@ -74,9 +74,9 @@ def get_subsets(original_set):
     return all_subsets
 
 
-def handle_supers(ctx, name: Optional[str], value: Any) -> Tuple[Optional[str], Any]:
+def handle_supers(ctx, name: Optional[str], value: Union[object, List[object]]) -> Tuple[Optional[str], object]:
     if isinstance(value, list):
-        parameter = value[1]
+        parameter: Any = value[1]
         parameter_base = typing.get_origin(parameter) or parameter
         if parameter_base in (BoundedInt, bool):
             arg = []
@@ -89,7 +89,7 @@ def handle_supers(ctx, name: Optional[str], value: Any) -> Tuple[Optional[str], 
         return (name, value)
 
 
-def make_instance(ctx, t: Type, renamed_arguments: Iterable[Tuple[Optional[str], Union[str, Constant]]]) -> None:
+def make_instance(ctx, t: Type, renamed_arguments: Iterable[Tuple[Optional[str], object]]) -> None:
     struct = (t, tuple(name or Constant(value) for name, value in renamed_arguments))
     if struct in ctx.reverse:
         return
@@ -100,7 +100,7 @@ def make_instance(ctx, t: Type, renamed_arguments: Iterable[Tuple[Optional[str],
     ctx.insert_value(name, instance, struct)
 
 
-def add_instances(ctx: Sentence, t: Type, instances: Iterable[Tuple[Optional[str], Any]]) -> bool:
+def add_instances(ctx: Sentence, t: Type, instances: Iterable[Sequence[Tuple[Optional[str], List[object]]]]) -> bool:
     with denv.let(sentence = ctx):
         try:
             for named_arguments in instances:

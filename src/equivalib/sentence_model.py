@@ -3,14 +3,14 @@
 
 from dataclasses import dataclass
 import typing
-from typing import Optional, Any, Dict, Type, Tuple, List, Union
+from typing import Optional, Dict, Type, Tuple, List, Union, Sequence
 from ortools.sat.python import cp_model
 from equivalib import BoundedInt
 
 @dataclass
 class SentenceModel:
     _model: Optional[cp_model.CpModel]
-    _names: Dict[str, Tuple[Type, Union[int, List[Any]]]]
+    _names: Dict[str, Tuple[Type, Union[int, List[object]]]]
 
 
     @staticmethod
@@ -25,7 +25,7 @@ class SentenceModel:
             return SentenceModel(self._model.Clone(), self._names.copy())
 
 
-    def add_variable(self, name: str, t: Type, arg: List[Any]):
+    def add_variable(self, name: str, t: Type, arg: Sequence[object]):
         base_type = typing.get_origin(t) or t
         args = typing.get_args(t)
 
@@ -59,7 +59,7 @@ class SentenceModel:
             return base_type
 
 
-    def add(self, expr: Any):
+    def add(self, expr: object):
         self.model.Add(expr)
 
 

@@ -1,7 +1,7 @@
 ## Copyright (C) 2023  Otto Jung
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from typing import Any, Dict, Type, List, Tuple, Union
+from typing import Dict, Type, List, Tuple, Union, Sequence
 from dataclasses import dataclass
 from equivalib import SentenceModel, denv, Constant, Link
 
@@ -11,7 +11,7 @@ Structure = Tuple[Type, Tuple[Union[str, Constant], ...]]
 
 @dataclass
 class Sentence:
-    assignments: Dict[str, Any]
+    assignments: Dict[str, object]
     structure: Dict[str, Structure]
     reverse: Dict[Structure, Union[str, List[str]]]
     model: SentenceModel
@@ -26,7 +26,7 @@ class Sentence:
         return Sentence(self.assignments.copy(), self.structure.copy(), self.reverse.copy(), self.model.copy())
 
 
-    def insert_value(self, name: str, value: Any, struct: Structure) -> None:
+    def insert_value(self, name: str, value: object, struct: Structure) -> None:
         self.assignments[name] = value
         self.structure[name] = struct
         if struct in self.reverse:
@@ -39,7 +39,7 @@ class Sentence:
             self.reverse[struct] = name
 
 
-    def add_super_variable(self, t: Type, arg: List[Any]) -> str:
+    def add_super_variable(self, t: Type, arg: Sequence[object]) -> str:
         name = self.generate_free_name()
         self.model.add_variable(name, t, arg)
         return name
@@ -72,7 +72,7 @@ class Sentence:
         ret = Sentence.empty()
         ret.structure = structure
 
-        def get(name: str) -> Any:
+        def get(name: str) -> object:
             if name not in ret.assignments:
                 (ty, args_names) = structure[name]
                 args = [get(name) if isinstance(name, str) else name for name in args_names]
@@ -91,7 +91,7 @@ class Sentence:
     def __str__(self) -> str:
         assignments = []
 
-        def sortkey(p: Tuple[str, Any]):
+        def sortkey(p: Tuple[str, object]):
             k, _v = p
             return (len(k), k)
 
