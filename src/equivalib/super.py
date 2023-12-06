@@ -19,7 +19,7 @@ class Super(Generic[W]):
         name = current_sentence.add_super_variable(t, arg)
         ret: Super[W] = Super(name)
         struct = (Super, tuple([name]))
-        current_sentence.insert_value(name, ret, struct)
+        current_sentence.insert_new_value(name, ret, struct)
         return ret
 
 

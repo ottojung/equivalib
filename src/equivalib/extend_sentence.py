@@ -102,12 +102,17 @@ def handle_supers(ctx: Sentence, name: Optional[str], value: Union[object, List[
 def make_instance(ctx: Sentence, t: MyType, renamed_arguments: Iterable[Tuple[Optional[str], object]]) -> None:
     struct = (t, tuple(name or Constant(value) for name, value in renamed_arguments))
     if struct in ctx.reverse:
+        name = ctx.reverse[struct]
+        if isinstance(name, str):
+            key = name
+        else:
+            key = name[0]
+        ctx.last = ctx.assignments[key]
         return
 
-    name = ctx.generate_free_name()
     arguments = (value for name, value in renamed_arguments)
     instance = t(*arguments)
-    ctx.insert_value(name, instance, struct)
+    ctx.insert_value(instance, struct)
 
 
 def add_instances(ctx: Sentence, t: MyType, instances: Iterable[Sequence[Tuple[Optional[str], List[object]]]]) -> bool:
