@@ -3,7 +3,7 @@
 
 import random
 from ortools.sat.python import cp_model
-from equivalib import Super, Sentence, denv, Link, Constant
+from equivalib import Super, Sentence, denv, Link, Constant, MyType
 
 
 def arbitrary_collapse(self: Sentence) -> Sentence:
@@ -17,7 +17,7 @@ def arbitrary_collapse(self: Sentence) -> Sentence:
             if isinstance(v, Super):
                 var = v.get_var()
                 if isinstance(var, list):
-                    ty: type[object] = Link
+                    ty: MyType = Link
                     chosen_name, chosen_value = random.choice(var)
                     val = chosen_name or Constant(chosen_value)
                 else:
