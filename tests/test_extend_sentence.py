@@ -1,6 +1,6 @@
 
 from dataclasses import dataclass
-from typing import Any, List
+from typing import Any, List, Set
 import equivalib
 
 
@@ -60,3 +60,43 @@ def test_complex():
                 [AnswerTuple(False, False), AnswerTuple(False, True), AnswerTuple(True, False), AnswerTuple(True, True)]]
 
     assert list_memequal(instances, expected)
+
+
+
+@dataclass(frozen=True)
+class Setclass:
+    choices: Set[bool]
+
+
+def test_set1():
+    ctx = equivalib.Sentence.empty()
+    news = list(equivalib.extend_sentence_1(ctx, Setclass))
+    sentences = list(map(str, news))
+
+    expected = ['a = Setclass(frozenset());',
+                'a = Setclass(frozenset({False}));',
+                'a = Setclass(frozenset({True}));',
+                'a = Setclass(frozenset({False, True}));']
+    assert list_memequal(sentences, expected)
+
+
+@dataclass(frozen=True)
+class Setclass2:
+    choice: bool
+    choices: Set[bool]
+
+
+def test_set2():
+    ctx = equivalib.Sentence.empty()
+    news = list(equivalib.extend_sentence_1(ctx, Setclass2))
+    sentences = list(map(str, news))
+
+    expected = ['a = Setclass2(False, frozenset());',
+                'a = Setclass2(False, frozenset({False}));',
+                'a = Setclass2(False, frozenset({True}));',
+                'a = Setclass2(False, frozenset({False, True}));',
+                'a = Setclass2(True, frozenset());',
+                'a = Setclass2(True, frozenset({False}));',
+                'a = Setclass2(True, frozenset({True}));',
+                'a = Setclass2(True, frozenset({False, True}));']
+    assert list_memequal(sentences, expected)

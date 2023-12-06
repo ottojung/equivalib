@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Tuple, Literal, Union
 import pytest
 import equivalib
-from equivalib import BoundedInt, Super, MaxgreedyMyType
+from equivalib import BoundedInt, Super, MaxgreedyType
 
 
 @dataclass(frozen=True)
@@ -260,7 +260,7 @@ class FizzBuzz:
 
 
 def test_fizzbuzz():
-    theories = equivalib.generate_sentences([MaxgreedyMyType(Fizz), MaxgreedyMyType(Buzz), MaxgreedyMyType(FizzBuzz)])
+    theories = equivalib.generate_sentences([MaxgreedyType(Fizz), MaxgreedyType(Buzz), MaxgreedyType(FizzBuzz)])
     sentences = [str(x) for x in theories]
     assert len(sentences) == 1
     assert len(theories[0].assignments) == 59

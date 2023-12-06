@@ -7,13 +7,13 @@ from equivalib import MyType
 
 
 @dataclass(frozen=True)
-class MaxgreedyMyType:
+class MaxgreedyType:
     x: MyType
 
 
 @dataclass(frozen=True)
-class GreedyMyType:
+class GreedyType:
     x: MyType
 
 
-GeneratorMyType = Union[MyType, GreedyMyType, MaxgreedyMyType]
+GeneratorMyType = Union[MyType, GreedyType, MaxgreedyType]

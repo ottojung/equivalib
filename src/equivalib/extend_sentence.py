@@ -3,7 +3,7 @@
 
 from dataclasses import is_dataclass
 import typing
-from typing import Generator, List, Tuple, Optional, Literal, Union, Iterable, Any, Sequence
+from typing import Generator, List, Tuple, Optional, Literal, Union, Iterable, Any, Sequence, Set
 import itertools
 import equivalib
 from equivalib import Sentence, BoundedInt, denv, Super, Constant, MyType
@@ -28,6 +28,12 @@ def generate_field_values(ctx: Sentence,
         assert len(args) > 0
         for arg in args:
             yield from generate_field_values(ctx, arg)
+
+    elif base_type in (set, Set):
+        assert len(args) == 1
+        subtype = args[0]
+        inputs = list(generate_field_values(ctx, subtype))
+        yield from map(lambda x: (None, frozenset(map(lambda y: y[1], x))), get_subsets(inputs))
 
     elif base_type == Super:
         assert len(args) == 1
@@ -85,6 +91,8 @@ def handle_supers(ctx: Sentence, name: Optional[str], value: Union[object, List[
 
         s: Super[object] = Super.make(parameter, arg)
         return (s.name, s)
+    elif isinstance(value, frozenset):
+        return (name, value)
     else:
         return (name, value)
 
@@ -120,6 +128,16 @@ def extend_sentence(ctx: Sentence, t: MyType) -> Generator[Sentence, None, None]
             new = ctx.copy()
             if add_instances(new, t, subset):
                 yield new
+
+
+def extend_sentence_1(ctx: Sentence, t: MyType) -> Generator[Sentence, None, None]:
+    pointwise = generate_instances_fields(ctx, t)
+    inputs = list(itertools.product(*pointwise))
+
+    for inp in inputs:
+        new = ctx.copy()
+        if add_instances(new, t, [inp]):
+            yield new
 
 
 def extend_sentence_maxgreedily(ctx: Sentence, t: MyType) -> Generator[Sentence, None, None]:
