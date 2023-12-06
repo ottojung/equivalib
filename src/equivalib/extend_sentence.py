@@ -1,12 +1,17 @@
 ## Copyright (C) 2023  Otto Jung
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from dataclasses import is_dataclass
+from dataclasses import is_dataclass, dataclass
 import typing
-from typing import Generator, List, Tuple, Optional, Literal, Union, Iterable, Any, Sequence, Set
+from typing import Generator, List, Tuple, Optional, Literal, Union, Iterable, Sequence, Set
 import itertools
 import equivalib
 from equivalib import Sentence, BoundedInt, denv, Super, Constant, MyType
+
+
+@dataclass(frozen=True)
+class Superlist:
+    t: MyType
 
 
 def generate_field_values(ctx: Sentence,
@@ -37,8 +42,9 @@ def generate_field_values(ctx: Sentence,
 
     elif base_type == Super:
         assert len(args) == 1
-        parameter = args[0]
-        yield (None, [base_type, parameter])
+        # parameter = args[0]
+        # yield (None, [base_type, parameter])
+        yield (None, Superlist(t))
 
     elif base_type == BoundedInt:
         assert len(args) == 2
@@ -81,8 +87,9 @@ def get_subsets(original_set):
 
 
 def handle_supers(ctx: Sentence, name: Optional[str], value: Union[object, List[object]]) -> Tuple[Optional[str], object]:
-    if isinstance(value, list):
-        parameter: Any = value[1]
+    if isinstance(value, Superlist):
+        args = typing.get_args(value.t)
+        parameter = args[0]
         parameter_base = typing.get_origin(parameter) or parameter
         if parameter_base in (BoundedInt, bool):
             arg = []

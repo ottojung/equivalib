@@ -7,6 +7,7 @@ from typing import Optional, Dict, Tuple, List, Union, Sequence
 from ortools.sat.python import cp_model
 from equivalib import BoundedInt, MyType, Comparable
 
+
 @dataclass
 class SentenceModel:
     _model: Optional[cp_model.CpModel]
