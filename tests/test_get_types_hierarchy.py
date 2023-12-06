@@ -33,6 +33,11 @@ def test_simple():
     assert hierarchy == [{Interval}, {Overlap}]
 
 
+def test_simple_2():
+    hierarchy = list(get_types_hierarchy([Overlap]))
+    assert hierarchy == [{Interval}, {Overlap}]
+
+
 @dataclass
 class EmptyMyType:
     pass
@@ -47,16 +52,6 @@ class Overlap2:
 def test_empty_base():
     hierarchy = list(get_types_hierarchy([EmptyMyType, Overlap2]))
     assert hierarchy == [{EmptyMyType}, {Overlap2}]
-
-
-def test_discard_some():
-    hierarchy = list(get_types_hierarchy([Overlap2]))
-    assert hierarchy == [{Overlap2}]
-
-
-def test_get_ground_types():
-    with pytest.raises(TypeError):
-        get_types_hierarchy([BoundedInt, Interval])
 
 
 @dataclass

@@ -3,7 +3,7 @@
 
 import dataclasses
 import typing
-from typing import Set, Iterable, Generator, Union, Tuple, Literal
+from typing import Set, Iterable, Generator, Union, Tuple, Literal, Type, Dict
 import equivalib
 from equivalib import MyType, BoundedInt
 
@@ -13,7 +13,8 @@ class BannedType(Exception):
 
 
 def get_types_hierarchy(types: Iterable[MyType]) -> Generator[Set[MyType], None, None]:
-    before = {}
+    before: Dict[Type[object], Set[Type[object]]] = {}
+    all_types: Set[MyType] = set()
 
     def get_all_types(t: MyType) -> Generator[MyType, None, None]:
         base = typing.get_origin(t)
@@ -30,9 +31,17 @@ def get_types_hierarchy(types: Iterable[MyType]) -> Generator[Set[MyType], None,
         else:
             yield t
 
-    for t in types:
-        information = equivalib.read_type_information(t)
-        all_types = [subtype for value, is_super in information.values() for subtype in get_all_types(value)]
-        before[t] = set(all_types)
+    def recurse_type(t: MyType) -> None:
+        if dataclasses.is_dataclass(t):
+            all_types.add(t)
+            information = equivalib.read_type_information(t)
+            for value, _is_super in information.values():
+                subtypes = set(get_all_types(value))
+                before[t] = subtypes
+                for subtype in subtypes:
+                    recurse_type(subtype)
 
-    return equivalib.partially_order(types, lambda t: before[t])
+    for t in types:
+        recurse_type(t)
+
+    return equivalib.partially_order(all_types, before)

@@ -12,10 +12,10 @@ def partially_order(elements: Iterable[T], before: BeforeType[T]) -> Generator[S
     Elements that are incomparable are on the same "level" in the resulting list.
     """
 
-    if isinstance(before, dict):
-        get_before: Callable[[T], Iterable[T]] = lambda x: before[x]
-    elif callable(before):
+    if callable(before):
         get_before = before
+    elif isinstance(before, dict):
+        get_before = lambda x: before.get(x, set())
     else:
         raise TypeError(f"Expected either a dict or callable, got {before!r}")
 
