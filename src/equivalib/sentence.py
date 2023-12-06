@@ -12,19 +12,24 @@ Structure = Tuple[MyType, Tuple[Union[str, Constant], ...]]
 @dataclass
 class Sentence:
     assignments: Dict[str, object]
-    last: Optional[object]
     structure: Dict[str, Structure]
     reverse: Dict[Structure, Union[str, List[str]]]
+    types: Dict[MyType, List[object]]
+    last: Optional[object]
     model: SentenceModel
 
 
     @staticmethod
     def empty() -> 'Sentence':
-        return Sentence({}, None, {}, {}, SentenceModel.empty())
+        return Sentence({}, {}, {}, {}, None, SentenceModel.empty())
 
 
     def copy(self) -> 'Sentence':
-        return Sentence(self.assignments.copy(), self.last, self.structure.copy(), self.reverse.copy(), self.model.copy())
+        return Sentence(self.assignments.copy(), self.structure.copy(), self.reverse.copy(), self.types.copy(), self.last, self.model.copy())
+
+
+    def has_type(self, typ: MyType) -> bool:
+        return typ in self.types
 
 
     def insert_new_value(self, name: str, value: object, struct: Structure) -> None:
@@ -39,6 +44,11 @@ class Sentence:
                 existing.append(name)
         else:
             self.reverse[struct] = name
+            typ = struct[0]
+            if typ in self.types:
+                self.types[typ].append(value)
+            else:
+                self.types[typ] = [value]
 
 
     def insert_value(self, value: object, struct: Structure) -> str:
@@ -56,6 +66,11 @@ class Sentence:
             self.reverse[struct] = name
             self.assignments[name] = value
             self.structure[name] = struct
+            typ = struct[0]
+            if typ in self.types:
+                self.types[typ].append(value)
+            else:
+                self.types[typ] = [value]
             return name
 
 

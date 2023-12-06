@@ -22,6 +22,9 @@ def generate_field_values(ctx: Sentence, t: MyType, is_super: bool) \
     if is_super:
         yield (None, Supertype(t))
 
+    elif ctx.has_type(base_type):
+        yield from ((k, v) for (k, v) in ctx.assignments.items() if isinstance(v, t))
+
     elif base_type == bool:
         assert len(args) == 0
         yield (None, False)
@@ -48,17 +51,17 @@ def generate_field_values(ctx: Sentence, t: MyType, is_super: bool) \
         for i in range(low, high + 1):
             yield (None, i)
 
-    elif is_dataclass(base_type):
-        yield from ((k, v) for (k, v) in ctx.assignments.items() if isinstance(v, t))
-
     else:
         raise ValueError(f"Cannot generate values of type {t!r}.")
 
 
 def generate_instances_fields(ctx: Sentence, t: MyType) -> Generator[List[Tuple[Optional[str], object]], None, None]:
-    information = equivalib.read_type_information(t)
-    for type_signature, is_super in information.values():
-        yield list(generate_field_values(ctx, type_signature, is_super=is_super))
+    if is_dataclass(t):
+        information = equivalib.read_type_information(t)
+        for type_signature, is_super in information.values():
+            yield list(generate_field_values(ctx, type_signature, is_super=is_super))
+    else:
+        yield list(generate_field_values(ctx, t, is_super=False))
 
 
 def get_subsets(original_set):

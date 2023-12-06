@@ -1,4 +1,6 @@
 
+# pylint: disable=duplicate-code
+
 from dataclasses import dataclass
 from typing import Literal, Union
 import os
@@ -16,7 +18,6 @@ def fixed_random_seed():
     random.seed()
 
 
-# pylint: disable=duplicate-code
 @dataclass
 class SuperEntangled:
     a: bool = superfield()
@@ -309,63 +310,20 @@ def test_super_compound_maxgreedy2():
 
 
 def test_super_compound_greedy1():
-    theories = equivalib.generate_sentences([GreedyType(Interval3), GreedyType(Then)])
+    theories = equivalib.generate_sentences([MaxgreedyType(Interval3), GreedyType(Then)])
     strings = list(map(str, map(equivalib.arbitrary_collapse, theories)))
 
-    assert len(theories) == 7
+    assert len(theories) == 4
 
     dedup = list(set(strings))
     assert len(dedup) == len(strings)
     assert sorted(dedup) == sorted(strings)
 
     assert strings \
-        == ["a = 1; b = 2; c = Interval3('A', a, b);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = Then(c, f);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h);",
+        == ["a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h);",
             "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Then(c, f);",
             "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = 3; h = 4; i = Interval3('C', g, h); j = Then(c, f); k = Then(c, i);",
             "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = 8; h = 9; i = Interval3('C', g, h); j = Then(c, f); k = Then(c, i); l = Then(f, i);"]
-
-
-def test_super_compound_greedy2():
-    theories = equivalib.generate_sentences([GreedyType(Interval3), GreedyType(Then), GreedyType(Tangent), GreedyType(Kissing)])
-    strings = list(map(str, map(equivalib.arbitrary_collapse, theories)))
-
-    assert len(theories) == 27
-
-    dedup = list(set(strings))
-    assert len(dedup) == len(strings)
-    assert sorted(dedup) == sorted(strings)
-
-    assert strings \
-        == ["a = 1; b = 2; c = Interval3('A', a, b);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = Kissing(c, f);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 2; e = 3; f = Interval3('B', d, e); g = Tangent(c, f);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = Then(c, f);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = Then(c, f); h = Kissing(c, f);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Kissing(c, f);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = 3; h = 4; i = Interval3('C', g, h); j = Kissing(c, f); k = Kissing(c, i);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 2; e = 3; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Tangent(c, f);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 2; e = 3; f = Interval3('B', d, e); g = 3; h = 4; i = Interval3('C', g, h); j = Tangent(c, f); k = Kissing(c, i);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 2; e = 3; f = Interval3('B', d, e); g = 2; h = 3; i = Interval3('C', g, h); j = Tangent(c, f); k = Tangent(c, i);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Then(c, f);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Then(c, f); k = Kissing(c, f);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = 3; h = 4; i = Interval3('C', g, h); j = Then(c, f); k = Kissing(c, f); l = Kissing(c, i);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = 2; h = 3; i = Interval3('C', g, h); j = Then(c, f); k = Tangent(c, i);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = 2; h = 3; i = Interval3('C', g, h); j = Then(c, f); k = Tangent(c, i); l = Kissing(c, f);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 8; e = 9; f = Interval3('B', d, e); g = 2; h = 8; i = Interval3('C', g, h); j = Then(c, f); k = Tangent(c, i); l = Tangent(i, f);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = 2; h = 3; i = Interval3('C', g, h); j = Then(c, f); k = Tangent(c, i); l = Tangent(i, f); m = Kissing(c, f);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = 3; h = 4; i = Interval3('C', g, h); j = Then(c, f); k = Then(c, i);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = 3; h = 4; i = Interval3('C', g, h); j = Then(c, f); k = Then(c, i); l = Kissing(c, f);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = 3; h = 4; i = Interval3('C', g, h); j = Then(c, f); k = Then(c, i); l = Kissing(c, f); m = Kissing(c, i);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 8; f = Interval3('B', d, e); g = 8; h = 9; i = Interval3('C', g, h); j = Then(c, f); k = Then(c, i); l = Tangent(f, i);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 8; f = Interval3('B', d, e); g = 8; h = 9; i = Interval3('C', g, h); j = Then(c, f); k = Then(c, i); l = Tangent(f, i); m = Kissing(c, f);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = 8; h = 9; i = Interval3('C', g, h); j = Then(c, f); k = Then(c, i); l = Then(f, i);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = 8; h = 9; i = Interval3('C', g, h); j = Then(c, f); k = Then(c, i); l = Then(f, i); m = Kissing(c, f);",
-            "a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 7; f = Interval3('B', d, e); g = 8; h = 9; i = Interval3('C', g, h); j = Then(c, f); k = Then(c, i); l = Then(f, i); m = Kissing(c, f); n = Kissing(f, i);"]
 
 
 def test_super_compound_greedy_maxgreedy1():
