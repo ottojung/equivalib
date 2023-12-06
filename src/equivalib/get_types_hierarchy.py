@@ -21,19 +21,19 @@ def get_types_hierarchy(types: Iterable[MyType]) -> Generator[Set[MyType], None,
         args = typing.get_args(t)
         if args:
             if base:
-                yield base
-
                 if base in (Union, Tuple):
                     for lsts in map(get_all_types, args):
                         yield from lsts
                 elif base not in (int, bool, Literal, BoundedInt) and not dataclasses.is_dataclass(base):
                     raise BannedType(f"Type not allowed: {base}")
+                else:
+                    yield base
         else:
             yield t
 
     def recurse_type(t: MyType) -> None:
+        all_types.add(t)
         if dataclasses.is_dataclass(t):
-            all_types.add(t)
             information = equivalib.read_type_information(t)
             for value, _is_super in information.values():
                 subtypes = set(get_all_types(value))

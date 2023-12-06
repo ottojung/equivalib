@@ -13,7 +13,7 @@ class Interval:
 
 def test_singleton():
     hierarchy = list(get_types_hierarchy([Interval]))
-    assert hierarchy == [{Interval}]
+    assert hierarchy == [{BoundedInt}, {Interval}]
 
 
 def test_empty():
@@ -30,12 +30,12 @@ class Overlap:
 
 def test_simple():
     hierarchy = list(get_types_hierarchy([Interval, Overlap]))
-    assert hierarchy == [{Interval}, {Overlap}]
+    assert hierarchy == [{BoundedInt}, {Interval}, {Overlap}]
 
 
 def test_simple_2():
     hierarchy = list(get_types_hierarchy([Overlap]))
-    assert hierarchy == [{Interval}, {Overlap}]
+    assert hierarchy == [{BoundedInt}, {Interval}, {Overlap}]
 
 
 @dataclass
@@ -61,7 +61,7 @@ class UnionRec:
 
 def test_union1():
     hierarchy = list(get_types_hierarchy([EmptyMyType, Interval, UnionRec]))
-    assert hierarchy == [{EmptyMyType, Interval}, {UnionRec}]
+    assert hierarchy == [{BoundedInt, EmptyMyType}, {Interval}, {UnionRec}]
 
 
 

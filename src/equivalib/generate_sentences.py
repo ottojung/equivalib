@@ -16,8 +16,8 @@ def generate_suffixes(t: GeneratorMyType, ret: List[Sentence]) -> Generator[Sent
             yield from list(equivalib.extend_sentence(prefix, t))
 
 
-def generate_sentences(types: Iterable[GeneratorMyType]) -> List[Sentence]:
-    ret = [Sentence.empty()]
+def generate_sentences(types: Iterable[GeneratorMyType], prefix: Sentence = Sentence.empty()) -> List[Sentence]:
+    ret = [prefix]
     for t in types:
         ret = list(generate_suffixes(t, ret))
     return [x for x in ret if x.assignments]
