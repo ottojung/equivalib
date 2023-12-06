@@ -8,7 +8,7 @@ from equivalib import MyType
 S = TypeVar('S')
 E = TypeVar('E')
 
-class BoundedInt(Generic[S, E]):
+class BoundedInt(int, Generic[S, E]):
 
     @staticmethod
     def unpack_type(base_type: MyType, args: Tuple[object, object]) -> Tuple[int, int]:
