@@ -14,7 +14,7 @@ class Sentence:
     assignments: Dict[str, object]
     structure: Dict[str, Structure]
     reverse: Dict[Structure, Union[str, List[str]]]
-    types: Dict[MyType, List[object]]
+    types: Dict[MyType, List[Tuple[str, object]]]
     last: Optional[object]
     model: SentenceModel
 
@@ -46,9 +46,9 @@ class Sentence:
             self.reverse[struct] = name
             typ = struct[0]
             if typ in self.types:
-                self.types[typ].append(value)
+                self.types[typ].append((name, value))
             else:
-                self.types[typ] = [value]
+                self.types[typ] = [(name, value)]
 
 
     def insert_value(self, value: object, struct: Structure) -> str:
@@ -68,9 +68,9 @@ class Sentence:
             self.structure[name] = struct
             typ = struct[0]
             if typ in self.types:
-                self.types[typ].append(value)
+                self.types[typ].append((name, value))
             else:
-                self.types[typ] = [value]
+                self.types[typ] = [(name, value)]
             return name
 
 

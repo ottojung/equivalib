@@ -23,7 +23,7 @@ def generate_field_values(ctx: Sentence, t: MyType, is_super: bool) \
         yield (None, Supertype(t))
 
     elif ctx.has_type(base_type):
-        yield from ((k, v) for (k, v) in ctx.assignments.items() if isinstance(v, t))
+        yield from ctx.types[base_type]
 
     elif base_type == bool:
         assert len(args) == 0
