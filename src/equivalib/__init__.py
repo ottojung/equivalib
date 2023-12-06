@@ -4,6 +4,7 @@ from .dynamic import *
 from .mytype import *
 from .constant import *
 from .link import *
+from .superfield import *
 from .bounded_int import *
 from .comparable import *
 from .generator_type import *

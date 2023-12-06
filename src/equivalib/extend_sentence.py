@@ -10,17 +10,19 @@ from equivalib import Sentence, BoundedInt, denv, Super, Constant, MyType
 
 
 @dataclass(frozen=True)
-class Superlist:
+class Supertype:
     t: MyType
 
 
-def generate_field_values(ctx: Sentence,
-                          t: MyType) \
+def generate_field_values(ctx: Sentence, t: MyType, is_super: bool) \
                           -> Generator[Tuple[Optional[str], Union[object, List[object]]], None, None]:
     base_type = typing.get_origin(t) or t
     args = typing.get_args(t)
 
-    if base_type == bool:
+    if is_super:
+        yield (None, Supertype(t))
+
+    elif base_type == bool:
         assert len(args) == 0
         yield (None, False)
         yield (None, True)
@@ -32,19 +34,13 @@ def generate_field_values(ctx: Sentence,
     elif base_type == Union:
         assert len(args) > 0
         for arg in args:
-            yield from generate_field_values(ctx, arg)
+            yield from generate_field_values(ctx, arg, is_super=False)
 
     elif base_type in (set, Set):
         assert len(args) == 1
         subtype = args[0]
-        inputs = list(generate_field_values(ctx, subtype))
+        inputs = list(generate_field_values(ctx, subtype, is_super=False))
         yield from map(lambda x: (None, frozenset(map(lambda y: y[1], x))), get_subsets(inputs))
-
-    elif base_type == Super:
-        assert len(args) == 1
-        # parameter = args[0]
-        # yield (None, [base_type, parameter])
-        yield (None, Superlist(t))
 
     elif base_type == BoundedInt:
         assert len(args) == 2
@@ -61,8 +57,8 @@ def generate_field_values(ctx: Sentence,
 
 def generate_instances_fields(ctx: Sentence, t: MyType) -> Generator[List[Tuple[Optional[str], object]], None, None]:
     information = equivalib.read_type_information(t)
-    for type_signature in information.values():
-        yield list(generate_field_values(ctx, type_signature))
+    for type_signature, is_super in information.values():
+        yield list(generate_field_values(ctx, type_signature, is_super=is_super))
 
 
 def get_subsets(original_set):
@@ -87,14 +83,13 @@ def get_subsets(original_set):
 
 
 def handle_supers(ctx: Sentence, name: Optional[str], value: Union[object, List[object]]) -> Tuple[Optional[str], object]:
-    if isinstance(value, Superlist):
-        args = typing.get_args(value.t)
-        parameter = args[0]
+    if isinstance(value, Supertype):
+        parameter = value.t
         parameter_base = typing.get_origin(parameter) or parameter
         if parameter_base in (BoundedInt, bool):
             arg = []
         else:
-            arg = list(generate_field_values(ctx, parameter))
+            arg = list(generate_field_values(ctx, parameter, is_super=False))
 
         s: Super[object] = Super.make(parameter, arg)
         return (s.name, s)

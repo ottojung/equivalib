@@ -2,8 +2,8 @@
 from dataclasses import dataclass
 from typing import Literal
 import pytest
-from equivalib.bounded_int import BoundedInt
 import equivalib
+from equivalib import BoundedInt, superfield
 
 
 @dataclass
@@ -14,8 +14,8 @@ class IntervalUnbounded:
 
 def test_read_type_information_for_valid_dataclass():
     expected = {
-        "start": int,
-        "end": int,
+        "start": (int, False),
+        "end": (int, False),
     }
 
     result = equivalib.read_type_information(IntervalUnbounded)
@@ -30,8 +30,8 @@ class Interval:
 
 def test_read_type_information_for_valid_generic_dataclass():
     expected = {
-        "start": BoundedInt[Literal[0], Literal[999]],
-        "end": BoundedInt[Literal[0], Literal[999]],
+        "start": (BoundedInt[Literal[0], Literal[999]], False),
+        "end": (BoundedInt[Literal[0], Literal[999]], False),
     }
 
     result = equivalib.read_type_information(Interval)
@@ -55,3 +55,23 @@ class EmptyMyType:
 
 def test_read_type_information_empty():
     assert {} == equivalib.read_type_information(EmptyMyType)
+
+
+def superclass(x):
+    return dataclass(x)
+
+
+@dataclass
+class SuperBools:
+    start: bool
+    end: bool = superfield()
+
+
+def test_read_type_information_for_valid_generic_super_dataclass():
+    expected = {
+        "start": (bool, False),
+        "end": (bool, True),
+    }
+
+    result = equivalib.read_type_information(SuperBools)
+    assert result == expected, "Expected type information does not match actual result."

@@ -15,4 +15,5 @@ disable=
     too-many-arguments,
     comparison-with-callable,
     fixme,
+    no-member,
     singleton-comparison,

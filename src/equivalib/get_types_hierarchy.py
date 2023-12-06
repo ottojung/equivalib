@@ -32,7 +32,7 @@ def get_types_hierarchy(types: Iterable[MyType]) -> Generator[Set[MyType], None,
 
     for t in types:
         information = equivalib.read_type_information(t)
-        all_types = [subtype for value in information.values() for subtype in get_all_types(value)]
+        all_types = [subtype for value, is_super in information.values() for subtype in get_all_types(value)]
         before[t] = set(all_types)
 
     return equivalib.partially_order(types, lambda t: before[t])
