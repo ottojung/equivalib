@@ -18,4 +18,5 @@ from .get_current_sentence import *
 from .super import *
 from .extend_sentence import *
 from .generate_sentences import *
+from .generic_collapse import *
 from .arbitrary_collapse import *

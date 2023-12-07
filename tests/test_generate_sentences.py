@@ -1,4 +1,6 @@
 
+# pylint: disable=duplicate-code
+
 from dataclasses import dataclass
 from typing import Tuple, Literal, Union
 import pytest
