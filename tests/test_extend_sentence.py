@@ -1,6 +1,6 @@
 
 from dataclasses import dataclass
-from typing import Any, List, Set
+from typing import Any, List, Set, Tuple
 import equivalib
 
 
@@ -61,6 +61,22 @@ def test_complex():
 
     assert list_memequal(instances, expected)
 
+
+
+@dataclass(frozen=True)
+class Tupclas:
+    choices: Tuple[bool, bool]
+
+
+def test_tup1():
+    ctx = equivalib.Sentence.empty()
+    news = list(equivalib.extend_sentence_1(ctx, Tupclas))
+    sentences = list(map(str, news))
+    expected = ['a = Tupclas((False, False));',
+                'a = Tupclas((False, True));',
+                'a = Tupclas((True, False));',
+                'a = Tupclas((True, True));']
+    assert list_memequal(sentences, expected)
 
 
 @dataclass(frozen=True)

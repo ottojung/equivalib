@@ -14,6 +14,7 @@ class Supertype:
     t: MyType
 
 
+# pylint: disable=too-many-branches
 def generate_field_values(ctx: Sentence, t: MyType, is_super: bool) \
                           -> Generator[Tuple[Optional[str], Union[object, List[object]]], None, None]:
     base_type = typing.get_origin(t) or t
@@ -38,6 +39,15 @@ def generate_field_values(ctx: Sentence, t: MyType, is_super: bool) \
         assert len(args) > 0
         for arg in args:
             yield from generate_field_values(ctx, arg, is_super=False)
+
+    elif base_type in (tuple, Tuple):
+        assert len(args) > 0
+        pointwise = []
+        for arg in args:
+            pointwise.append(tuple(map(lambda y: y[1], (generate_field_values(ctx, arg, is_super=False)))))
+
+        for prod in itertools.product(*pointwise):
+            yield (None, prod)
 
     elif base_type in (set, Set):
         assert len(args) == 1
