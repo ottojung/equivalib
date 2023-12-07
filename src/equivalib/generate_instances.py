@@ -9,4 +9,4 @@ def generate_instances(t: eqv.MyType, prefix: eqv.Sentence = eqv.Sentence.empty(
     hierarchy = list(eqv.get_types_hierarchy([t]))
     flatten = [typ for types in hierarchy for typ in types]
     mapped = tuple(map(eqv.MaxgreedyType, flatten[:-1])) + tuple([eqv.WideType(flatten[-1])])
-    yield from map(eqv.mark_instance, eqv.generate_sentences(mapped, prefix=prefix))
+    yield from map(eqv.mark_instance, map(eqv.arbitrary_collapse , eqv.generate_sentences(mapped, prefix=prefix)))

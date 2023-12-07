@@ -6,7 +6,7 @@ from typing import Literal
 import random
 import pytest
 import equivalib
-from equivalib import BoundedInt, superfield
+from equivalib import BoundedInt, supervalue
 
 
 # Define the fixture to fix the random seed
@@ -19,8 +19,8 @@ def fixed_random_seed():
 
 @dataclass
 class SuperEntangled:
-    a: bool = superfield()
-    b: bool = superfield()
+    a: bool = supervalue()
+    b: bool = supervalue()
 
     def __post_init__(self):
         assert self.a != self.b
@@ -45,8 +45,8 @@ def test_super_entangled():
 
 @dataclass(frozen=True)
 class Interval:
-    x: BoundedInt[Literal[1], Literal[9]] = superfield()
-    y: BoundedInt[Literal[1], Literal[9]] = superfield()
+    x: BoundedInt[Literal[1], Literal[9]] = supervalue()
+    y: BoundedInt[Literal[1], Literal[9]] = supervalue()
 
     def __post_init__(self):
         assert self.y > self.x

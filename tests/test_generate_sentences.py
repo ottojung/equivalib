@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Tuple, Literal, Union
 import pytest
 import equivalib
-from equivalib import BoundedInt, MaxgreedyType, superfield
+from equivalib import BoundedInt, MaxgreedyType, supervalue
 
 
 @dataclass(frozen=True)
@@ -177,7 +177,7 @@ def test_restricted_answer():
 
 @dataclass(frozen=True)
 class Superposed:
-    value: BoundedInt[Literal[0], Literal[9]] = superfield()
+    value: BoundedInt[Literal[0], Literal[9]] = supervalue()
 
 
 def test_super_simple():
@@ -188,7 +188,7 @@ def test_super_simple():
 
 @dataclass(frozen=True)
 class SuperposedBounded:
-    value: BoundedInt[Literal[0], Literal[9]] = superfield()
+    value: BoundedInt[Literal[0], Literal[9]] = supervalue()
 
     def __post_init__(self):
         assert self.value < 5
@@ -204,8 +204,8 @@ def test_super_bounded():
 
 @dataclass(frozen=True)
 class SuperEntangled:
-    a: bool = superfield()
-    b: bool = superfield()
+    a: bool = supervalue()
+    b: bool = supervalue()
 
     def __post_init__(self):
         assert self.a != self.b
@@ -221,8 +221,8 @@ def test_super_entangled():
 
 @dataclass
 class SuperEntangledBoring:
-    a: bool = superfield()
-    b: bool = superfield()
+    a: bool = supervalue()
+    b: bool = supervalue()
 
     def __post_init__(self):
         assert self.a == True

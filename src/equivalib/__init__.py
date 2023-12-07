@@ -7,7 +7,7 @@ from .instance_mark_key import *
 from .constant import *
 from .link import *
 from .fieldvalue import *
-from .superfield import *
+from .supervalue import *
 from .bounded_int import *
 from .comparable import *
 from .generator_type import *

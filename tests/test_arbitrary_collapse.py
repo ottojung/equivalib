@@ -7,7 +7,7 @@ import os
 import random
 import pytest
 import equivalib
-from equivalib import BoundedInt, MaxgreedyType, GreedyType, superfield
+from equivalib import BoundedInt, MaxgreedyType, GreedyType, supervalue
 
 
 # Define the fixture to fix the random seed
@@ -20,8 +20,8 @@ def fixed_random_seed():
 
 @dataclass
 class SuperEntangled:
-    a: bool = superfield()
-    b: bool = superfield()
+    a: bool = supervalue()
+    b: bool = supervalue()
 
     def __post_init__(self):
         assert self.a != self.b
@@ -45,8 +45,8 @@ def test_super_entangled():
 
 @dataclass(frozen=True)
 class Interval:
-    x: BoundedInt[Literal[1], Literal[9]] = superfield()
-    y: BoundedInt[Literal[1], Literal[9]] = superfield()
+    x: BoundedInt[Literal[1], Literal[9]] = supervalue()
+    y: BoundedInt[Literal[1], Literal[9]] = supervalue()
 
     def __post_init__(self):
         assert self.y > self.x
@@ -82,8 +82,8 @@ def test_1_overlaping_interval():
 @dataclass(frozen=True)
 class Interval2:
     name: Union[Literal["A"], Literal["B"]]
-    x: BoundedInt[Literal[1], Literal[9]] = superfield()
-    y: BoundedInt[Literal[1], Literal[9]] = superfield()
+    x: BoundedInt[Literal[1], Literal[9]] = supervalue()
+    y: BoundedInt[Literal[1], Literal[9]] = supervalue()
 
     def __post_init__(self):
         assert self.y > self.x
@@ -131,8 +131,8 @@ def test_2_overlaping_intervals():
 @dataclass(frozen=True)
 class Interval3:
     name: Union[Literal["A"], Literal["B"], Literal["C"]]
-    x: BoundedInt[Literal[1], Literal[9]] = superfield()
-    y: BoundedInt[Literal[1], Literal[9]] = superfield()
+    x: BoundedInt[Literal[1], Literal[9]] = supervalue()
+    y: BoundedInt[Literal[1], Literal[9]] = supervalue()
 
     def __post_init__(self):
         assert self.y > self.x
@@ -193,8 +193,8 @@ def test_3_overlaping_intervals():
 
 @dataclass(frozen=True)
 class SuperOverlap:
-    a: Interval2 = superfield()
-    b: Interval2 = superfield()
+    a: Interval2 = supervalue()
+    b: Interval2 = supervalue()
 
 
 def test_super_compound():
@@ -225,8 +225,8 @@ def test_super_compound():
 
 @dataclass(frozen=True)
 class SuperOverlap2:
-    a: Interval2 = superfield()
-    b: Interval2 = superfield()
+    a: Interval2 = supervalue()
+    b: Interval2 = supervalue()
 
 
 def test_super_compound_2():
@@ -363,8 +363,8 @@ def test_super_compound_greedy_maxgreedy1():
 @dataclass(frozen=True)
 class IntervalMany:
     name: Union[Literal["A"], Literal["B"], Literal["C"], Literal["D"], Literal["E"], Literal["F"], Literal["G"], Literal["H"]]
-    x: BoundedInt[Literal[1], Literal[9]] = superfield()
-    y: BoundedInt[Literal[1], Literal[9]] = superfield()
+    x: BoundedInt[Literal[1], Literal[9]] = supervalue()
+    y: BoundedInt[Literal[1], Literal[9]] = supervalue()
 
     def __post_init__(self):
         assert self.y > self.x

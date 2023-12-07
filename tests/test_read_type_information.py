@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Literal
 import pytest
 import equivalib
-from equivalib import BoundedInt, superfield
+from equivalib import BoundedInt, supervalue
 
 
 @dataclass
@@ -64,7 +64,7 @@ def superclass(x):
 @dataclass
 class SuperBools:
     start: bool
-    end: bool = superfield()
+    end: bool = supervalue()
 
 
 def test_read_type_information_for_valid_generic_super_dataclass():

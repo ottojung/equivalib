@@ -15,7 +15,7 @@ def read_type_information(t: MyType) -> Dict[str, Tuple[MyType, bool]]:
     >>> @dataclass
     >>> class Interval:
     >>>     start: int
-    >>>     end: bool = superfield()
+    >>>     end: bool = supervalue()
     >>>
     >>> read_type_information(Interval)
     {("start": (int, False)),
