@@ -2,7 +2,7 @@
 # mypy: disable-error-code="arg-type"
 
 from dataclasses import dataclass
-from typing import Set, Literal, Union
+from typing import Set, Literal, Union, Tuple
 import equivalib
 from equivalib import MyType, BoundedInt, supervalue
 
@@ -79,96 +79,36 @@ def test_entangled():
 
 
 @dataclass(frozen=True)
-class Mood:
-    happy: bool
-    complain: bool
-
-
-@dataclass(frozen=True)
-class EntangledMood:
-    x: Mood
+class EntangledPeople:
+    a: Guest
+    b: Guest
 
     def __post_init__(self):
-        assert self.x.happy != self.x.complain
+        assert self.a.polite != self.b.polite
 
 
 def test_mood():
-    instances = run_example(EntangledMood)
+    instances = run_example(EntangledPeople)
     assert instances \
-        == {EntangledMood(Mood(False, True)), EntangledMood(Mood(True, False))}
+        == {EntangledPeople(Guest(Person('Bob'), False), Guest(Person('Alice'), True)),
+            EntangledPeople(Guest(Person('Bob'), True), Guest(Person('Alice'), False)),
+            EntangledPeople(Guest(Person('Bob'), True), Guest(Person('Bob'), False)),
+            EntangledPeople(Guest(Person('Alice'), True), Guest(Person('Alice'), False)),
+            EntangledPeople(Guest(Person('Alice'), True), Guest(Person('Bob'), False)),
+            EntangledPeople(Guest(Person('Alice'), False), Guest(Person('Bob'), True)),
+            EntangledPeople(Guest(Person('Bob'), False), Guest(Person('Bob'), True)),
+            EntangledPeople(Guest(Person('Alice'), False), Guest(Person('Alice'), True))}
 
 
 @dataclass(frozen=True)
-class Moods:
-    moods: Set[Union[EntangledMood, Mood]]
-
-    def __post_init__(self):
-        assert len(self.moods) == 4
+class People:
+    instances: Tuple[Guest, Guest]
+    entangles: EntangledPeople
 
 
-def test_thens():
-    instances = run_example(Moods)
-    assert list(instances) \
-        == [Moods(set({Mood(False, True),
-                       Mood(True, False),
-                       Mood(True, True),
-                       EntangledMood(Mood(True, False))})),
-            Moods(set({Mood(False, True),
-                       EntangledMood(Mood(False, True)),
-                       Mood(True, True),
-                       Mood(False, False)})),
-            Moods(set({Mood(True, False),
-                       EntangledMood(Mood(False, True)),
-                       Mood(True, True),
-                       EntangledMood(Mood(True, False))})),
-            Moods(set({Mood(False, True),
-                       EntangledMood(Mood(False, True)),
-                       Mood(True, True),
-                       Mood(True, False)})),
-            Moods(set({Mood(False, True),
-                       EntangledMood(Mood(False, True)),
-                       EntangledMood(Mood(True, False)),
-                       Mood(False, False)})),
-            Moods(set({Mood(False, True),
-                       Mood(True, False),
-                       EntangledMood(Mood(True, False)),
-                       Mood(False, False)})),
-            Moods(set({Mood(False, True),
-                       Mood(True, True),
-                       EntangledMood(Mood(True, False)),
-                       Mood(False, False)})),
-            Moods(set({Mood(True, False),
-                       EntangledMood(Mood(False, True)),
-                       Mood(True, True),
-                       Mood(False, False)})),
-            Moods(set({EntangledMood(Mood(False, True)),
-                       Mood(True, True),
-                       EntangledMood(Mood(True, False)),
-                       Mood(False, False)})),
-            Moods(set({Mood(False, True),
-                       EntangledMood(Mood(False, True)),
-                       Mood(True, True),
-                       EntangledMood(Mood(True, False))})),
-            Moods(set({Mood(True, False),
-                       Mood(True, True),
-                       EntangledMood(Mood(True, False)),
-                       Mood(False, False)})),
-            Moods(set({Mood(False, True),
-                       Mood(True, False),
-                       Mood(True, True),
-                       Mood(False, False)})),
-            Moods(set({Mood(True, False),
-                       EntangledMood(Mood(False, True)),
-                       EntangledMood(Mood(True, False)),
-                       Mood(False, False)})),
-            Moods(set({Mood(False, True),
-                       EntangledMood(Mood(False, True)),
-                       Mood(True, False),
-                       Mood(False, False)})),
-            Moods(set({Mood(False, True),
-                       EntangledMood(Mood(False, True)),
-                       Mood(True, False),
-                       EntangledMood(Mood(True, False))}))]
+def test_people():
+    instances = run_example(People)
+    assert len(instances) == 128
 
 
 
@@ -190,10 +130,42 @@ def test_super_entangled():
 
 
 @dataclass(frozen=True)
+class SuperGuest:
+    who: Person
+    polite: bool = supervalue()
+
+
+@dataclass(frozen=True)
+class SuperPeople:
+    a: SuperGuest
+    b: SuperGuest
+    entangleda: SuperGuest
+    entangledb: SuperGuest
+
+    def __post_init__(self):
+        assert self.entangleda.polite ==  self.entangledb.polite
+        assert self.entangleda.who.name != self.entangledb.who.name
+
+
+def test_superpeople():
+    instances = run_example(SuperPeople)
+    assert instances \
+        == {SuperPeople(SuperGuest(Person('Alice'), False), SuperGuest(Person('Alice'), False), SuperGuest(Person('Alice'), False), SuperGuest(Person('Bob'), False)),
+            SuperPeople(SuperGuest(Person('Alice'), False), SuperGuest(Person('Alice'), False), SuperGuest(Person('Bob'), False), SuperGuest(Person('Alice'), False)),
+            SuperPeople(SuperGuest(Person('Alice'), False), SuperGuest(Person('Bob'), False), SuperGuest(Person('Bob'), False), SuperGuest(Person('Alice'), False)),
+            SuperPeople(SuperGuest(Person('Bob'), False), SuperGuest(Person('Bob'), False), SuperGuest(Person('Bob'), False), SuperGuest(Person('Alice'), False)),
+            SuperPeople(SuperGuest(Person('Bob'), False), SuperGuest(Person('Alice'), False), SuperGuest(Person('Alice'), False), SuperGuest(Person('Bob'), False)),
+            SuperPeople(SuperGuest(Person('Bob'), False), SuperGuest(Person('Bob'), False), SuperGuest(Person('Alice'), False), SuperGuest(Person('Bob'), False)),
+            SuperPeople(SuperGuest(Person('Alice'), False), SuperGuest(Person('Bob'), False), SuperGuest(Person('Alice'), False), SuperGuest(Person('Bob'), False)),
+            SuperPeople(SuperGuest(Person('Bob'), False), SuperGuest(Person('Alice'), False), SuperGuest(Person('Bob'), False), SuperGuest(Person('Alice'), False))}
+
+
+
+@dataclass(frozen=True)
 class Interval:
     name: Union[Literal["A"], Literal["B"], Literal["C"]]
-    x: BoundedInt[Literal[1], Literal[999]] = supervalue()
-    y: BoundedInt[Literal[1], Literal[999]] = supervalue()
+    x: BoundedInt[Literal[1], Literal[99]] = supervalue()
+    y: BoundedInt[Literal[1], Literal[99]] = supervalue()
 
     def __post_init__(self):
         assert self.y > self.x
@@ -232,24 +204,24 @@ class Constrained:
 def test_constrained():
     instances = run_example(Constrained)
     assert instances \
-        == {Constrained(Interval('B', 3, 4), Interval('C', 998, 999), Before(Interval('B', 3, 4), Interval('C', 998, 999))),
-            Constrained(Interval('A', 1, 2), Interval('C', 998, 999), Before(Interval('A', 1, 2), Interval('C', 998, 999))),
-            Constrained(Interval('B', 3, 4), Interval('C', 998, 999), Before(Interval('A', 1, 2), Interval('B', 3, 4))),
-            Constrained(Interval('C', 998, 999), Interval('B', 3, 4), Before(Interval('B', 3, 4), Interval('C', 998, 999))),
-            Constrained(Interval('B', 3, 4), Interval('A', 1, 2), Before(Interval('A', 1, 2), Interval('C', 998, 999))),
-            Constrained(Interval('C', 998, 999), Interval('B', 3, 4), Before(Interval('A', 1, 2), Interval('B', 3, 4))),
-            Constrained(Interval('C', 998, 999), Interval('A', 1, 2), Before(Interval('B', 3, 4), Interval('C', 998, 999))),
-            Constrained(Interval('B', 3, 4), Interval('C', 998, 999), Before(Interval('A', 1, 2), Interval('C', 998, 999))),
-            Constrained(Interval('B', 3, 4), Interval('A', 1, 2), Before(Interval('B', 3, 4), Interval('C', 998, 999))),
-            Constrained(Interval('A', 1, 2), Interval('B', 3, 4), Before(Interval('B', 3, 4), Interval('C', 998, 999))),
-            Constrained(Interval('C', 998, 999), Interval('A', 1, 2), Before(Interval('A', 1, 2), Interval('B', 3, 4))),
-            Constrained(Interval('C', 998, 999), Interval('B', 3, 4), Before(Interval('A', 1, 2), Interval('C', 998, 999))),
-            Constrained(Interval('C', 998, 999), Interval('A', 1, 2), Before(Interval('A', 1, 2), Interval('C', 998, 999))),
-            Constrained(Interval('A', 1, 2), Interval('C', 998, 999), Before(Interval('B', 3, 4), Interval('C', 998, 999))),
-            Constrained(Interval('A', 1, 2), Interval('C', 998, 999), Before(Interval('A', 1, 2), Interval('B', 3, 4))),
+        == {Constrained(Interval('B', 3, 4), Interval('C', 98, 99), Before(Interval('B', 3, 4), Interval('C', 98, 99))),
+            Constrained(Interval('A', 1, 2), Interval('C', 98, 99), Before(Interval('A', 1, 2), Interval('C', 98, 99))),
+            Constrained(Interval('B', 3, 4), Interval('C', 98, 99), Before(Interval('A', 1, 2), Interval('B', 3, 4))),
+            Constrained(Interval('C', 98, 99), Interval('B', 3, 4), Before(Interval('B', 3, 4), Interval('C', 98, 99))),
+            Constrained(Interval('B', 3, 4), Interval('A', 1, 2), Before(Interval('A', 1, 2), Interval('C', 98, 99))),
+            Constrained(Interval('C', 98, 99), Interval('B', 3, 4), Before(Interval('A', 1, 2), Interval('B', 3, 4))),
+            Constrained(Interval('C', 98, 99), Interval('A', 1, 2), Before(Interval('B', 3, 4), Interval('C', 98, 99))),
+            Constrained(Interval('B', 3, 4), Interval('C', 98, 99), Before(Interval('A', 1, 2), Interval('C', 98, 99))),
+            Constrained(Interval('B', 3, 4), Interval('A', 1, 2), Before(Interval('B', 3, 4), Interval('C', 98, 99))),
+            Constrained(Interval('A', 1, 2), Interval('B', 3, 4), Before(Interval('B', 3, 4), Interval('C', 98, 99))),
+            Constrained(Interval('C', 98, 99), Interval('A', 1, 2), Before(Interval('A', 1, 2), Interval('B', 3, 4))),
+            Constrained(Interval('C', 98, 99), Interval('B', 3, 4), Before(Interval('A', 1, 2), Interval('C', 98, 99))),
+            Constrained(Interval('C', 98, 99), Interval('A', 1, 2), Before(Interval('A', 1, 2), Interval('C', 98, 99))),
+            Constrained(Interval('A', 1, 2), Interval('C', 98, 99), Before(Interval('B', 3, 4), Interval('C', 98, 99))),
+            Constrained(Interval('A', 1, 2), Interval('C', 98, 99), Before(Interval('A', 1, 2), Interval('B', 3, 4))),
             Constrained(Interval('B', 3, 4), Interval('A', 1, 2), Before(Interval('A', 1, 2), Interval('B', 3, 4))),
             Constrained(Interval('A', 1, 2), Interval('B', 3, 4), Before(Interval('A', 1, 2), Interval('B', 3, 4))),
-            Constrained(Interval('A', 1, 2), Interval('B', 3, 4), Before(Interval('A', 1, 2), Interval('C', 998, 999)))}
+            Constrained(Interval('A', 1, 2), Interval('B', 3, 4), Before(Interval('A', 1, 2), Interval('C', 98, 99)))}
 
 
 @dataclass(frozen=True)
