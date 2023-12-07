@@ -3,6 +3,7 @@
 from .orderedset import *
 from .dynamic import *
 from .mytype import *
+from .instance_mark_key import *
 from .constant import *
 from .link import *
 from .fieldvalue import *
@@ -15,6 +16,7 @@ from .read_type_information import *
 from .get_types_hierarchy import *
 from .sentence_model import *
 from .sentence import *
+from .mark_instance import *
 from .get_current_sentence import *
 from .super import *
 from .extend_sentence import *
