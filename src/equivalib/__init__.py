@@ -1,5 +1,6 @@
 
 # pylint: disable=unused-import,wildcard-import,unused-wildcard-import
+from .orderedset import *
 from .dynamic import *
 from .mytype import *
 from .constant import *
@@ -18,6 +19,7 @@ from .get_current_sentence import *
 from .super import *
 from .extend_sentence import *
 from .generate_sentences import *
+from .generate_instances import *
 from .generic_collapse import *
 from .arbitrary_collapse import *
 from .random_collapse import *

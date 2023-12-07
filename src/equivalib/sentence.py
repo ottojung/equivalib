@@ -1,9 +1,10 @@
 ## Copyright (C) 2023  Otto Jung
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from typing import Dict, List, Tuple, Union, Sequence, Optional
+import typing
+from typing import Dict, List, Tuple, Union, Sequence, Optional, Literal
 from dataclasses import dataclass
-from equivalib import SentenceModel, denv, Constant, Link, MyType
+from equivalib import SentenceModel, denv, Constant, Link, MyType, BoundedInt, instantiate
 
 
 Structure = Tuple[MyType, Tuple[Union[str, Constant], ...]]
@@ -107,14 +108,26 @@ class Sentence:
         ret = Sentence.empty()
         ret.structure = structure
 
+        def unwrap(arg: object) -> object:
+            if isinstance(arg, str):
+                return get(arg)
+            elif isinstance(arg, Constant):
+                return arg.value
+            else:
+                return arg
+
         def get(name: str) -> object:
             if name not in ret.assignments:
                 (ty, args_names) = structure[name]
-                args = [get(name) if isinstance(name, str) else name for name in args_names]
+                args = [unwrap(name) for name in args_names]
                 struct = (ty, args_names)
-                ret.insert_new_value(name, ty(*args), struct)
+                instance = instantiate(ty, args)
+                ret.insert_new_value(name, instance, struct)
 
-            return ret.assignments[name]
+            val = ret.assignments[name]
+            while isinstance(val, Constant):
+                val = val.value
+            return val
 
         with denv.let(sentence = ret):
             for key in structure:
@@ -130,10 +143,18 @@ class Sentence:
             k, _v = p
             return (len(k), k)
 
+        def unwrap(x: object) -> object:
+            if isinstance(x, Constant):
+                return unwrap(x.value)
+            else:
+                return x
+
         for k, v in sorted(self.structure.items(), key=sortkey):
             (ty, args_names) = v
-            if ty in (bool, int, Link):
-                value = repr(ty(args_names[0])) # type: ignore
+            base_type = typing.get_origin(ty) or ty
+            if base_type in (bool, int, Link, BoundedInt, Literal):
+                args_values = list(map(unwrap, args_names))
+                value = repr(instantiate(ty, args_values))
             else:
                 args = ', '.join(map(str, args_names))
                 value = f"{ty.__name__}({args})"

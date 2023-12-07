@@ -58,4 +58,4 @@ def test_interval(fixed_random_seed): # pylint: disable=redefined-outer-name
     sentence = equivalib.random_collapse(theories[0])
 
     assert str(sentence) \
-        == 'a = 2; b = 5; c = Interval(a, b);'
+        == 'a = 1; b = 9; c = Interval(a, b);'

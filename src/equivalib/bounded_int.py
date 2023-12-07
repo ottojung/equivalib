@@ -9,6 +9,8 @@ S = TypeVar('S')
 E = TypeVar('E')
 
 class BoundedInt(int, Generic[S, E]):
+    def __init__(self, value: int):
+        self.value = value
 
     @staticmethod
     def unpack_type(base_type: MyType, args: Tuple[object, object]) -> Tuple[int, int]:
@@ -18,3 +20,7 @@ class BoundedInt(int, Generic[S, E]):
         assert isinstance(low, int)
         assert isinstance(high, int)
         return (low, high)
+
+
+    def __str__(self) -> str:
+        return str(self.value)

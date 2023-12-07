@@ -6,7 +6,7 @@ import typing
 from typing import Generator, List, Tuple, Optional, Literal, Union, Iterable, Sequence, Set
 import itertools
 import equivalib
-from equivalib import Sentence, BoundedInt, denv, Super, Constant, MyType, Supertype, FValueT
+from equivalib import Sentence, BoundedInt, denv, Super, Constant, MyType, Supertype, FValueT, instantiate
 
 
 GFieldT = Tuple[Optional[str], FValueT]
@@ -122,7 +122,7 @@ def make_instance(ctx: Sentence, t: MyType, renamed_arguments: Iterable[GFieldT]
         return
 
     arguments = (value for name, value in renamed_arguments)
-    instance = t(*arguments)
+    instance = instantiate(t, arguments)
     ctx.insert_value(instance, struct)
 
 
@@ -180,3 +180,25 @@ def extend_sentence_greedily(ctx: Sentence, t: MyType) -> Generator[Sentence, No
         if add_instances(new, t, [inp]):
             yield new
             ctx = new
+
+
+def extend_sentence_backracking(ctx: Sentence, t: MyType) -> Generator[Sentence, None, None]:
+    pointwise = generate_instances_fields(ctx, t)
+    inputs = list(itertools.product(*pointwise))
+
+    to_consume = list(inputs)
+    new = ctx.copy()
+
+    while to_consume:
+        found = False
+
+        for inp in to_consume:
+            if add_instances(new, t, [inp]):
+                to_consume.remove(inp)
+                found = True
+
+        if found:
+            yield new
+        else:
+            new = ctx.copy()
+            to_consume.pop(0)

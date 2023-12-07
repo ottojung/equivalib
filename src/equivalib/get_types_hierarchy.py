@@ -3,41 +3,42 @@
 
 import dataclasses
 import typing
-from typing import Set, Iterable, Generator, Union, Tuple, Literal, Type, Dict
+from typing import Iterable, Generator, Union, Tuple, Literal, Type, Dict
 import equivalib
-from equivalib import MyType, BoundedInt
+from equivalib import MyType, BoundedInt, OrderedSet
 
 
 class BannedType(Exception):
     pass
 
 
-def get_types_hierarchy(types: Iterable[MyType]) -> Generator[Set[MyType], None, None]:
-    before: Dict[Type[object], Set[Type[object]]] = {}
-    all_types: Set[MyType] = set()
+def get_types_hierarchy(types: Iterable[MyType]) -> Generator[OrderedSet[MyType], None, None]:
+    before: Dict[Type[object], OrderedSet[Type[object]]] = {}
+    all_types: OrderedSet[MyType] = OrderedSet()
 
     def get_all_types(t: MyType) -> Generator[MyType, None, None]:
-        base = typing.get_origin(t)
-        args = typing.get_args(t)
-        if args:
-            if base:
-                if base in (Union, Tuple):
-                    for lsts in map(get_all_types, args):
-                        yield from lsts
-                elif base not in (int, bool, Literal, BoundedInt) and not dataclasses.is_dataclass(base):
-                    raise BannedType(f"Type not allowed: {base}")
-                else:
-                    yield base
-        else:
+        base = typing.get_origin(t) or t
+        if base in (Union, Tuple, tuple, OrderedSet, set):
+            args = typing.get_args(t)
+            for lsts in map(get_all_types, args):
+                yield from lsts
+        elif base in (int, bool, Literal, BoundedInt) or dataclasses.is_dataclass(t):
             yield t
+        else:
+            raise BannedType(f"Type not allowed: {base}")
 
     def recurse_type(t: MyType) -> None:
         all_types.add(t)
         if dataclasses.is_dataclass(t):
             information = equivalib.read_type_information(t)
             for value, _is_super in information.values():
-                subtypes = set(get_all_types(value))
-                before[t] = subtypes
+                subtypes: OrderedSet[MyType] = OrderedSet(get_all_types(value))
+                if t in before:
+                    for s in subtypes:
+                        before[t].add(s)
+                else:
+                    before[t] = subtypes
+
                 for subtype in subtypes:
                     recurse_type(subtype)
 

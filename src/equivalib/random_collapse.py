@@ -5,13 +5,13 @@ import random
 from typing import Dict, Generator
 from ortools.sat.python import cp_model
 import equivalib
-from equivalib import Collapser, Sentence, Comparable, Super
+from equivalib import Collapser, Sentence, Comparable, Super, OrderedSet
 
 
 class VarArraySolutionPrinter(cp_model.CpSolverSolutionCallback): # type: ignore[misc]
     def __init__(self, variables):
         self._variables = variables
-        self.collected = set()
+        self.collected: OrderedSet[object] = OrderedSet()
         super().__init__()
 
 
