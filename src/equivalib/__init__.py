@@ -20,3 +20,4 @@ from .extend_sentence import *
 from .generate_sentences import *
 from .generic_collapse import *
 from .arbitrary_collapse import *
+from .random_collapse import *

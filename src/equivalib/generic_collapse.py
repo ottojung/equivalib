@@ -8,15 +8,15 @@ from equivalib import Super, Sentence, denv, Link, Constant, MyType, Comparable
 
 class Collapser(Protocol):
     # pylint: disable=multiple-statements
-    def init(self, ctx: Sentence) -> None: pass
+    def __init__(self, ctx: Sentence) -> None: pass
     def collapse(self, var: Comparable) -> object: pass
 
 
-def generic_collapse(self: Sentence, coll: Collapser) -> Sentence:
+def generic_collapse(self: Sentence, coll_t: type[Collapser]) -> Sentence:
     struct = self.structure.copy()
-    coll.init(self)
 
     with denv.let(sentence = self):
+        coll = coll_t(self)
         for k, v in self.assignments.items():
             if isinstance(v, Super):
                 var = v.get_var()

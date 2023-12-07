@@ -7,10 +7,8 @@ from equivalib import Collapser, Comparable, Sentence
 
 
 class ArbitraryCollapser(Collapser):
-    def __init__(self):
+    def __init__(self, ctx: Sentence):
         self.solver = cp_model.CpSolver()
-
-    def init(self, ctx: Sentence) -> None:
         self.solver.Solve(ctx.model.model)
 
     def collapse(self, var: Comparable) -> object:
@@ -18,4 +16,4 @@ class ArbitraryCollapser(Collapser):
 
 
 def arbitrary_collapse(self: Sentence) -> Sentence:
-    return equivalib.generic_collapse(self, ArbitraryCollapser())
+    return equivalib.generic_collapse(self, ArbitraryCollapser)
