@@ -53,7 +53,8 @@ def generate_field_values(ctx: Sentence, t: MyType, is_super: bool) \
         assert len(args) == 1
         subtype = args[0]
         inputs = list(generate_field_values(ctx, subtype, is_super=False))
-        yield from map(lambda x: (None, frozenset(map(lambda y: y[1], x))), get_subsets(inputs))
+        for subset in get_subsets(inputs):
+            yield (None, frozenset(map(lambda y: y[1], subset)))
 
     elif base_type == BoundedInt:
         assert len(args) == 2
