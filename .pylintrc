@@ -16,4 +16,5 @@ disable=
     comparison-with-callable,
     fixme,
     no-member,
+    invalid-name,
     singleton-comparison,

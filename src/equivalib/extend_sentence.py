@@ -1,22 +1,19 @@
 ## Copyright (C) 2023  Otto Jung
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from dataclasses import is_dataclass, dataclass
+from dataclasses import is_dataclass
 import typing
 from typing import Generator, List, Tuple, Optional, Literal, Union, Iterable, Sequence, Set
 import itertools
 import equivalib
-from equivalib import Sentence, BoundedInt, denv, Super, Constant, MyType
+from equivalib import Sentence, BoundedInt, denv, Super, Constant, MyType, Supertype, FValueT
 
 
-@dataclass(frozen=True)
-class Supertype:
-    t: MyType
+GFieldT = Tuple[Optional[str], FValueT]
 
 
 # pylint: disable=too-many-branches
-def generate_field_values(ctx: Sentence, t: MyType, is_super: bool) \
-                          -> Generator[Tuple[Optional[str], Union[object, List[object]]], None, None]:
+def generate_field_values(ctx: Sentence, t: MyType, is_super: bool) -> Generator[GFieldT, None, None]:
     base_type = typing.get_origin(t) or t
     args = typing.get_args(t)
 
@@ -66,7 +63,7 @@ def generate_field_values(ctx: Sentence, t: MyType, is_super: bool) \
         raise ValueError(f"Cannot generate values of type {t!r}.")
 
 
-def generate_instances_fields(ctx: Sentence, t: MyType) -> Generator[List[Tuple[Optional[str], object]], None, None]:
+def generate_instances_fields(ctx: Sentence, t: MyType) -> Generator[List[GFieldT], None, None]:
     if is_dataclass(t):
         information = equivalib.read_type_information(t)
         for type_signature, is_super in information.values():
@@ -96,7 +93,7 @@ def get_subsets(original_set):
     return all_subsets
 
 
-def handle_supers(ctx: Sentence, name: Optional[str], value: Union[object, List[object]]) -> Tuple[Optional[str], object]:
+def handle_supers(ctx: Sentence, name: Optional[str], value: FValueT) -> GFieldT:
     if isinstance(value, Supertype):
         parameter = value.t
         parameter_base = typing.get_origin(parameter) or parameter
@@ -113,7 +110,7 @@ def handle_supers(ctx: Sentence, name: Optional[str], value: Union[object, List[
         return (name, value)
 
 
-def make_instance(ctx: Sentence, t: MyType, renamed_arguments: Iterable[Tuple[Optional[str], object]]) -> None:
+def make_instance(ctx: Sentence, t: MyType, renamed_arguments: Iterable[GFieldT]) -> None:
     struct = (t, tuple(name or Constant(value) for name, value in renamed_arguments))
     if struct in ctx.reverse:
         name = ctx.reverse[struct]
@@ -129,7 +126,7 @@ def make_instance(ctx: Sentence, t: MyType, renamed_arguments: Iterable[Tuple[Op
     ctx.insert_value(instance, struct)
 
 
-def add_instances(ctx: Sentence, t: MyType, instances: Iterable[Sequence[Tuple[Optional[str], List[object]]]]) -> bool:
+def add_instances(ctx: Sentence, t: MyType, instances: Iterable[Sequence[GFieldT]]) -> bool:
     with denv.let(sentence = ctx):
         try:
             for named_arguments in instances:
