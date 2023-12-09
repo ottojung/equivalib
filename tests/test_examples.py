@@ -231,5 +231,5 @@ class Problem:
 
 
 def test_interval_problem():
-    instances = run_example(Problem)
+    instances = list(equivalib.generate_instances(Problem))
     assert len(instances) == 64

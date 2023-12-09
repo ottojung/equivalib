@@ -2,7 +2,7 @@
 # pylint: disable=duplicate-code
 
 from dataclasses import dataclass
-from typing import Tuple, Literal, Union
+from typing import Tuple, Literal, Union, Set
 import pytest
 import equivalib
 from equivalib import BoundedInt, MaxgreedyType, WideType, supervalue
@@ -75,13 +75,40 @@ def test_tuple1():
                 'a = Tuple1((False, True));'}
     assert sentences == expected
 
+
 def test_tuple2():
     theories = equivalib.generate_instances(Tuple1)
     sentences = set(str(equivalib.unmark_instance(x)) for x in theories)
-    expected = {'a = False; b = True; c = (False, False); d = (False, True); e = (True, False); f = (True, True); g = Tuple1((True, True));',
-                'a = False; b = True; c = (False, False); d = (False, True); e = (True, False); f = (True, True); g = Tuple1((False, True));',
-                'a = False; b = True; c = (False, False); d = (False, True); e = (True, False); f = (True, True); g = Tuple1((False, False));',
-                'a = False; b = True; c = (False, False); d = (False, True); e = (True, False); f = (True, True); g = Tuple1((True, False));'}
+    expected = {'a = False; b = True; c = (False, False); d = (False, True); e = (True, False); f = (True, True); g = Tuple1(c);',
+                'a = False; b = True; c = (False, False); d = (False, True); e = (True, False); f = (True, True); g = Tuple1(e);',
+                'a = False; b = True; c = (False, False); d = (False, True); e = (True, False); f = (True, True); g = Tuple1(d);',
+                'a = False; b = True; c = (False, False); d = (False, True); e = (True, False); f = (True, True); g = Tuple1(f);'}
+    assert sentences == expected
+
+
+
+@dataclass(frozen=True)
+class Set1:
+    values: Set[bool]
+
+
+def test_set1():
+    theories = equivalib.generate_sentences([WideType(Set1)])
+    sentences = set(str(x) for x in theories)
+    expected = {'a = Set1(frozenset({False}));',
+                'a = Set1(frozenset());',
+                'a = Set1(frozenset({False, True}));',
+                'a = Set1(frozenset({True}));'}
+    assert sentences == expected
+
+
+def test_set2():
+    theories = equivalib.generate_instances(Set1)
+    sentences = set(str(equivalib.unmark_instance(x)) for x in theories)
+    expected = {'a = False; b = True; c = Set(frozenset()); d = Set(frozenset({False})); e = Set(frozenset({True})); f = Set(frozenset({False, True})); g = Set1(f);',
+                'a = False; b = True; c = Set(frozenset()); d = Set(frozenset({False})); e = Set(frozenset({True})); f = Set(frozenset({False, True})); g = Set1(e);',
+                'a = False; b = True; c = Set(frozenset()); d = Set(frozenset({False})); e = Set(frozenset({True})); f = Set(frozenset({False, True})); g = Set1(d);',
+                'a = False; b = True; c = Set(frozenset()); d = Set(frozenset({False})); e = Set(frozenset({True})); f = Set(frozenset({False, True})); g = Set1(c);'}
     assert sentences == expected
 
 

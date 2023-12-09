@@ -14,16 +14,18 @@ GFieldT = Tuple[Optional[str], FValueT]
 
 # pylint: disable=too-many-branches
 def generate_field_values(ctx: Sentence, t: MyType, is_super: bool) -> Generator[GFieldT, None, None]:
+    if is_super:
+        yield (None, Supertype(t))
+        return
+
+    elif ctx.has_type(t):
+        yield from ctx.types[t]
+        return
+
     base_type = typing.get_origin(t) or t
     args = typing.get_args(t)
 
-    if is_super:
-        yield (None, Supertype(t))
-
-    elif ctx.has_type(base_type):
-        yield from ctx.types[base_type]
-
-    elif base_type == bool:
+    if base_type == bool:
         assert len(args) == 0
         yield (None, False)
         yield (None, True)
