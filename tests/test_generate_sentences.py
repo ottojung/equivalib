@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Tuple, Literal, Union
 import pytest
 import equivalib
-from equivalib import BoundedInt, MaxgreedyType, supervalue
+from equivalib import BoundedInt, MaxgreedyType, WideType, supervalue
 
 
 @dataclass(frozen=True)
@@ -60,6 +60,29 @@ def test_invalid():
     with pytest.raises(ValueError):
         equivalib.generate_sentences([BadTuple])
 
+
+@dataclass(frozen=True)
+class Tuple1:
+    values: Tuple[bool, bool]
+
+
+def test_tuple1():
+    theories = equivalib.generate_sentences([WideType(Tuple1)])
+    sentences = set(str(x) for x in theories)
+    expected = {'a = Tuple1((True, False));',
+                'a = Tuple1((True, True));',
+                'a = Tuple1((False, False));',
+                'a = Tuple1((False, True));'}
+    assert sentences == expected
+
+def test_tuple2():
+    theories = equivalib.generate_instances(Tuple1)
+    sentences = set(str(equivalib.unmark_instance(x)) for x in theories)
+    expected = {'a = False; b = True; c = (False, False); d = (False, True); e = (True, False); f = (True, True); g = Tuple1((True, True));',
+                'a = False; b = True; c = (False, False); d = (False, True); e = (True, False); f = (True, True); g = Tuple1((False, True));',
+                'a = False; b = True; c = (False, False); d = (False, True); e = (True, False); f = (True, True); g = Tuple1((False, False));',
+                'a = False; b = True; c = (False, False); d = (False, True); e = (True, False); f = (True, True); g = Tuple1((True, False));'}
+    assert sentences == expected
 
 
 @dataclass(frozen=True)

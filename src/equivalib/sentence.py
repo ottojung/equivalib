@@ -152,7 +152,7 @@ class Sentence:
         for k, v in sorted(self.structure.items(), key=sortkey):
             (ty, args_names) = v
             base_type = typing.get_origin(ty) or ty
-            if base_type in (bool, int, Link, BoundedInt, Literal):
+            if base_type in (bool, int, tuple, Link, BoundedInt, Literal):
                 args_values = list(map(unwrap, args_names))
                 value = repr(instantiate(ty, args_values))
             else:

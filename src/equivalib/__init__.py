@@ -17,6 +17,7 @@ from .get_types_hierarchy import *
 from .sentence_model import *
 from .sentence import *
 from .mark_instance import *
+from .unmark_instance import *
 from .get_current_sentence import *
 from .super import *
 from .extend_sentence import *
