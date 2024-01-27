@@ -21,3 +21,5 @@ venv
 flycheck*.py
 Makefile
 .vscode/
+*~
+*~.py
