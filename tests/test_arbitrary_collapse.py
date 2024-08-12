@@ -192,59 +192,6 @@ def test_3_overlaping_intervals():
 
 
 @dataclass(frozen=True)
-class SuperOverlap:
-    a: Interval2 = supervalue()
-    b: Interval2 = supervalue()
-
-
-def test_super_compound():
-    theories = equivalib.generate_sentences([Interval2, SuperOverlap])
-    strings = list(map(str, map(equivalib.arbitrary_collapse, theories)))
-
-    assert len(theories) == 3
-    dedup = list(set(strings))
-    assert len(dedup) == len(strings)
-    assert sorted(dedup) == sorted(strings)
-
-    assert strings in \
-        (["a = 1; b = 2; c = Interval2('A', a, b); d = c; e = c; f = SuperOverlap(d, e);",
-          "a = 1; b = 2; c = Interval2('B', a, b); d = c; e = c; f = SuperOverlap(d, e);",
-          "a = 1; b = 2; c = Interval2('A', a, b); d = 1; e = 2; f = Interval2('B', d, e); g = c; h = c; i = SuperOverlap(g, h);"],
-         ["a = 1; b = 2; c = Interval2('A', a, b); d = c; e = c; f = SuperOverlap(d, e);",
-          "a = 1; b = 2; c = Interval2('B', a, b); d = c; e = c; f = SuperOverlap(d, e);",
-          "a = 1; b = 2; c = Interval2('A', a, b); d = 1; e = 2; f = Interval2('B', d, e); g = c; h = f; i = SuperOverlap(g, h);"],
-         ["a = 1; b = 2; c = Interval2('A', a, b); d = c; e = c; f = SuperOverlap(d, e);",
-          "a = 1; b = 2; c = Interval2('B', a, b); d = c; e = c; f = SuperOverlap(d, e);",
-          "a = 1; b = 2; c = Interval2('A', a, b); d = 1; e = 2; f = Interval2('B', d, e); g = f; h = c; i = SuperOverlap(g, h);"],
-         ["a = 1; b = 2; c = Interval2('A', a, b); d = c; e = c; f = SuperOverlap(d, e);",
-          "a = 1; b = 2; c = Interval2('B', a, b); d = c; e = c; f = SuperOverlap(d, e);",
-          "a = 1; b = 2; c = Interval2('A', a, b); d = 1; e = 2; f = Interval2('B', d, e); g = f; h = f; i = SuperOverlap(g, h);"],
-         )
-
-
-
-@dataclass(frozen=True)
-class SuperOverlap2:
-    a: Interval2 = supervalue()
-    b: Interval2 = supervalue()
-
-
-def test_super_compound_2():
-    theories = equivalib.generate_sentences([Interval2, SuperOverlap, SuperOverlap2])
-    strings = list(map(str, map(equivalib.arbitrary_collapse, theories)))
-
-    assert len(theories) == 3
-    dedup = list(set(strings))
-    assert len(dedup) == len(strings)
-    assert sorted(dedup) == sorted(strings)
-
-    assert strings \
-        == ["a = 1; b = 2; c = Interval2('A', a, b); d = c; e = c; f = SuperOverlap(d, e); g = c; h = c; i = SuperOverlap2(g, h);",
-            "a = 1; b = 2; c = Interval2('B', a, b); d = c; e = c; f = SuperOverlap(d, e); g = c; h = c; i = SuperOverlap2(g, h);",
-            "a = 1; b = 2; c = Interval2('A', a, b); d = 1; e = 2; f = Interval2('B', d, e); g = f; h = c; i = SuperOverlap(g, h); j = c; k = c; l = SuperOverlap2(j, k);"]
-
-
-@dataclass(frozen=True)
 class Then:
     a: Interval3
     b: Interval3

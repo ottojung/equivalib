@@ -3,7 +3,7 @@
 
 from dataclasses import is_dataclass
 import typing
-from typing import Generator, List, Tuple, Optional, Literal, Union, Iterable, Sequence, Set
+from typing import List, Tuple, Optional, Literal, Union, Iterable, Sequence, Set, Iterator
 import itertools
 import equivalib
 from equivalib import Sentence, BoundedInt, denv, Super, Constant, MyType, Supertype, FValueT, instantiate
@@ -13,7 +13,7 @@ GFieldT = Tuple[Optional[str], FValueT]
 
 
 # pylint: disable=too-many-branches
-def generate_field_values(ctx: Sentence, t: MyType, is_super: bool) -> Generator[GFieldT, None, None]:
+def generate_field_values(ctx: Sentence, t: MyType, is_super: bool) -> Iterator[GFieldT]:
     if is_super:
         yield (None, Supertype(t))
         return
@@ -65,7 +65,7 @@ def generate_field_values(ctx: Sentence, t: MyType, is_super: bool) -> Generator
         raise ValueError(f"Cannot generate values of type {t!r}.")
 
 
-def generate_instances_fields(ctx: Sentence, t: MyType) -> Generator[List[GFieldT], None, None]:
+def generate_instances_fields(ctx: Sentence, t: MyType) -> Iterator[List[GFieldT]]:
     if is_dataclass(t):
         information = equivalib.read_type_information(t)
         for type_signature, is_super in information.values():
@@ -99,12 +99,10 @@ def handle_supers(ctx: Sentence, name: Optional[str], value: FValueT) -> GFieldT
     if isinstance(value, Supertype):
         parameter = value.t
         parameter_base = typing.get_origin(parameter) or parameter
-        if parameter_base in (BoundedInt, bool):
-            arg = []
-        else:
-            arg = list(generate_field_values(ctx, parameter, is_super=False))
+        if parameter_base not in (BoundedInt, bool):
+            raise ValueError("Can only have super of bool or BoundedInt.")
 
-        s: Super[object] = Super.make(parameter, arg)
+        s: Super[object] = Super.make(parameter)
         return (s.name, s)
     elif isinstance(value, frozenset):
         return (name, value)
@@ -139,7 +137,7 @@ def add_instances(ctx: Sentence, t: MyType, instances: Iterable[Sequence[GFieldT
     return True
 
 
-def extend_sentence(ctx: Sentence, t: MyType) -> Generator[Sentence, None, None]:
+def extend_sentence(ctx: Sentence, t: MyType) -> Iterator[Sentence]:
     pointwise = generate_instances_fields(ctx, t)
     inputs = list(itertools.product(*pointwise))
     subsets = get_subsets(inputs)
@@ -150,7 +148,7 @@ def extend_sentence(ctx: Sentence, t: MyType) -> Generator[Sentence, None, None]
                 yield new
 
 
-def extend_sentence_1(ctx: Sentence, t: MyType) -> Generator[Sentence, None, None]:
+def extend_sentence_1(ctx: Sentence, t: MyType) -> Iterator[Sentence]:
     pointwise = generate_instances_fields(ctx, t)
     inputs = list(itertools.product(*pointwise))
 
@@ -160,7 +158,7 @@ def extend_sentence_1(ctx: Sentence, t: MyType) -> Generator[Sentence, None, Non
             yield new
 
 
-def extend_sentence_maxgreedily(ctx: Sentence, t: MyType) -> Generator[Sentence, None, None]:
+def extend_sentence_maxgreedily(ctx: Sentence, t: MyType) -> Iterator[Sentence]:
     pointwise = generate_instances_fields(ctx, t)
     inputs = list(itertools.product(*pointwise))
 
@@ -172,7 +170,7 @@ def extend_sentence_maxgreedily(ctx: Sentence, t: MyType) -> Generator[Sentence,
     yield ctx
 
 
-def extend_sentence_greedily(ctx: Sentence, t: MyType) -> Generator[Sentence, None, None]:
+def extend_sentence_greedily(ctx: Sentence, t: MyType) -> Iterator[Sentence]:
     pointwise = generate_instances_fields(ctx, t)
     inputs = list(itertools.product(*pointwise))
 
@@ -184,7 +182,7 @@ def extend_sentence_greedily(ctx: Sentence, t: MyType) -> Generator[Sentence, No
             ctx = new
 
 
-def extend_sentence_backracking(ctx: Sentence, t: MyType) -> Generator[Sentence, None, None]:
+def extend_sentence_backracking(ctx: Sentence, t: MyType) -> Iterator[Sentence]:
     pointwise = generate_instances_fields(ctx, t)
     inputs = list(itertools.product(*pointwise))
 

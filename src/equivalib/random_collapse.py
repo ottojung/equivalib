@@ -2,13 +2,13 @@
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import random
-from typing import Dict, Generator
+from typing import Dict, Iterator, Union
 from ortools.sat.python import cp_model
 import equivalib
-from equivalib import Collapser, Sentence, Comparable, Super, OrderedSet
+from equivalib import Collapser, Sentence, Comparable, Super, OrderedSet, Constant
 
 
-class VarArraySolutionPrinter(cp_model.CpSolverSolutionCallback): # type: ignore[misc]
+class VarArraySolutionPrinter(cp_model.CpSolverSolutionCallback):
     def __init__(self, variables):
         self._variables = variables
         self.collected: OrderedSet[object] = OrderedSet()
@@ -20,7 +20,7 @@ class VarArraySolutionPrinter(cp_model.CpSolverSolutionCallback): # type: ignore
         self.collected.add(mapped)
 
 
-    def get_collected(self) -> Generator[Dict[str, object], None, None]:
+    def get_collected(self) -> Iterator[Dict[str, Union[str, Constant]]]:
         for assignment in self.collected:
             yield {str(var): value for var, value in zip(self._variables, assignment)}
 
@@ -36,7 +36,7 @@ class RandomCollapser(Collapser):
         self.assignment = random.choice(assignments)
 
 
-    def collapse(self, var: Comparable) -> object:
+    def collapse(self, var: Comparable) -> Union[str, Constant]:
         return self.assignment[str(var)]
 
 

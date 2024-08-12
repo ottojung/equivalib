@@ -2,7 +2,7 @@
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from dataclasses import dataclass
-from typing import Generic, Tuple, Sequence, TypeVar
+from typing import Generic, Tuple, TypeVar
 import equivalib
 from equivalib import MyType
 
@@ -14,9 +14,9 @@ class Super(Generic[W]):
 
 
     @staticmethod
-    def make(t: MyType, arg: Sequence[object]) -> 'Super[W]':
+    def make(t: MyType) -> 'Super[W]':
         current_sentence = equivalib.get_current_sentence()
-        name = current_sentence.add_super_variable(t, arg)
+        name = current_sentence.add_super_variable(t)
         ret: Super[W] = Super(name)
         struct = (Super, tuple([name]))
         current_sentence.insert_new_value(name, ret, struct)
@@ -36,12 +36,14 @@ class Super(Generic[W]):
         left = current_model.get_variable(self.name)
 
         if not isinstance(other, (Super, int, bool)):
-            raise ValueError("Only support ints, bools and supervalues")
+            raise ValueError("Only support ints, bools and supervalues.")
 
         if isinstance(other, Super):
             right = other.get_var()
         elif isinstance(other, (int, bool)):
             right = other
+        else:
+            raise ValueError("Impossible case.")
 
         return (current_model, left, right)
 

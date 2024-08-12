@@ -3,7 +3,7 @@
 
 import dataclasses
 import typing
-from typing import Iterable, Generator, Union, Literal, Type, Dict, Optional
+from typing import Iterable, Iterator, Union, Literal, Type, Dict, Optional
 import equivalib
 from equivalib import MyType, BoundedInt, OrderedSet
 
@@ -12,7 +12,7 @@ class BannedType(Exception):
     pass
 
 
-def get_types_hierarchy(types: Iterable[MyType]) -> Generator[OrderedSet[MyType], None, None]:
+def get_types_hierarchy(types: Iterable[MyType]) -> Iterator[OrderedSet[MyType]]:
     before: Dict[Type[object], OrderedSet[Type[object]]] = {}
     all_types: OrderedSet[MyType] = OrderedSet()
 

@@ -3,7 +3,7 @@
 
 from dataclasses import dataclass
 import typing
-from typing import Optional, Dict, Tuple, List, Union, Sequence
+from typing import Optional, Dict, Tuple
 from ortools.sat.python import cp_model
 from equivalib import BoundedInt, MyType, Comparable
 
@@ -11,7 +11,7 @@ from equivalib import BoundedInt, MyType, Comparable
 @dataclass
 class SentenceModel:
     _model: Optional[cp_model.CpModel]
-    _names: Dict[str, Tuple[MyType, Union[int, List[object]]]]
+    _names: Dict[str, Tuple[MyType, int]]
 
 
     @staticmethod
@@ -26,7 +26,7 @@ class SentenceModel:
             return SentenceModel(self._model.Clone(), self._names.copy())
 
 
-    def add_variable(self, name: str, t: MyType, arg: Sequence[object]) -> None:
+    def add_variable(self, name: str, t: MyType) -> None:
         base_type = typing.get_origin(t) or t
         args = typing.get_args(t)
 
@@ -38,16 +38,18 @@ class SentenceModel:
         else:
             var = None
 
-        vals = var.Index() if len(arg) == 0 else arg
-        self._names[name] = (base_type, vals)
+        var_index = var.Index()
+        self._names[name] = (base_type, var_index)
 
 
     def get_variable(self, name: str) -> Comparable:
         (base_type, arg) = self._names[name]
         if base_type == BoundedInt:
-            return self.model.GetIntVarFromProtoIndex(arg) # type: ignore
+            ret1: cp_model.IntVar = self.model.GetIntVarFromProtoIndex(arg)
+            return ret1
         elif base_type == bool:
-            return self.model.GetBoolVarFromProtoIndex(arg) # type: ignore
+            ret2: cp_model.BoolVarT = self.model.GetBoolVarFromProtoIndex(arg)
+            return ret2
         else:
             return arg
 
@@ -67,7 +69,7 @@ class SentenceModel:
     def check_satisfiability(self) -> bool:
         solver = cp_model.CpSolver()
         status = solver.Solve(self.model)
-        return status in (cp_model.OPTIMAL, cp_model.FEASIBLE)
+        return status in (cp_model.OPTIMAL, cp_model.FEASIBLE)  # type: ignore
 
 
     @property

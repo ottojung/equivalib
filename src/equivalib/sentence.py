@@ -2,7 +2,7 @@
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import typing
-from typing import Dict, List, Tuple, Union, Sequence, Optional, Literal
+from typing import Dict, List, Tuple, Union, Optional, Literal
 from dataclasses import dataclass
 from equivalib import SentenceModel, denv, Constant, Link, MyType, BoundedInt, instantiate
 
@@ -75,9 +75,9 @@ class Sentence:
             return name
 
 
-    def add_super_variable(self, t: MyType, arg: Sequence[object]) -> str:
+    def add_super_variable(self, t: MyType) -> str:
         name = self.generate_free_name()
-        self.model.add_variable(name, t, arg)
+        self.model.add_variable(name, t)
         return name
 
 

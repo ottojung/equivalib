@@ -3,7 +3,7 @@
 
 from ortools.sat.python import cp_model
 import equivalib
-from equivalib import Collapser, Comparable, Sentence
+from equivalib import Collapser, Comparable, Sentence, Constant
 
 
 class ArbitraryCollapser(Collapser):
@@ -11,8 +11,8 @@ class ArbitraryCollapser(Collapser):
         self.solver = cp_model.CpSolver()
         self.solver.Solve(ctx.model.model)
 
-    def collapse(self, var: Comparable) -> object:
-        return self.solver.Value(var)
+    def collapse(self, var: Comparable) -> Constant:
+        return Constant(self.solver.Value(var))
 
 
 def arbitrary_collapse(self: Sentence) -> Sentence:
