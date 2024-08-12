@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from typing import Literal
 import random
 import pytest
-import equivalib
-from equivalib import BoundedInt, supervalue
+
+from equivalib.all import BoundedInt, supervalue, generate_sentences, random_collapse
 
 
 # Define the fixture to fix the random seed
@@ -27,11 +27,11 @@ class SuperEntangled:
 
 
 def test_super_entangled():
-    theories = equivalib.generate_sentences([SuperEntangled])
+    theories = generate_sentences([SuperEntangled])
 
     assert len(theories) == 1
 
-    sentence = equivalib.random_collapse(theories[0])
+    sentence = random_collapse(theories[0])
     assert sentence.assignments \
         in [{'a': True, 'b': False, 'c': SuperEntangled(True, False)},
             {'a': False, 'b': True, 'c': SuperEntangled(False, True)}]
@@ -53,9 +53,9 @@ class Interval:
 
 
 def test_interval(fixed_random_seed): # pylint: disable=redefined-outer-name
-    theories = equivalib.generate_sentences([Interval])
+    theories = generate_sentences([Interval])
     assert len(theories) == 1
-    sentence = equivalib.random_collapse(theories[0])
+    sentence = random_collapse(theories[0])
 
     assert str(sentence) \
         == 'a = 1; b = 9; c = Interval(a, b);'

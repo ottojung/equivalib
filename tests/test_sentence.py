@@ -1,8 +1,8 @@
 
-from equivalib import Sentence
+from equivalib.all import Sentence
 
 
-def test_first_40():
+def test_generate_free_name():
     ctx = Sentence.empty()
     for i in range(40):
         name = ctx.generate_free_name()

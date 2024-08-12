@@ -3,12 +3,12 @@
 
 from dataclasses import dataclass
 from typing import Set, Literal, Union, Tuple
-import equivalib
-from equivalib import MyType, BoundedInt, supervalue
+
+from equivalib.all import MyType, BoundedInt, supervalue, generate_instances
 
 
 def run_example(typ: MyType) -> Set[object]:
-    return set(equivalib.generate_instances(typ))
+    return set(generate_instances(typ))
 
 
 def test_bools():
@@ -231,5 +231,5 @@ class Problem:
 
 
 def test_interval_problem():
-    instances = list(equivalib.generate_instances(Problem))
+    instances = list(generate_instances(Problem))
     assert len(instances) == 64

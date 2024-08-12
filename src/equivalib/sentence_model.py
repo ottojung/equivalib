@@ -5,7 +5,10 @@ from dataclasses import dataclass
 import typing
 from typing import Optional, Dict, Tuple
 from ortools.sat.python import cp_model
-from equivalib import BoundedInt, MyType, Comparable
+
+from equivalib.bounded_int import BoundedInt
+from equivalib.mytype import MyType
+from equivalib.comparable import Comparable
 
 
 @dataclass

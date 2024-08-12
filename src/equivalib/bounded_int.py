@@ -3,7 +3,7 @@
 
 import typing
 from typing import TypeVar, Generic, Tuple
-from equivalib import MyType
+from equivalib.mytype import MyType
 
 S = TypeVar('S')
 E = TypeVar('E')

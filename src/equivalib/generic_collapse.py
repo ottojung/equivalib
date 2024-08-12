@@ -3,7 +3,14 @@
 
 import random
 from typing import Protocol, Union
-from equivalib import Super, Sentence, denv, Link, Constant, MyType, Comparable
+
+from equivalib.dynamic import denv
+from equivalib.constant import Constant
+from equivalib.link import Link
+from equivalib.mytype import MyType
+from equivalib.comparable import Comparable
+from equivalib.super import Super
+from equivalib.sentence import Sentence
 
 
 class Collapser(Protocol):

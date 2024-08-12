@@ -2,7 +2,7 @@
 from typing import Literal, Union, Iterable
 from dataclasses import dataclass
 import pytest
-from equivalib import get_types_hierarchy, BoundedInt, BannedType
+from equivalib.all import get_types_hierarchy, BoundedInt, BannedType
 
 
 @dataclass

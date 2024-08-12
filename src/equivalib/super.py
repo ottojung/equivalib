@@ -3,8 +3,11 @@
 
 from dataclasses import dataclass
 from typing import Generic, Tuple, TypeVar
-import equivalib
-from equivalib import MyType
+
+from equivalib.get_current_sentence import get_current_sentence
+from equivalib.comparable import Comparable
+from equivalib.mytype import MyType
+from equivalib.sentence_model import SentenceModel
 
 
 W = TypeVar('W')
@@ -15,7 +18,7 @@ class Super(Generic[W]):
 
     @staticmethod
     def make(t: MyType) -> 'Super[W]':
-        current_sentence = equivalib.get_current_sentence()
+        current_sentence = get_current_sentence()
         name = current_sentence.add_super_variable(t)
         ret: Super[W] = Super(name)
         struct = (Super, tuple([name]))
@@ -23,15 +26,15 @@ class Super(Generic[W]):
         return ret
 
 
-    def get_var(self: 'Super[W]') -> equivalib.Comparable:
-        current_sentence = equivalib.get_current_sentence()
+    def get_var(self: 'Super[W]') -> Comparable:
+        current_sentence = get_current_sentence()
         current_model = current_sentence.model
         var = current_model.get_variable(self.name)
         return var
 
 
-    def to_left_right(self, other: object) -> Tuple[equivalib.SentenceModel, equivalib.Comparable, equivalib.Comparable]:
-        current_sentence = equivalib.get_current_sentence()
+    def to_left_right(self, other: object) -> Tuple[SentenceModel, Comparable, Comparable]:
+        current_sentence = get_current_sentence()
         current_model = current_sentence.model
         left = current_model.get_variable(self.name)
 

@@ -5,8 +5,15 @@ from dataclasses import is_dataclass
 import typing
 from typing import List, Tuple, Optional, Literal, Union, Iterable, Sequence, Set, Iterator
 import itertools
-import equivalib
-from equivalib import Sentence, BoundedInt, denv, Super, Constant, MyType, Supertype, FValueT, instantiate
+
+from equivalib.dynamic import denv
+from equivalib.constant import Constant
+from equivalib.mytype import MyType, instantiate
+from equivalib.bounded_int import BoundedInt
+from equivalib.super import Super
+from equivalib.sentence import Sentence
+from equivalib.fieldvalue import FValueT, Supertype
+from equivalib.read_type_information import read_type_information
 
 
 GFieldT = Tuple[Optional[str], FValueT]
@@ -67,7 +74,7 @@ def generate_field_values(ctx: Sentence, t: MyType, is_super: bool) -> Iterator[
 
 def generate_instances_fields(ctx: Sentence, t: MyType) -> Iterator[List[GFieldT]]:
     if is_dataclass(t):
-        information = equivalib.read_type_information(t)
+        information = read_type_information(t)
         for type_signature, is_super in information.values():
             yield list(generate_field_values(ctx, type_signature, is_super=is_super))
     else:

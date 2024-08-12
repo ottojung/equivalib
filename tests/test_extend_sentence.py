@@ -1,7 +1,7 @@
 
 from dataclasses import dataclass
 from typing import Any, List, Set, Tuple
-import equivalib
+import equivalib.all as eqv
 
 
 def list_memequal(a: List[Any], b: List[Any]) -> bool:
@@ -21,8 +21,8 @@ class Answer:
 
 
 def test_simple():
-    ctx = equivalib.Sentence.empty()
-    news = list(equivalib.extend_sentence(ctx, Answer))
+    ctx = eqv.Sentence.empty()
+    news = list(eqv.extend_sentence(ctx, Answer))
     instances = [list(x.assignments.values()) for x in news]
     assert len(instances) == 3
 
@@ -38,8 +38,8 @@ class AnswerTuple:
 
 
 def test_complex():
-    ctx = equivalib.Sentence.empty()
-    news = list(equivalib.extend_sentence(ctx, AnswerTuple))
+    ctx = eqv.Sentence.empty()
+    news = list(eqv.extend_sentence(ctx, AnswerTuple))
     instances = [list(x.assignments.values()) for x in news]
     assert len(instances) == 15
 
@@ -69,8 +69,8 @@ class Tupclas:
 
 
 def test_tup1():
-    ctx = equivalib.Sentence.empty()
-    news = list(equivalib.extend_sentence_1(ctx, Tupclas))
+    ctx = eqv.Sentence.empty()
+    news = list(eqv.extend_sentence_1(ctx, Tupclas))
     sentences = list(map(str, news))
     expected = ['a = Tupclas((False, False));',
                 'a = Tupclas((False, True));',
@@ -85,8 +85,8 @@ class Setclass:
 
 
 def test_set1():
-    ctx = equivalib.Sentence.empty()
-    news = list(equivalib.extend_sentence_1(ctx, Setclass))
+    ctx = eqv.Sentence.empty()
+    news = list(eqv.extend_sentence_1(ctx, Setclass))
     sentences = list(map(str, news))
 
     expected = ['a = Setclass(frozenset());',
@@ -103,8 +103,8 @@ class Setclass2:
 
 
 def test_set2():
-    ctx = equivalib.Sentence.empty()
-    news = list(equivalib.extend_sentence_1(ctx, Setclass2))
+    ctx = eqv.Sentence.empty()
+    news = list(eqv.extend_sentence_1(ctx, Setclass2))
     sentences = list(map(str, news))
 
     expected = ['a = Setclass2(False, frozenset());',

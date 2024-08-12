@@ -3,7 +3,7 @@
 
 from typing import Callable, Iterable, Mapping
 import pytest
-from equivalib import partially_order, OrderedSet
+from equivalib.all import partially_order, OrderedSet
 
 
 def test_empty_list():

@@ -4,8 +4,8 @@
 from dataclasses import dataclass
 from typing import Tuple, Literal, Union, Set
 import pytest
-import equivalib
-from equivalib import BoundedInt, MaxgreedyType, WideType, supervalue
+import equivalib.all as eqv
+from equivalib.all import BoundedInt, MaxgreedyType, WideType, supervalue
 
 
 @dataclass(frozen=True)
@@ -14,7 +14,7 @@ class Answer:
 
 
 def test_simple():
-    theories = equivalib.generate_sentences([Answer])
+    theories = eqv.generate_sentences([Answer])
     expected = [{'a': Answer(False)},
                 {'a': Answer(True)},
                 {'a': Answer(False), 'b': Answer(True)}]
@@ -29,7 +29,7 @@ class AnswerTuple:
 
 
 def test_complex():
-    theories = equivalib.generate_sentences([AnswerTuple])
+    theories = eqv.generate_sentences([AnswerTuple])
     sentences = [set(x.assignments.values()) for x in theories]
     expected = [{AnswerTuple(False, False)},
                 {AnswerTuple(False, True)},
@@ -58,7 +58,7 @@ class BadTuple:
 
 def test_invalid():
     with pytest.raises(ValueError):
-        equivalib.generate_sentences([BadTuple])
+        eqv.generate_sentences([BadTuple])
 
 
 @dataclass(frozen=True)
@@ -67,7 +67,7 @@ class Tuple1:
 
 
 def test_tuple1():
-    theories = equivalib.generate_sentences([WideType(Tuple1)])
+    theories = eqv.generate_sentences([WideType(Tuple1)])
     sentences = set(str(x) for x in theories)
     expected = {'a = Tuple1((True, False));',
                 'a = Tuple1((True, True));',
@@ -77,8 +77,8 @@ def test_tuple1():
 
 
 def test_tuple2():
-    theories = equivalib.generate_instances(Tuple1)
-    sentences = set(str(equivalib.unmark_instance(x)) for x in theories)
+    theories = eqv.generate_instances(Tuple1)
+    sentences = set(str(eqv.unmark_instance(x)) for x in theories)
     expected = {'a = False; b = True; c = (False, False); d = (False, True); e = (True, False); f = (True, True); g = Tuple1(c);',
                 'a = False; b = True; c = (False, False); d = (False, True); e = (True, False); f = (True, True); g = Tuple1(e);',
                 'a = False; b = True; c = (False, False); d = (False, True); e = (True, False); f = (True, True); g = Tuple1(d);',
@@ -93,7 +93,7 @@ class Set1:
 
 
 def test_set1():
-    theories = equivalib.generate_sentences([WideType(Set1)])
+    theories = eqv.generate_sentences([WideType(Set1)])
     sentences = set(str(x) for x in theories)
     expected = {'a = Set1(frozenset({False}));',
                 'a = Set1(frozenset());',
@@ -103,8 +103,8 @@ def test_set1():
 
 
 def test_set2():
-    theories = equivalib.generate_instances(Set1)
-    sentences = set(str(equivalib.unmark_instance(x)) for x in theories)
+    theories = eqv.generate_instances(Set1)
+    sentences = set(str(eqv.unmark_instance(x)) for x in theories)
     expected = {'a = False; b = True; c = Set(frozenset()); d = Set(frozenset({False})); e = Set(frozenset({True})); f = Set(frozenset({False, True})); g = Set1(f);',
                 'a = False; b = True; c = Set(frozenset()); d = Set(frozenset({False})); e = Set(frozenset({True})); f = Set(frozenset({False, True})); g = Set1(e);',
                 'a = False; b = True; c = Set(frozenset()); d = Set(frozenset({False})); e = Set(frozenset({True})); f = Set(frozenset({False, True})); g = Set1(d);',
@@ -119,7 +119,7 @@ class Inted:
 
 
 def test_ints():
-    theories = equivalib.generate_sentences([Inted])
+    theories = eqv.generate_sentences([Inted])
     assert len(theories) == 63 # 2^(2*3)-1
 
 
@@ -130,7 +130,7 @@ class Summary:
 
 
 def test_compound():
-    theories = equivalib.generate_sentences([Answer, Summary])
+    theories = eqv.generate_sentences([Answer, Summary])
     sentences = [set(x.assignments.values()) for x in theories]
 
     expected = [{Answer(False), Summary(Answer(False), Answer(False))},
@@ -165,7 +165,7 @@ class Summary2b:
 
 
 def test_compound2():
-    theories = equivalib.generate_sentences([Answer, Summary2a, Summary2b])
+    theories = eqv.generate_sentences([Answer, Summary2a, Summary2b])
     sentences = [set(x.assignments.values()) for x in theories]
     assert len(sentences) == 7 # 2^3-1
     expected = [{Answer(False), Summary2b(Summary2a(Answer(False))), Summary2a(Answer(False))},
@@ -185,7 +185,7 @@ class Const:
 
 
 def test_constant():
-    theories = equivalib.generate_sentences([Const])
+    theories = eqv.generate_sentences([Const])
     sentences = [set(x.assignments.values()) for x in theories]
     expected = [{Const(False, 5)},
                 {Const(True, 5)},
@@ -201,7 +201,7 @@ class UnionAnswer:
 
 
 def test_union1():
-    theories = equivalib.generate_sentences([UnionAnswer])
+    theories = eqv.generate_sentences([UnionAnswer])
     assert len(theories) == 63 # 2^(3*2)-1
 
 
@@ -215,7 +215,7 @@ class RestrictedAnswer:
 
 
 def test_restricted_answer():
-    theories = equivalib.generate_sentences([RestrictedAnswer])
+    theories = eqv.generate_sentences([RestrictedAnswer])
     sentences = [set(x.assignments.values()) for x in theories]
 
     expected = [{RestrictedAnswer(True, False)},
@@ -231,7 +231,7 @@ class Superposed:
 
 
 def test_super_simple():
-    theories = equivalib.generate_sentences([Superposed])
+    theories = eqv.generate_sentences([Superposed])
     sentences = [set(x.assignments.values()) for x in theories]
     assert len(sentences) == 1
 
@@ -245,7 +245,7 @@ class SuperposedBounded:
 
 
 def test_super_bounded():
-    theories = equivalib.generate_sentences([SuperposedBounded])
+    theories = eqv.generate_sentences([SuperposedBounded])
     sentences = [set(x.assignments.values()) for x in theories]
 
     assert len(sentences) == 1
@@ -262,7 +262,7 @@ class SuperEntangled:
 
 
 def test_super_entangled():
-    theories = equivalib.generate_sentences([SuperEntangled])
+    theories = eqv.generate_sentences([SuperEntangled])
     sentences = [set(x.assignments.values()) for x in theories]
 
     assert len(sentences) == 1
@@ -279,7 +279,7 @@ class SuperEntangledBoring:
 
 
 def test_super_entangled_boring():
-    theories = equivalib.generate_sentences([SuperEntangledBoring])
+    theories = eqv.generate_sentences([SuperEntangledBoring])
     sentences = [list(x.assignments.values()) for x in theories]
 
     assert len(sentences) == 1
@@ -312,7 +312,7 @@ class FizzBuzz:
 
 
 def test_fizzbuzz():
-    theories = equivalib.generate_sentences([MaxgreedyType(Fizz), MaxgreedyType(Buzz), MaxgreedyType(FizzBuzz)])
+    theories = eqv.generate_sentences([MaxgreedyType(Fizz), MaxgreedyType(Buzz), MaxgreedyType(FizzBuzz)])
     sentences = [str(x) for x in theories]
     assert len(sentences) == 1
     assert len(theories[0].assignments) == 59

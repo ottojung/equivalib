@@ -1,7 +1,7 @@
 
 from dataclasses import dataclass
 from typing import Union, List
-from equivalib import MyType
+from equivalib.mytype import MyType
 
 
 @dataclass(frozen=True)

@@ -4,7 +4,7 @@
 import dataclasses
 from dataclasses import is_dataclass
 from typing import Dict, Tuple
-from equivalib import MyType
+from equivalib.mytype import MyType
 
 def read_type_information(t: MyType) -> Dict[str, Tuple[MyType, bool]]:
     """

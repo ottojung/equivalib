@@ -1,5 +1,5 @@
 
-from equivalib import denv
+from equivalib.all import denv
 
 
 def test_simple():

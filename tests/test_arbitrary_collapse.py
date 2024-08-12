@@ -6,8 +6,9 @@ from typing import Literal, Union
 import os
 import random
 import pytest
-import equivalib
-from equivalib import BoundedInt, MaxgreedyType, GreedyType, supervalue
+
+import equivalib.all as equivalib
+from equivalib.all import BoundedInt, MaxgreedyType, GreedyType, supervalue
 
 
 # Define the fixture to fix the random seed

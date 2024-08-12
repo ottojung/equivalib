@@ -4,8 +4,12 @@
 import dataclasses
 import typing
 from typing import Iterable, Iterator, Union, Literal, Type, Dict, Optional
-import equivalib
-from equivalib import MyType, BoundedInt, OrderedSet
+
+from equivalib.mytype import MyType
+from equivalib.bounded_int import BoundedInt
+from equivalib.orderedset import OrderedSet
+from equivalib.partially_order import partially_order
+from equivalib.read_type_information import read_type_information
 
 
 class BannedType(Exception):
@@ -32,7 +36,7 @@ def get_types_hierarchy(types: Iterable[MyType]) -> Iterator[OrderedSet[MyType]]
                     before[parent] = OrderedSet([t])
 
         if dataclasses.is_dataclass(t):
-            information = equivalib.read_type_information(t)
+            information = read_type_information(t)
             recurse_subtypes(t, (x for x, _is_super in information.values()))
 
         elif base in (Union,):
@@ -52,4 +56,4 @@ def get_types_hierarchy(types: Iterable[MyType]) -> Iterator[OrderedSet[MyType]]
     for t in types:
         recurse_type(None, t)
 
-    return equivalib.partially_order(all_types, before)
+    return partially_order(all_types, before)

@@ -4,8 +4,13 @@
 import random
 from typing import Dict, Iterator, Union
 from ortools.sat.python import cp_model
-import equivalib
-from equivalib import Collapser, Sentence, Comparable, Super, OrderedSet, Constant
+
+from equivalib.constant import Constant
+from equivalib.generic_collapse import Collapser, generic_collapse
+from equivalib.comparable import Comparable
+from equivalib.sentence import Sentence
+from equivalib.super import Super
+from equivalib.orderedset import OrderedSet
 
 
 class VarArraySolutionPrinter(cp_model.CpSolverSolutionCallback):
@@ -41,4 +46,4 @@ class RandomCollapser(Collapser):
 
 
 def random_collapse(self: Sentence) -> Sentence:
-    return equivalib.generic_collapse(self, RandomCollapser)
+    return generic_collapse(self, RandomCollapser)

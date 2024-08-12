@@ -4,7 +4,13 @@
 import typing
 from typing import Dict, List, Tuple, Union, Optional, Literal
 from dataclasses import dataclass
-from equivalib import SentenceModel, denv, Constant, Link, MyType, BoundedInt, instantiate
+
+from equivalib.sentence_model import SentenceModel
+from equivalib.dynamic import denv
+from equivalib.constant import Constant
+from equivalib.link import Link
+from equivalib.mytype import MyType, instantiate
+from equivalib.bounded_int import BoundedInt
 
 
 Structure = Tuple[MyType, Tuple[Union[str, Constant], ...]]

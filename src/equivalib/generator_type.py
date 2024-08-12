@@ -3,7 +3,7 @@
 
 from dataclasses import dataclass
 from typing import Union
-from equivalib import MyType
+from equivalib.mytype import MyType
 
 
 @dataclass(frozen=True)
