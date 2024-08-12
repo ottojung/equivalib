@@ -4,7 +4,7 @@
 from dataclasses import dataclass
 from typing import Set, Literal, Union, Tuple
 
-from equivalib.all import MyType, BoundedInt, supervalue, generate_instances
+from equivalib import MyType, BoundedInt, supervalue, generate_instances
 
 
 def run_example(typ: MyType) -> Set[object]:
