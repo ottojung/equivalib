@@ -3,7 +3,7 @@
 
 from dataclasses import is_dataclass
 import typing
-from typing import List, Tuple, Optional, Literal, Union, Iterable, Sequence, Set, Iterator
+from typing import List, Tuple, Optional, Literal, Union, Iterable, Sequence, Iterator
 import itertools
 
 from equivalib.dynamic import denv
@@ -55,13 +55,6 @@ def generate_field_values(ctx: Sentence, t: MyType, is_super: bool) -> Iterator[
         for prod in itertools.product(*pointwise):
             yield (None, prod)
 
-    elif base_type in (set, Set):
-        assert len(args) == 1
-        subtype = args[0]
-        inputs = list(generate_field_values(ctx, subtype, is_super=False))
-        for subset in get_subsets(inputs):
-            yield (None, frozenset(map(lambda y: y[1], subset)))
-
     elif base_type == BoundedInt:
         assert len(args) == 2
         low, high = BoundedInt.unpack_type(base_type, args)
@@ -81,27 +74,6 @@ def generate_instances_fields(ctx: Sentence, t: MyType) -> Iterator[List[GFieldT
         yield list(generate_field_values(ctx, t, is_super=False))
 
 
-def get_subsets(original_set):
-    if len(original_set) == 0:
-        return [[]]
-
-    # Take an element of the original set
-    element = original_set.pop()
-
-    # Get all subsets without the element
-    without_element = get_subsets(original_set)
-
-    with_element = []
-    for subset in without_element:
-        # Add a subset with the element to a list
-        new_subset = subset + [element]
-        with_element.append(new_subset)
-
-    # Combine the subsets with and without the element
-    all_subsets = without_element + with_element
-    return all_subsets
-
-
 def handle_supers(ctx: Sentence, name: Optional[str], value: FValueT) -> GFieldT:
     if isinstance(value, Supertype):
         parameter = value.t
@@ -111,8 +83,6 @@ def handle_supers(ctx: Sentence, name: Optional[str], value: FValueT) -> GFieldT
 
         s: Super[object] = Super.make(parameter)
         return (s.name, s)
-    elif isinstance(value, frozenset):
-        return (name, value)
     else:
         return (name, value)
 
@@ -143,69 +113,11 @@ def add_instances(ctx: Sentence, t: MyType, instances: Iterable[Sequence[GFieldT
             return False
     return True
 
-
 def extend_sentence(ctx: Sentence, t: MyType) -> Iterator[Sentence]:
     pointwise = generate_instances_fields(ctx, t)
     inputs = list(itertools.product(*pointwise))
-    subsets = get_subsets(inputs)
-    for subset in subsets:
-        if subset:
-            new = ctx.copy()
-            if add_instances(new, t, subset):
-                yield new
-
-
-def extend_sentence_1(ctx: Sentence, t: MyType) -> Iterator[Sentence]:
-    pointwise = generate_instances_fields(ctx, t)
-    inputs = list(itertools.product(*pointwise))
 
     for inp in inputs:
         new = ctx.copy()
         if add_instances(new, t, [inp]):
             yield new
-
-
-def extend_sentence_maxgreedily(ctx: Sentence, t: MyType) -> Iterator[Sentence]:
-    pointwise = generate_instances_fields(ctx, t)
-    inputs = list(itertools.product(*pointwise))
-
-    for inp in inputs:
-        new = ctx.copy()
-        if add_instances(new, t, [inp]):
-            ctx = new
-
-    yield ctx
-
-
-def extend_sentence_greedily(ctx: Sentence, t: MyType) -> Iterator[Sentence]:
-    pointwise = generate_instances_fields(ctx, t)
-    inputs = list(itertools.product(*pointwise))
-
-    yield ctx
-    for inp in inputs:
-        new = ctx.copy()
-        if add_instances(new, t, [inp]):
-            yield new
-            ctx = new
-
-
-def extend_sentence_backracking(ctx: Sentence, t: MyType) -> Iterator[Sentence]:
-    pointwise = generate_instances_fields(ctx, t)
-    inputs = list(itertools.product(*pointwise))
-
-    to_consume = list(inputs)
-    new = ctx.copy()
-
-    while to_consume:
-        found = False
-
-        for inp in to_consume:
-            if add_instances(new, t, [inp]):
-                to_consume.remove(inp)
-                found = True
-
-        if found:
-            yield new
-        else:
-            new = ctx.copy()
-            to_consume.pop(0)

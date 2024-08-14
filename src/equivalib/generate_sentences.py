@@ -4,25 +4,16 @@
 from typing import Iterable, List, Iterator
 
 from equivalib.sentence import Sentence
-from equivalib.generator_type import GeneratorType, MaxgreedyType, GreedyType, WideType, BackType
-import equivalib.extend_sentence as extend
+from equivalib.mytype import MyType
+from equivalib.extend_sentence import extend_sentence
 
 
-def generate_suffixes(t: GeneratorType, ret: List[Sentence]) -> Iterator[Sentence]:
+def generate_suffixes(t: MyType, ret: List[Sentence]) -> Iterator[Sentence]:
     for prefix in ret:
-        if isinstance(t, MaxgreedyType):
-            yield from list(extend.extend_sentence_maxgreedily(prefix, t.x))
-        elif isinstance(t, GreedyType):
-            yield from list(extend.extend_sentence_greedily(prefix, t.x))
-        elif isinstance(t, WideType):
-            yield from list(extend.extend_sentence_1(prefix, t.x))
-        elif isinstance(t, BackType):
-            yield from list(extend.extend_sentence_backracking(prefix, t.x))
-        else:
-            yield from list(extend.extend_sentence(prefix, t))
+        yield from list(extend_sentence(prefix, t))
 
 
-def generate_sentences(types: Iterable[GeneratorType], prefix: Sentence = Sentence.empty()) -> List[Sentence]:
+def generate_sentences(types: Iterable[MyType], prefix: Sentence = Sentence.empty()) -> List[Sentence]:
     ret = [prefix]
     for t in types:
         ret = list(generate_suffixes(t, ret))

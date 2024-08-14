@@ -1,18 +1,11 @@
 
 from dataclasses import dataclass
-from typing import Any, List, Set, Tuple
+from typing import Tuple, Iterable
 import equivalib.all as eqv
 
 
-def list_memequal(a: List[Any], b: List[Any]) -> bool:
-    if len(a) != len(b):
-        return False
-
-    for x in a:
-        if x not in b:
-            return False
-
-    return True
+def list_memequal(a: Iterable[Iterable[object]], b: Iterable[Iterable[object]]) -> bool:
+    return set(tuple(x) for x in a) == set(tuple(x) for x in b)
 
 
 @dataclass(frozen=True)
@@ -24,10 +17,9 @@ def test_simple():
     ctx = eqv.Sentence.empty()
     news = list(eqv.extend_sentence(ctx, Answer))
     instances = [list(x.assignments.values()) for x in news]
-    assert len(instances) == 3
+    assert len(instances) == 2
 
-    expected = [[Answer(False)], [Answer(True)],
-                [Answer(False), Answer(True)]]
+    expected = [[Answer(False)], [Answer(True)]]
     assert list_memequal(instances, expected)
 
 
@@ -41,23 +33,13 @@ def test_complex():
     ctx = eqv.Sentence.empty()
     news = list(eqv.extend_sentence(ctx, AnswerTuple))
     instances = [list(x.assignments.values()) for x in news]
-    assert len(instances) == 15
+    assert len(instances) == 4
 
     expected = [[AnswerTuple(False, False)],
                 [AnswerTuple(False, True)],
-                [AnswerTuple(False, False), AnswerTuple(False, True)],
                 [AnswerTuple(True, False)],
-                [AnswerTuple(False, False), AnswerTuple(True, False)],
-                [AnswerTuple(False, True), AnswerTuple(True, False)],
-                [AnswerTuple(False, False), AnswerTuple(False, True), AnswerTuple(True, False)],
                 [AnswerTuple(True, True)],
-                [AnswerTuple(False, False), AnswerTuple(True, True)],
-                [AnswerTuple(False, True), AnswerTuple(True, True)],
-                [AnswerTuple(False, False), AnswerTuple(False, True), AnswerTuple(True, True)],
-                [AnswerTuple(True, False), AnswerTuple(True, True)],
-                [AnswerTuple(False, False), AnswerTuple(True, False), AnswerTuple(True, True)],
-                [AnswerTuple(False, True), AnswerTuple(True, False), AnswerTuple(True, True)],
-                [AnswerTuple(False, False), AnswerTuple(False, True), AnswerTuple(True, False), AnswerTuple(True, True)]]
+                ]
 
     assert list_memequal(instances, expected)
 
@@ -70,49 +52,10 @@ class Tupclas:
 
 def test_tup1():
     ctx = eqv.Sentence.empty()
-    news = list(eqv.extend_sentence_1(ctx, Tupclas))
+    news = list(eqv.extend_sentence(ctx, Tupclas))
     sentences = list(map(str, news))
     expected = ['a = Tupclas((False, False));',
                 'a = Tupclas((False, True));',
                 'a = Tupclas((True, False));',
                 'a = Tupclas((True, True));']
-    assert list_memequal(sentences, expected)
-
-
-@dataclass(frozen=True)
-class Setclass:
-    choices: Set[bool]
-
-
-def test_set1():
-    ctx = eqv.Sentence.empty()
-    news = list(eqv.extend_sentence_1(ctx, Setclass))
-    sentences = list(map(str, news))
-
-    expected = ['a = Setclass(frozenset());',
-                'a = Setclass(frozenset({False}));',
-                'a = Setclass(frozenset({True}));',
-                'a = Setclass(frozenset({False, True}));']
-    assert list_memequal(sentences, expected)
-
-
-@dataclass(frozen=True)
-class Setclass2:
-    choice: bool
-    choices: Set[bool]
-
-
-def test_set2():
-    ctx = eqv.Sentence.empty()
-    news = list(eqv.extend_sentence_1(ctx, Setclass2))
-    sentences = list(map(str, news))
-
-    expected = ['a = Setclass2(False, frozenset());',
-                'a = Setclass2(False, frozenset({False}));',
-                'a = Setclass2(False, frozenset({True}));',
-                'a = Setclass2(False, frozenset({False, True}));',
-                'a = Setclass2(True, frozenset());',
-                'a = Setclass2(True, frozenset({False}));',
-                'a = Setclass2(True, frozenset({True}));',
-                'a = Setclass2(True, frozenset({False, True}));']
     assert list_memequal(sentences, expected)
