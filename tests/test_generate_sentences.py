@@ -22,7 +22,7 @@ class Answer:
 
 
 def test_simple():
-    theories = eqv.generate_sentences([Answer])
+    theories = eqv.generate_sentences([bool, Answer])
     expected = [{'a': False, 'b': True, 'c': Answer(is_yes=False), 'd': Answer(is_yes=True)}]
     assignments = [x.assignments for x in theories]
     assert assignments == expected
@@ -35,15 +35,13 @@ class AnswerTuple:
 
 
 def test_complex():
-    theories = eqv.generate_sentences([AnswerTuple])
+    theories = eqv.generate_sentences([bool, AnswerTuple])
     sentences = [set(x.assignments.values()) for x in theories]
     expected = [{False, True,
                  AnswerTuple(is_yes=False, is_sure=True),
                  AnswerTuple(is_yes=False, is_sure=False),
                  AnswerTuple(is_yes=True, is_sure=True),
-                 Answer(is_yes=True),
-                 AnswerTuple(is_yes=True, is_sure=False),
-                 Answer(is_yes=False)}]
+                 AnswerTuple(is_yes=True, is_sure=False)}]
     assert sentences == expected
 
 
@@ -54,256 +52,220 @@ def test_complex_twice():
                  AnswerTuple(is_yes=False, is_sure=True),
                  AnswerTuple(is_yes=False, is_sure=False),
                  AnswerTuple(is_yes=True, is_sure=True),
-                 Answer(is_yes=True),
-                 AnswerTuple(is_yes=True, is_sure=False),
-                 Answer(is_yes=False)}]
+                 AnswerTuple(is_yes=True, is_sure=False)}]
 
     assert sentences == expected
 
 
-# @dataclass(frozen=True)
-# class BadTuple:
-#     is_yes: bool
-#     is_sure: Tuple[str, str]
+@dataclass(frozen=True)
+class BadTuple:
+    is_yes: bool
+    is_sure: Tuple[str, str]
 
-
-# def test_invalid():
-#     with pytest.raises(ValueError):
-#         eqv.generate_sentences([BadTuple])
 
+def test_invalid():
+    with pytest.raises(ValueError):
+        eqv.generate_sentences([bool, str, Tuple[str, str], BadTuple])
 
-# @dataclass(frozen=True)
-# class Tuple1:
-#     values: Tuple[bool, bool]
 
+@dataclass(frozen=True)
+class Tuple1:
+    values: Tuple[bool, bool]
 
-# def test_tuple1():
-#     theories = eqv.generate_sentences([Tuple1])
-#     sentences = set(str(x) for x in theories)
-#     expected = {'a = Tuple1((True, False));',
-#                 'a = Tuple1((True, True));',
-#                 'a = Tuple1((False, False));',
-#                 'a = Tuple1((False, True));'}
-#     assert sentences == expected
 
+def test_tuple1():
+    theories = eqv.generate_sentences([bool, Tuple[bool, bool], Tuple1])
+    sentences = set(str(x) for x in theories)
+    expected = {"a = False; b = True; c = ('a', 'a'); d = ('a', 'b'); e = ('b', 'a'); f = ('b', 'b'); g = Tuple1(c); h = Tuple1(d); i = Tuple1(e); j = Tuple1(f);"}
+    assert sentences == expected
 
-# def test_tuple2():
-#     theories = eqv.generate_sentences([bool, Tuple1])
-#     sentences = set(str(x) for x in theories)
-#     expected = {'a = False; b = Tuple1((False, False));',
-#                 'a = True; b = Tuple1((True, True));'}
-#     assert sentences == expected
 
-# def test_tuple3():
-#     theories = eqv.generate_instances(Tuple1)
-#     sentences = set(str(x) for x in theories)
-#     expected = {'Tuple1(values=(True, True))',
-#                 'Tuple1(values=(False, False))'}
-#     assert sentences == expected
+@dataclass(frozen=True)
+class Inted:
+    is_yes: bool
+    confidence: BoundedInt[Literal[1], Literal[3]]
 
 
+def test_ints():
+    theories = eqv.generate_sentences([bool, BoundedInt[Literal[1], Literal[3]], Inted])
+    assert len(theories) == 1
+    assert len(theories[0].assignments) == 11 == 2 + 3 + (2 * 3)
 
-# @dataclass(frozen=True)
-# class Inted:
-#     is_yes: bool
-#     confidence: BoundedInt[Literal[1], Literal[3]]
 
+@dataclass(frozen=True)
+class Summary:
+    first: Answer
+    second: Answer
 
-# def test_ints():
-#     theories = eqv.generate_sentences([Inted])
-#     assert len(theories) == 63 # 2^(2*3)-1
 
+def test_compound():
+    theories = eqv.generate_sentences([bool, Answer, Summary])
+    sentences = [set(x.assignments.values()) for x in theories]
 
-# @dataclass(frozen=True)
-# class Summary:
-#     first: Answer
-#     second: Answer
+    expected = \
+        [{False, True,
+          Answer(is_yes=True),  Answer(is_yes=False),
+          Summary(first=Answer(is_yes=False), second=Answer(is_yes=True)),
+          Summary(first=Answer(is_yes=True), second=Answer(is_yes=True)),
+          Summary(first=Answer(is_yes=True), second=Answer(is_yes=False)),
+          Summary(first=Answer(is_yes=False), second=Answer(is_yes=False))}]
 
+    assert sentences == expected
 
-# def test_compound():
-#     theories = eqv.generate_sentences([Answer, Summary])
-#     sentences = [set(x.assignments.values()) for x in theories]
 
-#     expected = [{Answer(False), Summary(Answer(False), Answer(False))},
-#                 {Summary(Answer(True), Answer(True)), Answer(True)},
-#                 {Answer(False), Answer(True), Summary(Answer(False), Answer(False))},
-#                 {Answer(False), Answer(True), Summary(Answer(False), Answer(True))},
-#                 {Answer(False), Answer(True), Summary(Answer(False), Answer(False)), Summary(Answer(False), Answer(True))},
-#                 {Answer(False), Answer(True), Summary(Answer(True), Answer(False))},
-#                 {Answer(False), Answer(True), Summary(Answer(False), Answer(False)), Summary(Answer(True), Answer(False))},
-#                 {Answer(False), Answer(True), Summary(Answer(True), Answer(False)), Summary(Answer(False), Answer(True))},
-#                 {Summary(Answer(False), Answer(True)), Summary(Answer(True), Answer(False)), Answer(True), Summary(Answer(False), Answer(False)), Answer(False)},
-#                 {Answer(False), Answer(True), Summary(Answer(True), Answer(True))},
-#                 {Answer(False), Answer(True), Summary(Answer(False), Answer(False)), Summary(Answer(True), Answer(True))},
-#                 {Answer(False), Answer(True), Summary(Answer(True), Answer(True)), Summary(Answer(False), Answer(True))},
-#                 {Summary(Answer(False), Answer(True)), Summary(Answer(True), Answer(True)), Answer(True), Summary(Answer(False), Answer(False)), Answer(False)},
-#                 {Answer(False), Answer(True), Summary(Answer(True), Answer(True)), Summary(Answer(True), Answer(False))},
-#                 {Summary(Answer(True), Answer(True)), Summary(Answer(True), Answer(False)), Answer(True), Summary(Answer(False), Answer(False)), Answer(False)},
-#                 {Summary(Answer(False), Answer(True)), Summary(Answer(True), Answer(True)), Summary(Answer(True), Answer(False)), Answer(True), Answer(False)},
-#                 {Summary(Answer(False), Answer(True)), Summary(Answer(True), Answer(True)), Summary(Answer(True), Answer(False)), Answer(True), Summary(Answer(False), Answer(False)), Answer(False)}]
+@dataclass(frozen=True)
+class Summary2a:
+    elem: Answer
 
-#     assert sentences == expected
 
+@dataclass(frozen=True)
+class Summary2b:
+    elem: Summary2a
 
-# @dataclass(frozen=True)
-# class Summary2a:
-#     elem: Answer
 
+def test_compound2():
+    theories = eqv.generate_sentences([bool, Answer, Summary2a, Summary2b])
+    sentences = [set(x.assignments.values()) for x in theories]
+    assert len(sentences) == 1
 
-# @dataclass(frozen=True)
-# class Summary2b:
-#     elem: Summary2a
+    expected = [{False, True, Summary2a(elem=Answer(is_yes=True)), Answer(is_yes=True), Summary2b(elem=Summary2a(elem=Answer(is_yes=True))), Summary2a(elem=Answer(is_yes=False)), Answer(is_yes=False), Summary2b(elem=Summary2a(elem=Answer(is_yes=False)))}]
+    assert sentences == expected
 
 
-# def test_compound2():
-#     theories = eqv.generate_sentences([Answer, Summary2a, Summary2b])
-#     sentences = [set(x.assignments.values()) for x in theories]
-#     assert len(sentences) == 7 # 2^3-1
-#     expected = [{Answer(False), Summary2b(Summary2a(Answer(False))), Summary2a(Answer(False))},
-#                 {Summary2b(Summary2a(Answer(True))), Answer(True), Summary2a(Answer(True))},
-#                 {Answer(False), Answer(True), Summary2b(Summary2a(Answer(False))), Summary2a(Answer(False))},
-#                 {Answer(False), Answer(True), Summary2b(Summary2a(Answer(True))), Summary2a(Answer(True))},
-#                 {Summary2a(Answer(True)), Answer(True), Summary2a(Answer(False)), Answer(False), Summary2b(Summary2a(Answer(False)))},
-#                 {Summary2a(Answer(True)), Answer(True), Summary2b(Summary2a(Answer(True))), Summary2a(Answer(False)), Answer(False)},
-#                 {Summary2a(Answer(True)), Answer(True), Summary2b(Summary2a(Answer(True))), Summary2a(Answer(False)), Answer(False), Summary2b(Summary2a(Answer(False)))}]
-#     assert sentences == expected
+@dataclass(frozen=True)
+class Const:
+    first: bool
+    second: Literal[5]
 
 
-# @dataclass(frozen=True)
-# class Const:
-#     first: bool
-#     second: Literal[5]
+def test_constant():
+    theories = eqv.generate_sentences([bool, Literal[5], Const])
+    sentences = [set(x.assignments.values()) for x in theories]
+    expected = [{False, True, 5, Const(first=True, second=5), Const(first=False, second=5)}]
+    assert sentences == expected
 
 
-# def test_constant():
-#     theories = eqv.generate_sentences([Const])
-#     sentences = [set(x.assignments.values()) for x in theories]
-#     expected = [{Const(False, 5)},
-#                 {Const(True, 5)},
-#                 {Const(False, 5), Const(True, 5)}]
+@dataclass(frozen=True)
+class UnionAnswer:
+    response: Union[Literal[True], Literal[False], Literal["Unsure"]]
+    received: bool
 
-#     assert sentences == expected
 
+def test_union1():
+    theories = eqv.generate_sentences([bool, Literal[True], Literal[False], Literal["Unsure"], UnionAnswer])
+    assert len(theories) == 1
+    assert len(theories[0].assignments) == 11
 
-# @dataclass(frozen=True)
-# class UnionAnswer:
-#     response: Union[Literal[True], Literal[False], Literal["Unsure"]]
-#     received: bool
 
+@dataclass(frozen=True)
+class RestrictedAnswer:
+    is_yes: bool
+    received: bool
 
-# def test_union1():
-#     theories = eqv.generate_sentences([UnionAnswer])
-#     assert len(theories) == 63 # 2^(3*2)-1
+    def __post_init__(self):
+        assert self.is_yes is True
 
 
-# @dataclass(frozen=True)
-# class RestrictedAnswer:
-#     is_yes: bool
-#     received: bool
+def test_restricted_answer():
+    theories = eqv.generate_sentences([bool, RestrictedAnswer])
+    sentences = [set(x.assignments.values()) for x in theories]
+    expected = [{False, True, RestrictedAnswer(is_yes=True, received=True), RestrictedAnswer(is_yes=True, received=False)}]
 
-#     def __post_init__(self):
-#         assert self.is_yes is True
+    assert sentences == expected
 
 
-# def test_restricted_answer():
-#     theories = eqv.generate_sentences([RestrictedAnswer])
-#     sentences = [set(x.assignments.values()) for x in theories]
+@dataclass(frozen=True)
+class Superposed:
+    value: BoundedInt[Literal[0], Literal[9]] = supervalue()
 
-#     expected = [{RestrictedAnswer(True, False)},
-#                 {RestrictedAnswer(True, True)},
-#                 {RestrictedAnswer(True, False), RestrictedAnswer(True, True)}]
 
-#     assert sentences == expected
+@pytest.mark.xfail(reason="No supervalue support yet.")
+def test_super_simple():
+    theories = eqv.generate_sentences([Superposed])
+    sentences = [set(x.assignments.values()) for x in theories]
+    assert len(sentences) == 1
 
 
-# @dataclass(frozen=True)
-# class Superposed:
-#     value: BoundedInt[Literal[0], Literal[9]] = supervalue()
+@dataclass(frozen=True)
+class SuperposedBounded:
+    value: BoundedInt[Literal[0], Literal[9]] = supervalue()
 
+    def __post_init__(self):
+        assert self.value < 5
 
-# def test_super_simple():
-#     theories = eqv.generate_sentences([Superposed])
-#     sentences = [set(x.assignments.values()) for x in theories]
-#     assert len(sentences) == 1
 
+@pytest.mark.xfail(reason="No supervalue support yet.")
+def test_super_bounded():
+    theories = eqv.generate_sentences([SuperposedBounded])
+    sentences = [set(x.assignments.values()) for x in theories]
 
-# @dataclass(frozen=True)
-# class SuperposedBounded:
-#     value: BoundedInt[Literal[0], Literal[9]] = supervalue()
+    assert len(sentences) == 1
+    assert len(sentences[0]) == 2
 
-#     def __post_init__(self):
-#         assert self.value < 5
 
+@dataclass(frozen=True)
+class SuperEntangled:
+    a: bool = supervalue()
+    b: bool = supervalue()
 
-# def test_super_bounded():
-#     theories = eqv.generate_sentences([SuperposedBounded])
-#     sentences = [set(x.assignments.values()) for x in theories]
+    def __post_init__(self):
+        assert self.a != self.b
 
-#     assert len(sentences) == 1
-#     assert len(sentences[0]) == 2
 
+@pytest.mark.xfail(reason="No supervalue support yet.")
+def test_super_entangled():
+    theories = eqv.generate_sentences([SuperEntangled])
+    sentences = [set(x.assignments.values()) for x in theories]
 
-# @dataclass(frozen=True)
-# class SuperEntangled:
-#     a: bool = supervalue()
-#     b: bool = supervalue()
+    assert len(sentences) == 1
+    assert len(sentences[0]) == 3
 
-#     def __post_init__(self):
-#         assert self.a != self.b
 
+@dataclass
+class SuperEntangledBoring:
+    a: bool = supervalue()
+    b: bool = supervalue()
 
-# def test_super_entangled():
-#     theories = eqv.generate_sentences([SuperEntangled])
-#     sentences = [set(x.assignments.values()) for x in theories]
+    def __post_init__(self):
+        assert self.a == True
 
-#     assert len(sentences) == 1
-#     assert len(sentences[0]) == 3
 
+@pytest.mark.xfail(reason="No supervalue support yet.")
+def test_super_entangled_boring():
+    theories = eqv.generate_sentences([SuperEntangledBoring])
+    sentences = [list(x.assignments.values()) for x in theories]
 
-# @dataclass
-# class SuperEntangledBoring:
-#     a: bool = supervalue()
-#     b: bool = supervalue()
+    assert len(sentences) == 1
+    assert len(sentences[0]) == 3
 
-#     def __post_init__(self):
-#         assert self.a == True
 
+@dataclass
+class Fizz:
+    n: BoundedInt[Literal[1], Literal[100]]
 
-# def test_super_entangled_boring():
-#     theories = eqv.generate_sentences([SuperEntangledBoring])
-#     sentences = [list(x.assignments.values()) for x in theories]
+    def __post_init__(self):
+        assert self.n % 3 == 0
 
-#     assert len(sentences) == 1
-#     assert len(sentences[0]) == 3
 
+@dataclass
+class Buzz:
+    n: BoundedInt[Literal[1], Literal[100]]
 
-# @dataclass
-# class Fizz:
-#     n: BoundedInt[Literal[1], Literal[100]]
+    def __post_init__(self):
+        assert self.n % 5 == 0
 
-#     def __post_init__(self):
-#         assert self.n % 3 == 0
 
+@dataclass
+class FizzBuzz:
+    n: BoundedInt[Literal[1], Literal[100]]
 
-# @dataclass
-# class Buzz:
-#     n: BoundedInt[Literal[1], Literal[100]]
+    def __post_init__(self):
+        assert self.n % 5 == 0
+        assert self.n % 3 == 0
 
-#     def __post_init__(self):
-#         assert self.n % 5 == 0
 
-
-# @dataclass
-# class FizzBuzz:
-#     n: BoundedInt[Literal[1], Literal[100]]
-
-#     def __post_init__(self):
-#         assert self.n % 5 == 0
-#         assert self.n % 3 == 0
-
-
-# def test_fizzbuzz():
-#     theories = eqv.generate_sentences([Fizz, Buzz, FizzBuzz])
-#     sentences = [str(x) for x in theories]
-#     assert len(sentences) == 1
-#     assert len(theories[0].assignments) == 59
+def test_fizzbuzz():
+    theories = eqv.generate_sentences([BoundedInt[Literal[1], Literal[100]], Fizz, Buzz, FizzBuzz])
+    sentences = [str(x) for x in theories]
+    assert len(sentences) == 1
+    assert len(theories[0].assignments) == 159
