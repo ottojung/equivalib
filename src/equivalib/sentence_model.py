@@ -7,14 +7,14 @@ from typing import Optional, Dict, Tuple
 from ortools.sat.python import cp_model
 
 from equivalib.bounded_int import BoundedInt
-from equivalib.mytype import MyType
+from equivalib.mytype import MyGenType
 from equivalib.comparable import Comparable
 
 
 @dataclass
 class SentenceModel:
     _model: Optional[cp_model.CpModel]
-    _names: Dict[str, Tuple[MyType, int]]
+    _names: Dict[str, Tuple[MyGenType, int]]
 
 
     @staticmethod
@@ -29,12 +29,12 @@ class SentenceModel:
             return SentenceModel(self._model.Clone(), self._names.copy())
 
 
-    def add_variable(self, name: str, t: MyType) -> None:
+    def add_variable(self, name: str, t: MyGenType) -> None:
         base_type = typing.get_origin(t) or t
         args = typing.get_args(t)
 
         if base_type == BoundedInt:
-            low, high = BoundedInt.unpack_type(base_type, args)
+            low, high = BoundedInt.unpack_type(args)
             var = self.model.NewIntVar(low, high, name)
         elif base_type == bool:
             var = self.model.NewBoolVar(name)
@@ -57,7 +57,7 @@ class SentenceModel:
             return arg
 
 
-    def get_super_type(self, name: str) -> MyType:
+    def get_super_type(self, name: str) -> MyGenType:
         (base_type, _arg) = self._names[name]
         if base_type == BoundedInt:
             return int

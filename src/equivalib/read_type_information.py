@@ -6,6 +6,7 @@ from dataclasses import is_dataclass
 from typing import Dict, Tuple
 from equivalib.mytype import MyType
 
+
 def read_type_information(t: MyType) -> Dict[str, Tuple[MyType, bool]]:
     """
     Returns a list of fields, ziped with their type information
@@ -27,9 +28,9 @@ def read_type_information(t: MyType) -> Dict[str, Tuple[MyType, bool]]:
     if not is_dataclass(t):
         raise TypeError("read_type_information expects a dataclass type.")
 
-    type_information = {}
+    type_information: Dict[str, Tuple[MyType, bool]] = {}
     for field in dataclasses.fields(t):
-        is_super = field.metadata.get('super', False)
+        is_super: bool = field.metadata.get('super', False)
         type_information[field.name] = (field.type, is_super)
 
     return type_information

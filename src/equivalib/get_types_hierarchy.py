@@ -3,7 +3,7 @@
 
 import dataclasses
 import typing
-from typing import Iterable, Iterator, Union, Literal, Type, Dict, Optional
+from typing import Iterable, Iterator, Union, Literal, Dict, Optional
 
 from equivalib.mytype import MyType
 from equivalib.bounded_int import BoundedInt
@@ -17,23 +17,22 @@ class BannedType(Exception):
 
 
 def get_types_hierarchy(types: Iterable[MyType]) -> Iterator[OrderedSet[MyType]]:
-    before: Dict[Type[object], OrderedSet[Type[object]]] = {}
+    before: Dict[MyType, OrderedSet[MyType]] = {}
     all_types: OrderedSet[MyType] = OrderedSet()
 
-    def recurse_subtypes(parent: Optional[MyType], types: Iterable[type[object]]) -> None:
+    def recurse_subtypes(parent: Optional[MyType], types: Iterable[MyType]) -> None:
         for typ in types:
             recurse_type(parent, typ)
 
     def recurse_type(parent: Optional[MyType], t: MyType) -> None:
         base = typing.get_origin(t) or t
 
-        if base not in (Union,):
-            all_types.add(t)
-            if parent:
-                if parent in before:
-                    before[parent].add(t)
-                else:
-                    before[parent] = OrderedSet([t])
+        all_types.add(t)
+        if parent:
+            if parent in before:
+                before[parent].add(t)
+            else:
+                before[parent] = OrderedSet([t])
 
         if dataclasses.is_dataclass(t):
             information = read_type_information(t)
@@ -41,7 +40,7 @@ def get_types_hierarchy(types: Iterable[MyType]) -> Iterator[OrderedSet[MyType]]
 
         elif base in (Union,):
             args = typing.get_args(t)
-            recurse_subtypes(parent, args)
+            recurse_subtypes(t, args)
 
         elif base in (tuple, set):
             args = typing.get_args(t)

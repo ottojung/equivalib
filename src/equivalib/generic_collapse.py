@@ -7,20 +7,22 @@ from typing import Protocol, Union
 from equivalib.dynamic import denv
 from equivalib.constant import Constant
 from equivalib.link import Link
-from equivalib.mytype import MyType
+from equivalib.mytype import MyGenType
 from equivalib.comparable import Comparable
 from equivalib.super import Super
 from equivalib.sentence import Sentence
+from equivalib.structure import Structure, VarName
 
 
 class Collapser(Protocol):
     # pylint: disable=multiple-statements
     def __init__(self, ctx: Sentence) -> None: pass
-    def collapse(self, var: Comparable) -> Union[str, Constant]: pass
+    def collapse(self, var: Comparable) -> Union[VarName, Constant]: pass
 
 
 def generic_collapse(self: Sentence, coll_t: type[Collapser]) -> Sentence:
     struct = self.structure.copy()
+    last_names = set(self.last)
 
     with denv.let(sentence = self):
         coll = coll_t(self)
@@ -28,12 +30,12 @@ def generic_collapse(self: Sentence, coll_t: type[Collapser]) -> Sentence:
             if isinstance(v, Super):
                 var = v.get_var()
                 if isinstance(var, list):
-                    ty: MyType = Link
+                    ty: MyGenType = Link
                     chosen_name, chosen_value = random.choice(var)
-                    val: Union[str, Constant] = chosen_name or Constant(chosen_value)
+                    val: Union[VarName, Constant] = chosen_name or Constant(chosen_value)
                 else:
                     val = coll.collapse(var)
                     ty = self.model.get_super_type(v.name)
-                struct[k] = (ty, tuple([val]))
+                struct[k] = Structure(type(val), ty, tuple([val]))
 
-    return Sentence.from_structure(struct)
+    return Sentence.from_structure(struct, last_names)

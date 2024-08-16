@@ -1,5 +1,5 @@
 
-from typing import Literal, Union, Iterable
+from typing import Literal, Union, Iterable, Tuple
 from dataclasses import dataclass
 import pytest
 from equivalib.all import get_types_hierarchy, BoundedInt, BannedType
@@ -57,14 +57,23 @@ def test_empty_base():
 
 
 @dataclass
+class TupleRec:
+    a: Tuple[EmptyMyType, Interval]
+
+
+def test_tuple1():
+    hierarchy = list(map(set, get_types_hierarchy([EmptyMyType, Interval, TupleRec])))
+    assert hierarchy == [{BoundedInt[Literal[0], Literal[999]], EmptyMyType}, {Interval}, {Tuple[EmptyMyType, Interval]}, {TupleRec}]
+
+
+@dataclass
 class UnionRec:
     a: Union[EmptyMyType, Interval]
 
 
 def test_union1():
     hierarchy = list(map(set, get_types_hierarchy([EmptyMyType, Interval, UnionRec])))
-    assert hierarchy == [{BoundedInt[Literal[0], Literal[999]], EmptyMyType}, {Interval}, {UnionRec}]
-
+    assert hierarchy == [{BoundedInt[Literal[0], Literal[999]], EmptyMyType}, {Interval}, {Union[EmptyMyType, Interval]}, {UnionRec}]
 
 
 @dataclass

@@ -14,102 +14,175 @@ def run_example(typ: MyType) -> Set[object]:
 
 def test_bools():
     instances = run_example(bool)
-    assert instances == {False, True}
+    assert instances == { False, True }
 
 
-# @dataclass(frozen=True)
-# class Parameters:
-#     a: bool
-#     b: bool
-#     c: bool
+def test_integers():
+    instances = run_example(BoundedInt[Literal[1], Literal[9]])
+    assert instances == { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
 
 
-# def test_params():
-#     instances = run_example(Parameters)
-#     assert len(instances) == 8
-#     assert instances \
-#         == {Parameters(True, False, True),
-#             Parameters(False, False, False),
-#             Parameters(True, True, True),
-#             Parameters(True, False, False),
-#             Parameters(True, True, False),
-#             Parameters(False, True, True),
-#             Parameters(False, True, False),
-#             Parameters(False, False, True)}
+def test_literal():
+    instances = run_example(Literal[1])
+    assert instances == { 1 }
 
 
-# def test_integers():
-#     instances = run_example(BoundedInt[Literal[1], Literal[9]])
-#     assert instances == { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
+def test_union():
+    instances = run_example(Union[Literal[2], Literal[4]])
+    assert instances == { 2, 4 }
 
 
-# @dataclass(frozen=True)
-# class Person:
-#     name: Union[Literal["Alice"], Literal["Bob"]]
+def test_union_hetero():
+    instances = run_example(Union[Literal[2], Literal[4], bool])
+    assert instances == { 2, 4, False, True }
 
 
-# @dataclass(frozen=True)
-# class Guest:
-#     who: Person
-#     polite: bool
+def test_union_same():
+    instances = list(generate_instances(Union[bool, bool]))
+    assert set(instances) == { False, True }
+    assert len(instances) == 2
 
 
-# def test_compound():
-#     instances = run_example(Guest)
-#     assert instances \
-#         == {Guest(Person('Alice'), False),
-#             Guest(Person('Alice'), True),
-#             Guest(Person('Bob'), False),
-#             Guest(Person('Bob'), True)}
+@dataclass(frozen=True)
+class Parameters:
+    a: bool
+    b: bool
+    c: bool
 
 
-# @dataclass(frozen=True)
-# class Entangled:
-#     happy: bool
-#     complain: bool
-
-#     def __post_init__(self):
-#         assert self.happy != self.complain
-
-
-# def test_entangled():
-#     instances = run_example(Entangled)
-#     assert instances \
-#         == {Entangled(False, True),
-#             Entangled(True, False)}
+def test_params():
+    instances = run_example(Parameters)
+    assert len(instances) == 8
+    assert instances \
+        == {Parameters(True, False, True),
+            Parameters(False, False, False),
+            Parameters(True, True, True),
+            Parameters(True, False, False),
+            Parameters(True, True, False),
+            Parameters(False, True, True),
+            Parameters(False, True, False),
+            Parameters(False, False, True)}
 
 
-# @dataclass(frozen=True)
-# class EntangledPeople:
-#     a: Guest
-#     b: Guest
-
-#     def __post_init__(self):
-#         assert self.a.polite != self.b.polite
+@dataclass(frozen=True)
+class PersonB:
+    brave: bool
 
 
-# def test_mood():
-#     instances = run_example(EntangledPeople)
-#     assert instances \
-#         == {EntangledPeople(Guest(Person('Bob'), False), Guest(Person('Alice'), True)),
-#             EntangledPeople(Guest(Person('Bob'), True), Guest(Person('Alice'), False)),
-#             EntangledPeople(Guest(Person('Bob'), True), Guest(Person('Bob'), False)),
-#             EntangledPeople(Guest(Person('Alice'), True), Guest(Person('Alice'), False)),
-#             EntangledPeople(Guest(Person('Alice'), True), Guest(Person('Bob'), False)),
-#             EntangledPeople(Guest(Person('Alice'), False), Guest(Person('Bob'), True)),
-#             EntangledPeople(Guest(Person('Bob'), False), Guest(Person('Bob'), True)),
-#             EntangledPeople(Guest(Person('Alice'), False), Guest(Person('Alice'), True))}
+@dataclass(frozen=True)
+class GuestB:
+    who: PersonB
+    polite: bool
 
 
-# @dataclass(frozen=True)
-# class People:
-#     instances: Tuple[Guest, Guest]
-#     entangles: EntangledPeople
+def test_compound():
+    instances = run_example(GuestB)
+    assert instances \
+        == {GuestB(PersonB(False), False),
+            GuestB(PersonB(False), True),
+            GuestB(PersonB(True), False),
+            GuestB(PersonB(True), True)}
 
 
-# def test_people():
-#     instances = run_example(People)
-#     assert len(instances) == 128
+@dataclass(frozen=True)
+class Person:
+    name: Union[Literal["Alice"], Literal["Bob"]]
+
+
+def test_compound_union():
+    instances = run_example(Person)
+    assert instances \
+        == {Person(name='Bob'), Person(name='Alice')}
+
+
+@dataclass(frozen=True)
+class PersonT:
+    coordinates: Tuple[bool, bool]
+
+
+def test_compound_tuple():
+    instances = run_example(PersonT)
+    assert instances \
+        == {PersonT((False, True)), PersonT((True, True)), PersonT((False, False)), PersonT((True, False))}
+
+
+@dataclass(frozen=True)
+class PersonT2:
+    coordinates: Union[Tuple[Literal[False], Literal[False]],
+                       Tuple[Literal[False], Literal[True]],
+                       Tuple[Literal[True], Literal[False]],
+                       Tuple[Literal[True], Literal[True]],
+                       ]
+
+
+def test_compound_tuple_2():
+    instances = run_example(PersonT2)
+    assert instances \
+        == {PersonT2((False, True)), PersonT2((True, True)), PersonT2((False, False)), PersonT2((True, False))}
+
+
+@dataclass(frozen=True)
+class Guest:
+    who: Person
+    polite: bool
+
+
+def test_compound_2():
+    instances = run_example(Guest)
+    assert instances \
+        == {Guest(Person('Alice'), False),
+            Guest(Person('Alice'), True),
+            Guest(Person('Bob'), False),
+            Guest(Person('Bob'), True)}
+
+
+@dataclass(frozen=True)
+class Entangled:
+    happy: bool
+    complain: bool
+
+    def __post_init__(self):
+        assert self.happy != self.complain
+
+
+def test_entangled():
+    instances = run_example(Entangled)
+    assert instances \
+        == {Entangled(False, True),
+            Entangled(True, False)}
+
+
+@dataclass(frozen=True)
+class EntangledPeople:
+    a: Guest
+    b: Guest
+
+    def __post_init__(self):
+        assert self.a.polite != self.b.polite
+
+
+def test_mood():
+    instances = run_example(EntangledPeople)
+    assert instances \
+        == {EntangledPeople(Guest(Person('Bob'), False), Guest(Person('Alice'), True)),
+            EntangledPeople(Guest(Person('Bob'), True), Guest(Person('Alice'), False)),
+            EntangledPeople(Guest(Person('Bob'), True), Guest(Person('Bob'), False)),
+            EntangledPeople(Guest(Person('Alice'), True), Guest(Person('Alice'), False)),
+            EntangledPeople(Guest(Person('Alice'), True), Guest(Person('Bob'), False)),
+            EntangledPeople(Guest(Person('Alice'), False), Guest(Person('Bob'), True)),
+            EntangledPeople(Guest(Person('Bob'), False), Guest(Person('Bob'), True)),
+            EntangledPeople(Guest(Person('Alice'), False), Guest(Person('Alice'), True))}
+
+
+@dataclass(frozen=True)
+class People:
+    instances: Tuple[Guest, Guest]
+    entangles: EntangledPeople
+
+
+def test_people():
+    instances = run_example(People)
+    assert len(instances) == 128
 
 
 

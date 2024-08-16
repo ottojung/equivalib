@@ -5,8 +5,7 @@ from equivalib.sentence import Sentence
 from equivalib.instance_mark_key import InstanceMarkKey
 
 
-def mark_instance(sentence: Sentence) -> object:
-    instance = sentence.last
+def mark_instance(sentence: Sentence, instance: object) -> object:
     if isinstance(instance, (bool, int, str)):
         return instance
     else:

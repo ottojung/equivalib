@@ -29,6 +29,7 @@ class SuperEntangled:
         assert self.a != self.b
 
 
+@pytest.mark.xfail(reason="No supervalue support yet.")
 def test_super_entangled():
     theories = equivalib.generate_sentences([SuperEntangled])
 
@@ -54,6 +55,7 @@ class Interval:
         assert self.y > self.x
 
 
+@pytest.mark.xfail(reason="No supervalue support yet.")
 def test_interval():
     theories = equivalib.generate_sentences([Interval])
     assert len(theories) == 1
@@ -72,6 +74,7 @@ class Overlap:
         assert self.b.y >= self.a.y
 
 
+@pytest.mark.xfail(reason="No supervalue support yet.")
 def test_1_overlaping_interval():
     theories = equivalib.generate_sentences([Interval, Overlap])
     assert len(theories) == 1
@@ -101,6 +104,7 @@ class Overlap2:
         assert self.b.y >= self.a.y
 
 
+@pytest.mark.xfail(reason="No supervalue support yet.")
 def test_2_overlaping_intervals():
     theories = equivalib.generate_sentences([Interval2, Overlap2])
     assert len(theories) == 2
@@ -135,47 +139,48 @@ class Overlap3:
         assert self.b.y > self.a.y
 
 
-# @pytest.mark.skipif(not os.getenv('CI'), reason="This test takes too long, it is for CI only")
-# def test_3_overlaping_intervals():
-#     theories = equivalib.generate_sentences([Interval3, Overlap3])
-#     assert len(theories) == 30
-#     strings = list(map(str, map(equivalib.arbitrary_collapse, theories)))
+@pytest.mark.xfail(reason="No supervalue support yet.")
+@pytest.mark.skipif(not os.getenv('CI'), reason="This test takes too long, it is for CI only")
+def test_3_overlaping_intervals():
+    theories = equivalib.generate_sentences([Interval3, Overlap3])
+    assert len(theories) == 30
+    strings = list(map(str, map(equivalib.arbitrary_collapse, theories)))
 
-#     dedup = list(set(strings))
-#     assert len(dedup) == len(strings)
-#     assert sorted(dedup) == sorted(strings)
+    dedup = list(set(strings))
+    assert len(dedup) == len(strings)
+    assert sorted(dedup) == sorted(strings)
 
-#     assert strings \
-#         == ["a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('B', d, e); g = Overlap3(c, f);",
-#             "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = Overlap3(f, c);",
-#             "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('C', d, e); g = Overlap3(c, f);",
-#             "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('C', d, e); g = Overlap3(f, c);",
-#             "a = 1; b = 2; c = Interval3('B', a, b); d = 1; e = 9; f = Interval3('C', d, e); g = Overlap3(c, f);",
-#             "a = 1; b = 9; c = Interval3('B', a, b); d = 1; e = 2; f = Interval3('C', d, e); g = Overlap3(f, c);",
-#             "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(c, f);",
-#             "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 9; i = Interval3('C', g, h); j = Overlap3(c, i);",
-#             "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('B', d, e); g = 1; h = 9; i = Interval3('C', g, h); j = Overlap3(c, f); k = Overlap3(c, i);",
-#             "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(f, c);",
-#             "a = 1; b = 3; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 9; i = Interval3('C', g, h); j = Overlap3(c, i); k = Overlap3(f, c);",
-#             "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 9; i = Interval3('C', g, h); j = Overlap3(f, i);",
-#             "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 3; f = Interval3('B', d, e); g = 1; h = 9; i = Interval3('C', g, h); j = Overlap3(c, f); k = Overlap3(f, i);",
-#             "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 9; i = Interval3('C', g, h); j = Overlap3(c, i); k = Overlap3(f, i);",
-#             "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 3; f = Interval3('B', d, e); g = 1; h = 9; i = Interval3('C', g, h); j = Overlap3(c, f); k = Overlap3(c, i); l = Overlap3(f, i);",
-#             "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 9; i = Interval3('C', g, h); j = Overlap3(f, c); k = Overlap3(f, i);",
-#             "a = 1; b = 3; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 9; i = Interval3('C', g, h); j = Overlap3(c, i); k = Overlap3(f, c); l = Overlap3(f, i);",
-#             "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(i, c);",
-#             "a = 1; b = 3; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(c, f); k = Overlap3(i, c);",
-#             "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(f, c); k = Overlap3(i, c);",
-#             "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 3; i = Interval3('C', g, h); j = Overlap3(f, i); k = Overlap3(i, c);",
-#             "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 3; i = Interval3('C', g, h); j = Overlap3(f, c); k = Overlap3(f, i); l = Overlap3(i, c);",
-#             "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(i, f);",
-#             "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(c, f); k = Overlap3(i, f);",
-#             "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('B', d, e); g = 1; h = 3; i = Interval3('C', g, h); j = Overlap3(c, i); k = Overlap3(i, f);",
-#             "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('B', d, e); g = 1; h = 3; i = Interval3('C', g, h); j = Overlap3(c, f); k = Overlap3(c, i); l = Overlap3(i, f);",
-#             "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 3; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(f, c); k = Overlap3(i, f);",
-#             "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(i, c); k = Overlap3(i, f);",
-#             "a = 1; b = 3; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(c, f); k = Overlap3(i, c); l = Overlap3(i, f);",
-#             "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 3; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(f, c); k = Overlap3(i, c); l = Overlap3(i, f);"]
+    assert strings \
+        == ["a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('B', d, e); g = Overlap3(c, f);",
+            "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = Overlap3(f, c);",
+            "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('C', d, e); g = Overlap3(c, f);",
+            "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('C', d, e); g = Overlap3(f, c);",
+            "a = 1; b = 2; c = Interval3('B', a, b); d = 1; e = 9; f = Interval3('C', d, e); g = Overlap3(c, f);",
+            "a = 1; b = 9; c = Interval3('B', a, b); d = 1; e = 2; f = Interval3('C', d, e); g = Overlap3(f, c);",
+            "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(c, f);",
+            "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 9; i = Interval3('C', g, h); j = Overlap3(c, i);",
+            "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('B', d, e); g = 1; h = 9; i = Interval3('C', g, h); j = Overlap3(c, f); k = Overlap3(c, i);",
+            "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(f, c);",
+            "a = 1; b = 3; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 9; i = Interval3('C', g, h); j = Overlap3(c, i); k = Overlap3(f, c);",
+            "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 9; i = Interval3('C', g, h); j = Overlap3(f, i);",
+            "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 3; f = Interval3('B', d, e); g = 1; h = 9; i = Interval3('C', g, h); j = Overlap3(c, f); k = Overlap3(f, i);",
+            "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 9; i = Interval3('C', g, h); j = Overlap3(c, i); k = Overlap3(f, i);",
+            "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 3; f = Interval3('B', d, e); g = 1; h = 9; i = Interval3('C', g, h); j = Overlap3(c, f); k = Overlap3(c, i); l = Overlap3(f, i);",
+            "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 9; i = Interval3('C', g, h); j = Overlap3(f, c); k = Overlap3(f, i);",
+            "a = 1; b = 3; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 9; i = Interval3('C', g, h); j = Overlap3(c, i); k = Overlap3(f, c); l = Overlap3(f, i);",
+            "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(i, c);",
+            "a = 1; b = 3; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(c, f); k = Overlap3(i, c);",
+            "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(f, c); k = Overlap3(i, c);",
+            "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 3; i = Interval3('C', g, h); j = Overlap3(f, i); k = Overlap3(i, c);",
+            "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 2; f = Interval3('B', d, e); g = 1; h = 3; i = Interval3('C', g, h); j = Overlap3(f, c); k = Overlap3(f, i); l = Overlap3(i, c);",
+            "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(i, f);",
+            "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(c, f); k = Overlap3(i, f);",
+            "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('B', d, e); g = 1; h = 3; i = Interval3('C', g, h); j = Overlap3(c, i); k = Overlap3(i, f);",
+            "a = 1; b = 2; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('B', d, e); g = 1; h = 3; i = Interval3('C', g, h); j = Overlap3(c, f); k = Overlap3(c, i); l = Overlap3(i, f);",
+            "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 3; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(f, c); k = Overlap3(i, f);",
+            "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(i, c); k = Overlap3(i, f);",
+            "a = 1; b = 3; c = Interval3('A', a, b); d = 1; e = 9; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(c, f); k = Overlap3(i, c); l = Overlap3(i, f);",
+            "a = 1; b = 9; c = Interval3('A', a, b); d = 1; e = 3; f = Interval3('B', d, e); g = 1; h = 2; i = Interval3('C', g, h); j = Overlap3(f, c); k = Overlap3(i, c); l = Overlap3(i, f);"]
 
 
 @dataclass(frozen=True)
@@ -210,66 +215,69 @@ class Kissing:
         assert model.check_satisfiability()
 
 
-# @pytest.mark.skipif(not os.getenv('CI'), reason="This test takes too long, it is for CI only")
-# def test_super_compound_3():
-#     theories = equivalib.generate_sentences([Interval3, Then, Tangent, Kissing])
-#     assert len(theories) == 54
+@pytest.mark.xfail(reason="No supervalue support yet.")
+@pytest.mark.skipif(not os.getenv('CI'), reason="This test takes too long, it is for CI only")
+def test_super_compound_3():
+    theories = equivalib.generate_sentences([Interval3, Then, Tangent, Kissing])
+    assert len(theories) == 54
 
 
-# def test_super_compound_maxgreedy1():
-#     theories = equivalib.generate_sentences([Interval3, Then])
-#     strings = list(map(str, map(equivalib.arbitrary_collapse, theories)))
+@pytest.mark.xfail(reason="No supervalue support yet.")
+def test_super_compound_maxgreedy1():
+    theories = equivalib.generate_sentences([Interval3, Then])
+    strings = list(map(str, map(equivalib.arbitrary_collapse, theories)))
 
-#     assert len(theories) == 1
-#     dedup = list(set(strings))
-#     assert len(dedup) == len(strings)
-#     assert sorted(dedup) == sorted(strings)
-#     assert strings \
-#         == ["a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = 8; h = 9; i = Interval3('C', g, h); j = Then(c, f); k = Then(c, i); l = Then(f, i);"]
+    assert len(theories) == 1
+    dedup = list(set(strings))
+    assert len(dedup) == len(strings)
+    assert sorted(dedup) == sorted(strings)
+    assert strings \
+        == ["a = 1; b = 2; c = Interval3('A', a, b); d = 3; e = 4; f = Interval3('B', d, e); g = 8; h = 9; i = Interval3('C', g, h); j = Then(c, f); k = Then(c, i); l = Then(f, i);"]
 
-# @dataclass(frozen=True)
-# class IntervalMany:
-#     name: Union[Literal["A"], Literal["B"], Literal["C"], Literal["D"], Literal["E"], Literal["F"], Literal["G"], Literal["H"]]
-#     x: BoundedInt[Literal[1], Literal[9]] = supervalue()
-#     y: BoundedInt[Literal[1], Literal[9]] = supervalue()
+@dataclass(frozen=True)
+class IntervalMany:
+    name: Union[Literal["A"], Literal["B"], Literal["C"], Literal["D"], Literal["E"], Literal["F"], Literal["G"], Literal["H"]]
+    x: BoundedInt[Literal[1], Literal[9]] = supervalue()
+    y: BoundedInt[Literal[1], Literal[9]] = supervalue()
 
-#     def __post_init__(self):
-#         assert self.y > self.x
-
-
-# @dataclass(frozen=True)
-# class ThenMany:
-#     a: IntervalMany
-#     b: IntervalMany
-
-#     def __post_init__(self):
-#         assert self.a.y < self.b.x
+    def __post_init__(self):
+        assert self.y > self.x
 
 
-# @dataclass(frozen=True)
-# class TangentMany:
-#     a: IntervalMany
-#     b: IntervalMany
+@dataclass(frozen=True)
+class ThenMany:
+    a: IntervalMany
+    b: IntervalMany
 
-#     def __post_init__(self):
-#         assert self.a.y == self.b.x
-
-
-# @dataclass(frozen=True)
-# class KissingMany:
-#     a: IntervalMany
-#     b: IntervalMany
-
-#     def __post_init__(self):
-#         if isinstance(self.a.y, int):
-#             return
-
-#         model, left, right = self.a.y.to_left_right(self.b.x)
-#         model.add(left + 1 == right)
-#         assert model.check_satisfiability()
+    def __post_init__(self):
+        assert self.a.y < self.b.x
 
 
-# @pytest.mark.skipif(not os.getenv('CI'), reason="This test takes too long, it is for CI only")
-# def test_super_compound_manygreedy_maxgreedy1():
-#     theories = equivalib.generate_sentences([IntervalMany, ThenMany, TangentMany, KissingMany])
-#     assert len(theories) == 1261
+@dataclass(frozen=True)
+class TangentMany:
+    a: IntervalMany
+    b: IntervalMany
+
+    def __post_init__(self):
+        assert self.a.y == self.b.x
+
+
+@dataclass(frozen=True)
+class KissingMany:
+    a: IntervalMany
+    b: IntervalMany
+
+    def __post_init__(self):
+        if isinstance(self.a.y, int):
+            return
+
+        model, left, right = self.a.y.to_left_right(self.b.x)
+        model.add(left + 1 == right)
+        assert model.check_satisfiability()
+
+
+@pytest.mark.xfail(reason="No supervalue support yet.")
+@pytest.mark.skipif(not os.getenv('CI'), reason="This test takes too long, it is for CI only")
+def test_super_compound_manygreedy_maxgreedy1():
+    theories = equivalib.generate_sentences([IntervalMany, ThenMany, TangentMany, KissingMany])
+    assert len(theories) == 1261

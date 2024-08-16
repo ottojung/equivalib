@@ -3,7 +3,6 @@
 
 import typing
 from typing import TypeVar, Generic, Tuple
-from equivalib.mytype import MyType
 
 S = TypeVar('S')
 E = TypeVar('E')
@@ -13,7 +12,7 @@ class BoundedInt(int, Generic[S, E]):
         self.value = value
 
     @staticmethod
-    def unpack_type(base_type: MyType, args: Tuple[object, object]) -> Tuple[int, int]:
+    def unpack_type(args: Tuple[object, object]) -> Tuple[int, int]:
         assert len(args) == 2
         low_l, high_l = args
         low, high = (typing.get_args(low_l)[0], typing.get_args(high_l)[0])

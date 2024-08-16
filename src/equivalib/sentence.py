@@ -2,92 +2,91 @@
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import typing
-from typing import Dict, List, Tuple, Union, Optional, Literal
+from typing import Dict, List, Tuple, Literal, Set
 from dataclasses import dataclass
 
 from equivalib.sentence_model import SentenceModel
 from equivalib.dynamic import denv
 from equivalib.constant import Constant
 from equivalib.link import Link
-from equivalib.mytype import MyType, instantiate
+from equivalib.mytype import MyGenType, instantiate
 from equivalib.bounded_int import BoundedInt
-
-
-Structure = Tuple[MyType, Tuple[Union[str, Constant], ...]]
+from equivalib.structure import Structure, VarName
 
 
 @dataclass
 class Sentence:
-    assignments: Dict[str, object]
-    structure: Dict[str, Structure]
-    reverse: Dict[Structure, Union[str, List[str]]]
-    types: Dict[MyType, List[Tuple[str, object]]]
-    last: Optional[object]
+    assignments: Dict[VarName, object]
+    structure: Dict[VarName, Structure]
+    reverse: Dict[Structure, VarName]
+    cache: Dict[MyGenType, List[VarName]]
+    last: List[VarName]
     model: SentenceModel
 
 
     @staticmethod
     def empty() -> 'Sentence':
-        return Sentence({}, {}, {}, {}, None, SentenceModel.empty())
+        return Sentence({}, {}, {}, {}, [], SentenceModel.empty())
 
 
-    def copy(self) -> 'Sentence':
-        return Sentence(self.assignments.copy(), self.structure.copy(), self.reverse.copy(), self.types.copy(), self.last, self.model.copy())
+    # def __copy__(self) -> 'Sentence':
+    #     # Note: cache is SHARED among all copies.
+    #     return Sentence(self.assignments.copy(), self.structure.copy(), self.reverse.copy(), self.cache, self.last, self.model.copy())
 
 
-    def has_type(self, typ: MyType) -> bool:
-        return typ in self.types
+    # def copy(self) -> 'Sentence':
+    #     return self.__copy__()
 
 
-    def insert_new_value(self, name: str, value: object, struct: Structure) -> None:
+    def has_cached(self, typ: MyGenType) -> bool:
+        return typ in self.cache
+
+
+    def insert_new_value(self, name: VarName, value: object, struct: Structure) -> None:
         self.assignments[name] = value
-        self.last = value
         self.structure[name] = struct
         if struct in self.reverse:
-            existing = self.reverse[struct]
-            if isinstance(existing, str):
-                self.reverse[struct] = [existing, name]
-            else:
-                existing.append(name)
+            raise ValueError(f"Struct {repr(struct)} is already in the Sentence.")
+
+        self.reverse[struct] = name
+        sig = struct.signature
+        if sig in self.cache:
+            self.cache[sig].append(VarName(name))
         else:
-            self.reverse[struct] = name
-            typ = struct[0]
-            if typ in self.types:
-                self.types[typ].append((name, value))
-            else:
-                self.types[typ] = [(name, value)]
+            self.cache[sig] = [VarName(name)]
+
+        self.last.append(name)
 
 
     def insert_value(self, value: object, struct: Structure) -> str:
         if struct in self.reverse:
-            existing = self.reverse[struct]
-            if isinstance(existing, str):
-                key = existing
-            else:
-                key = existing[0]
-            self.last = self.assignments[key]
-            return key
+            name = self.reverse[struct]
+            self.last.append(name)
+            return name
         else:
             name = self.generate_free_name()
-            self.last = value
             self.reverse[struct] = name
             self.assignments[name] = value
             self.structure[name] = struct
-            typ = struct[0]
-            if typ in self.types:
-                self.types[typ].append((name, value))
+
+            sig = struct.signature
+            if sig in self.cache:
+                self.cache[sig].append(VarName(name))
             else:
-                self.types[typ] = [(name, value)]
+                self.cache[sig] = [VarName(name)]
+
+            self.last.append(name)
+
             return name
 
 
-    def add_super_variable(self, t: MyType) -> str:
+    def add_super_variable(self, t: MyGenType) -> VarName:
         name = self.generate_free_name()
         self.model.add_variable(name, t)
         return name
 
 
-    def generate_free_name(self) -> str:
+    def generate_free_name(self) -> VarName:
         """
         Returns the (lexicographically) smallest string
         that is not in self.assignments.
@@ -106,28 +105,30 @@ class Sentence:
         while candidate in self.assignments:
             candidate = next_alpha_name(candidate)
 
-        return candidate
+        return VarName(candidate)
 
 
     @staticmethod
-    def from_structure(structure: Dict[str, Structure]) -> 'Sentence':
+    def from_structure(structure: Dict[VarName, Structure], last_names: Set[VarName]) -> 'Sentence':
         ret = Sentence.empty()
         ret.structure = structure
 
         def unwrap(arg: object) -> object:
             if isinstance(arg, str):
-                return get(arg)
+                return get(VarName(arg))
             elif isinstance(arg, Constant):
                 return arg.value
             else:
                 return arg
 
-        def get(name: str) -> object:
+        def get(name: VarName) -> object:
             if name not in ret.assignments:
-                (ty, args_names) = structure[name]
+                struct = structure[name]
+                ty = struct.constructor
+                sig = struct.signature
+                args_names = struct.arguments
                 args = [unwrap(name) for name in args_names]
-                struct = (ty, args_names)
-                instance = instantiate(ty, args)
+                instance = instantiate(ty, sig, args)
                 ret.insert_new_value(name, instance, struct)
 
             val = ret.assignments[name]
@@ -138,6 +139,8 @@ class Sentence:
         with denv.let(sentence = ret):
             for key in structure:
                 get(key)
+
+        ret.last = [x for x in ret.last if x in last_names]
 
         return ret
 
@@ -156,11 +159,12 @@ class Sentence:
                 return x
 
         for k, v in sorted(self.structure.items(), key=sortkey):
-            (ty, args_names) = v
+            ty = v.constructor
+            args_names = v.arguments
             base_type = typing.get_origin(ty) or ty
             if base_type in (bool, int, tuple, Link, BoundedInt, Literal):
                 args_values = list(map(unwrap, args_names))
-                value = repr(instantiate(ty, args_values))
+                value = repr(instantiate(ty, v.signature, args_values))
             else:
                 args = ', '.join(map(str, args_names))
                 value = f"{ty.__name__}({args})"

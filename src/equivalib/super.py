@@ -6,8 +6,9 @@ from typing import Generic, Tuple, TypeVar
 
 from equivalib.get_current_sentence import get_current_sentence
 from equivalib.comparable import Comparable
-from equivalib.mytype import MyType
+from equivalib.mytype import MyGenType
 from equivalib.sentence_model import SentenceModel
+from equivalib.structure import Structure, VarName
 
 
 W = TypeVar('W')
@@ -17,11 +18,11 @@ class Super(Generic[W]):
 
 
     @staticmethod
-    def make(t: MyType) -> 'Super[W]':
+    def make(t: MyGenType) -> 'Super[W]':
         current_sentence = get_current_sentence()
         name = current_sentence.add_super_variable(t)
         ret: Super[W] = Super(name)
-        struct = (Super, tuple([name]))
+        struct = Structure(Super, Super, tuple([VarName(name)]))
         current_sentence.insert_new_value(name, ret, struct)
         return ret
 

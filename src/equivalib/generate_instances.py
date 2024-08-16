@@ -5,7 +5,6 @@ from typing import Iterator
 from equivalib.sentence import Sentence
 from equivalib.mytype import MyType
 from equivalib.get_types_hierarchy import get_types_hierarchy
-from equivalib.mark_instance import mark_instance
 from equivalib.arbitrary_collapse import arbitrary_collapse
 from equivalib.generate_sentences import generate_sentences
 
@@ -13,4 +12,9 @@ from equivalib.generate_sentences import generate_sentences
 def generate_instances(t: MyType, prefix: Sentence = Sentence.empty()) -> Iterator[object]:
     hierarchy = list(get_types_hierarchy([t]))
     flatten = [typ for types in hierarchy for typ in types]
-    yield from map(mark_instance, map(arbitrary_collapse , generate_sentences(flatten, prefix=prefix)))
+
+    for sentence in generate_sentences(flatten, prefix=prefix):
+        concrete = arbitrary_collapse(sentence)
+        for name in concrete.last:
+            value = concrete.assignments[name]
+            yield value

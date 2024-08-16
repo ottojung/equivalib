@@ -11,6 +11,7 @@ from equivalib.comparable import Comparable
 from equivalib.sentence import Sentence
 from equivalib.super import Super
 from equivalib.orderedset import OrderedSet
+from equivalib.structure import VarName
 
 
 class VarArraySolutionPrinter(cp_model.CpSolverSolutionCallback):
@@ -25,7 +26,7 @@ class VarArraySolutionPrinter(cp_model.CpSolverSolutionCallback):
         self.collected.add(mapped)
 
 
-    def get_collected(self) -> Iterator[Dict[str, Union[str, Constant]]]:
+    def get_collected(self) -> Iterator[Dict[str, Union[VarName, Constant]]]:
         for assignment in self.collected:
             yield {str(var): value for var, value in zip(self._variables, assignment)}
 
@@ -41,7 +42,7 @@ class RandomCollapser(Collapser):
         self.assignment = random.choice(assignments)
 
 
-    def collapse(self, var: Comparable) -> Union[str, Constant]:
+    def collapse(self, var: Comparable) -> Union[VarName, Constant]:
         return self.assignment[str(var)]
 
 

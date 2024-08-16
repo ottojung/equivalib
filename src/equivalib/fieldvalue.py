@@ -1,13 +1,14 @@
 
 from dataclasses import dataclass
-from typing import Union, List
-from equivalib.mytype import MyType
+from typing import Union
+from equivalib.mytype import MyGenType
+from equivalib.structure import Structure, VarName
 
 
 @dataclass(frozen=True)
 class Supertype:
-    t: MyType
+    t: MyGenType
 
 
-# FValueT = Union[Optional[str], str, bool, Supertype, List[object]]
-FValueT = Union[object, List[object]]
+SFieldT = Union[VarName, Structure]
+GFieldT = Union[Supertype, SFieldT]

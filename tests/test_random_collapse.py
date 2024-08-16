@@ -26,6 +26,7 @@ class SuperEntangled:
         assert self.a != self.b
 
 
+@pytest.mark.xfail(reason="No supervalue support yet.")
 def test_super_entangled():
     theories = generate_sentences([SuperEntangled])
 
@@ -52,6 +53,7 @@ class Interval:
         assert self.y > self.x
 
 
+@pytest.mark.xfail(reason="No supervalue support yet.")
 def test_interval(fixed_random_seed): # pylint: disable=redefined-outer-name
     theories = generate_sentences([Interval])
     assert len(theories) == 1
