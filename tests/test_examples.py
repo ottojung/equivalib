@@ -187,6 +187,18 @@ def test_people():
 
 
 @dataclass(frozen=True)
+class SuperMinimal:
+    happy: bool = supervalue()
+
+
+@pytest.mark.xfail(reason="No supervalue support yet.")
+def test_super_minimal():
+    instances = run_example(SuperMinimal)
+    assert instances \
+        in [{SuperMinimal(False)}, {SuperMinimal(True)}]
+
+
+@dataclass(frozen=True)
 class SuperEntangled:
     happy: bool = supervalue()
     complain: bool = supervalue()
