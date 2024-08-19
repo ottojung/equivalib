@@ -1,6 +1,5 @@
 
 # pylint: disable=duplicate-code
-# pylint: disable=unused-import
 
 from dataclasses import dataclass
 from typing import Literal, Union
