@@ -224,6 +224,7 @@ class SuperPeople:
 
 @pytest.mark.xfail(reason="No supervalue support yet.")
 def test_superpeople():
+    assert False
     instances = run_example(SuperPeople)
     assert instances \
         == {SuperPeople(SuperGuest(Person('Alice'), False), SuperGuest(Person('Alice'), False), SuperGuest(Person('Alice'), False), SuperGuest(Person('Bob'), False)),
