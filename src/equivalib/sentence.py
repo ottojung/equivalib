@@ -162,12 +162,13 @@ class Sentence:
             ty = v.constructor
             args_names = v.arguments
             base_type = typing.get_origin(ty) or ty
-            if base_type in (bool, int, tuple, Link, BoundedInt, Literal):
+            if base_type in (bool, int, Link, BoundedInt, Literal):
                 args_values = list(map(unwrap, args_names))
                 value = repr(instantiate(ty, v.signature, args_values))
             else:
                 args = ', '.join(map(str, args_names))
-                value = f"{ty.__name__}({args})"
+                typename = '' if base_type == tuple else ty.__name__
+                value = f"{typename}({args})"
             a = f"{k} = {value}"
             assignments.append(a)
 

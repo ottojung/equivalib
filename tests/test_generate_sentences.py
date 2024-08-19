@@ -67,15 +67,22 @@ def test_invalid():
         eqv.generate_sentences([bool, str, Tuple[str, str], BadTuple])
 
 
+def test_tuple1():
+    theories = eqv.generate_sentences([bool, Tuple[bool, bool]])
+    sentences = set(str(x) for x in theories)
+    expected = {"a = False; b = True; c = (a, a); d = (a, b); e = (b, a); f = (b, b);"}
+    assert sentences == expected
+
+
 @dataclass(frozen=True)
 class Tuple1:
     values: Tuple[bool, bool]
 
 
-def test_tuple1():
+def test_tuple2():
     theories = eqv.generate_sentences([bool, Tuple[bool, bool], Tuple1])
     sentences = set(str(x) for x in theories)
-    expected = {"a = False; b = True; c = ('a', 'a'); d = ('a', 'b'); e = ('b', 'a'); f = ('b', 'b'); g = Tuple1(c); h = Tuple1(d); i = Tuple1(e); j = Tuple1(f);"}
+    expected = {"a = False; b = True; c = (a, a); d = (a, b); e = (b, a); f = (b, b); g = Tuple1(c); h = Tuple1(d); i = Tuple1(e); j = Tuple1(f);"}
     assert sentences == expected
 
 

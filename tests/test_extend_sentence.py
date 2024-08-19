@@ -82,5 +82,5 @@ def test_tup1():
     list(eqv.extend_sentence(ctx, Tuple[bool, bool]))
     news = list(eqv.extend_sentence(ctx, Tupclas))
     sentences = list(map(str, news))
-    expected = ["a = False; b = True; c = ('a', 'a'); d = ('a', 'b'); e = ('b', 'a'); f = ('b', 'b'); g = Tupclas(c); h = Tupclas(d); i = Tupclas(e); j = Tupclas(f);"]
+    expected = ["a = False; b = True; c = (a, a); d = (a, b); e = (b, a); f = (b, b); g = Tupclas(c); h = Tupclas(d); i = Tupclas(e); j = Tupclas(f);"]
     assert list_memequal(sentences, expected)
