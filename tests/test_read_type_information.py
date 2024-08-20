@@ -1,6 +1,6 @@
 
 from dataclasses import dataclass
-from typing import Annotated, Dict, Tuple
+from typing import Annotated, Dict
 import pytest
 
 from equivalib.all import supervalue, read_type_information, ValueRange
@@ -14,8 +14,8 @@ class IntervalUnbounded:
 
 def test_read_type_information_for_valid_dataclass():
     expected = {
-        "start": (int, False),
-        "end": (int, False),
+        "start": int,
+        "end": int,
     }
 
     result = read_type_information(IntervalUnbounded)
@@ -29,9 +29,9 @@ class Interval:
 
 
 def test_read_type_information_for_valid_generic_dataclass():
-    expected: Dict[str, Tuple[object, bool]] = {
-        "start": (Annotated[int, ValueRange(0, 999)], False),
-        "end": (Annotated[int, ValueRange(0, 999)], False),
+    expected: Dict[str, object] = {
+        "start": Annotated[int, ValueRange(0, 999)],
+        "end": Annotated[int, ValueRange(0, 999)],
     }
 
     result = read_type_information(Interval)
@@ -69,8 +69,8 @@ class SuperBools:
 
 def test_read_type_information_for_valid_generic_super_dataclass():
     expected = {
-        "start": (bool, False),
-        "end": (bool, True),
+        "start": bool,
+        "end": bool,
     }
 
     result = read_type_information(SuperBools)

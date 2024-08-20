@@ -35,7 +35,7 @@ def get_types_hierarchy(types: Iterable[MyType]) -> Iterator[OrderedSet[MyType]]
 
         if dataclasses.is_dataclass(t):
             information = read_type_information(t)
-            recurse_subtypes(t, (x for x, _is_super in information.values()))
+            recurse_subtypes(t, information.values())
 
         elif base in (Union,):
             args2: Iterable[MyType] = args  # type: ignore

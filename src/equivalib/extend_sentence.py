@@ -73,7 +73,7 @@ def generate_field_values(ctx: Sentence, t: MyGenType) -> Iterator[GFieldT]:
         information = read_type_information(t)
         pointwise = []
 
-        for type_signature, _is_super_field in information.values():
+        for type_signature in information.values():
             # FIXME: handle supers.
             pointwise.append(tuple(retreive_from_cache(ctx, type_signature)))
 

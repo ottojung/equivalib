@@ -3,11 +3,11 @@
 
 import dataclasses
 from dataclasses import is_dataclass
-from typing import Dict, Tuple
+from typing import Dict
 from equivalib.mytype import MyType
 
 
-def read_type_information(t: MyType) -> Dict[str, Tuple[MyType, bool]]:
+def read_type_information(t: MyType) -> Dict[str, MyType]:
     """
     Returns a list of fields, ziped with their type information
 
@@ -16,7 +16,7 @@ def read_type_information(t: MyType) -> Dict[str, Tuple[MyType, bool]]:
     >>> @dataclass
     >>> class Interval:
     >>>     start: int
-    >>>     end: bool = supervalue()
+    >>>     end: Annotated[bool, Super]
     >>>
     >>> read_type_information(Interval)
     {("start": (int, False)),
@@ -28,9 +28,8 @@ def read_type_information(t: MyType) -> Dict[str, Tuple[MyType, bool]]:
     if not is_dataclass(t):
         raise TypeError("read_type_information expects a dataclass type.")
 
-    type_information: Dict[str, Tuple[MyType, bool]] = {}
+    type_information: Dict[str, MyType] = {}
     for field in dataclasses.fields(t):
-        is_super: bool = field.metadata.get('super', False)
-        type_information[field.name] = (field.type, is_super)
+        type_information[field.name] = field.type
 
     return type_information
