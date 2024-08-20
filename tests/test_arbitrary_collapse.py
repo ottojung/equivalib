@@ -2,13 +2,13 @@
 # pylint: disable=duplicate-code
 
 from dataclasses import dataclass
-from typing import Literal, Union
+from typing import Literal, Union, Annotated
 import os
 import random
 import pytest
 
 import equivalib.all as equivalib
-from equivalib.all import BoundedInt, supervalue
+from equivalib.all import supervalue, ValueRange
 
 
 # Define the fixture to fix the random seed
@@ -47,8 +47,8 @@ def test_super_entangled():
 
 @dataclass(frozen=True)
 class Interval:
-    x: BoundedInt[Literal[1], Literal[9]] = supervalue()
-    y: BoundedInt[Literal[1], Literal[9]] = supervalue()
+    x: Annotated[int, ValueRange(1, 9)] = supervalue()
+    y: Annotated[int, ValueRange(1, 9)] = supervalue()
 
     def __post_init__(self):
         assert self.y > self.x
@@ -86,8 +86,8 @@ def test_1_overlaping_interval():
 @dataclass(frozen=True)
 class Interval2:
     name: Union[Literal["A"], Literal["B"]]
-    x: BoundedInt[Literal[1], Literal[9]] = supervalue()
-    y: BoundedInt[Literal[1], Literal[9]] = supervalue()
+    x: Annotated[int, ValueRange(1, 9)] = supervalue()
+    y: Annotated[int, ValueRange(1, 9)] = supervalue()
 
     def __post_init__(self):
         assert self.y > self.x
@@ -121,8 +121,8 @@ def test_2_overlaping_intervals():
 @dataclass(frozen=True)
 class Interval3:
     name: Union[Literal["A"], Literal["B"], Literal["C"]]
-    x: BoundedInt[Literal[1], Literal[9]] = supervalue()
-    y: BoundedInt[Literal[1], Literal[9]] = supervalue()
+    x: Annotated[int, ValueRange(1, 9)] = supervalue()
+    y: Annotated[int, ValueRange(1, 9)] = supervalue()
 
     def __post_init__(self):
         assert self.y > self.x
@@ -236,8 +236,8 @@ def test_super_compound_maxgreedy1():
 @dataclass(frozen=True)
 class IntervalMany:
     name: Union[Literal["A"], Literal["B"], Literal["C"], Literal["D"], Literal["E"], Literal["F"], Literal["G"], Literal["H"]]
-    x: BoundedInt[Literal[1], Literal[9]] = supervalue()
-    y: BoundedInt[Literal[1], Literal[9]] = supervalue()
+    x: Annotated[int, ValueRange(1, 9)] = supervalue()
+    y: Annotated[int, ValueRange(1, 9)] = supervalue()
 
     def __post_init__(self):
         assert self.y > self.x

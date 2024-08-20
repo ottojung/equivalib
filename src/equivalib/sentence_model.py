@@ -2,13 +2,13 @@
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from dataclasses import dataclass
-import typing
 from typing import Optional, Dict, Tuple
 from ortools.sat.python import cp_model
 
-from equivalib.bounded_int import BoundedInt
 from equivalib.mytype import MyGenType
 from equivalib.comparable import Comparable
+from equivalib.split_type import split_type
+from equivalib.bounded_int import unpack_bounded_int
 
 
 @dataclass
@@ -30,11 +30,10 @@ class SentenceModel:
 
 
     def add_variable(self, name: str, t: MyGenType) -> None:
-        base_type = typing.get_origin(t) or t
-        args = typing.get_args(t)
+        (base_type, _args, _annot) = split_type(t)
 
-        if base_type == BoundedInt:
-            low, high = BoundedInt.unpack_type(args)
+        if base_type == int:
+            low, high = unpack_bounded_int(t)
             var = self.model.NewIntVar(low, high, name)
         elif base_type == bool:
             var = self.model.NewBoolVar(name)
@@ -47,7 +46,7 @@ class SentenceModel:
 
     def get_variable(self, name: str) -> Comparable:
         (base_type, arg) = self._names[name]
-        if base_type == BoundedInt:
+        if base_type == int:
             ret1: cp_model.IntVar = self.model.GetIntVarFromProtoIndex(arg)
             return ret1
         elif base_type == bool:
@@ -59,7 +58,7 @@ class SentenceModel:
 
     def get_super_type(self, name: str) -> MyGenType:
         (base_type, _arg) = self._names[name]
-        if base_type == BoundedInt:
+        if base_type == int:
             return int
         else:
             return base_type

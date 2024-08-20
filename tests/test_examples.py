@@ -2,10 +2,10 @@
 # mypy: disable-error-code="arg-type"
 
 from dataclasses import dataclass
-from typing import Set, Literal, Union, Tuple
+from typing import Set, Literal, Union, Tuple, Annotated
 import pytest
 
-from equivalib import MyType, BoundedInt, supervalue, generate_instances
+from equivalib import MyType, ValueRange, supervalue, generate_instances
 
 
 def run_example(typ: MyType) -> Set[object]:
@@ -18,7 +18,7 @@ def test_bools():
 
 
 def test_integers():
-    instances = run_example(BoundedInt[Literal[1], Literal[9]])
+    instances = run_example(Annotated[int, ValueRange(1, 9)])
     assert instances == { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
 
 
@@ -253,8 +253,8 @@ def test_superpeople():
 @dataclass(frozen=True)
 class Interval:
     name: Union[Literal["A"], Literal["B"], Literal["C"]]
-    x: BoundedInt[Literal[1], Literal[99]] = supervalue()
-    y: BoundedInt[Literal[1], Literal[99]] = supervalue()
+    x: Annotated[int, ValueRange(1, 99)] = supervalue()
+    y: Annotated[int, ValueRange(1, 99)] = supervalue()
 
     def __post_init__(self):
         assert self.y > self.x

@@ -2,14 +2,13 @@
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import dataclasses
-import typing
 from typing import Iterable, Iterator, Union, Literal, Dict, Optional
 
 from equivalib.mytype import MyType
-from equivalib.bounded_int import BoundedInt
 from equivalib.orderedset import OrderedSet
 from equivalib.partially_order import partially_order
 from equivalib.read_type_information import read_type_information
+from equivalib.split_type import split_type
 
 
 class BannedType(Exception):
@@ -25,7 +24,7 @@ def get_types_hierarchy(types: Iterable[MyType]) -> Iterator[OrderedSet[MyType]]
             recurse_type(parent, typ)
 
     def recurse_type(parent: Optional[MyType], t: MyType) -> None:
-        base = typing.get_origin(t) or t
+        (base, args, _hints) = split_type(t)
 
         all_types.add(t)
         if parent:
@@ -39,14 +38,14 @@ def get_types_hierarchy(types: Iterable[MyType]) -> Iterator[OrderedSet[MyType]]
             recurse_subtypes(t, (x for x, _is_super in information.values()))
 
         elif base in (Union,):
-            args = typing.get_args(t)
-            recurse_subtypes(t, args)
+            args2: Iterable[MyType] = args  # type: ignore
+            recurse_subtypes(t, args2)
 
         elif base in (tuple, set):
-            args = typing.get_args(t)
-            recurse_subtypes(t, args)
+            args2: Iterable[MyType] = args  # type: ignore
+            recurse_subtypes(t, args2)
 
-        elif base in (int, bool, Literal, BoundedInt):
+        elif base in (int, bool, Literal):
             pass
 
         else:

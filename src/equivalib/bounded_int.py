@@ -1,25 +1,23 @@
-## Copyright (C) 2023  Otto Jung
-## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import typing
-from typing import TypeVar, Generic, Tuple
+from typing import Tuple
 
-S = TypeVar('S')
-E = TypeVar('E')
-
-class BoundedInt(int, Generic[S, E]):
-    def __init__(self, value: int):
-        self.value = value
-
-    @staticmethod
-    def unpack_type(args: Tuple[object, object]) -> Tuple[int, int]:
-        assert len(args) == 2
-        low_l, high_l = args
-        low, high = (typing.get_args(low_l)[0], typing.get_args(high_l)[0])
-        assert isinstance(low, int)
-        assert isinstance(high, int)
-        return (low, high)
+from equivalib.value_range import ValueRange
+from equivalib.split_type import split_type
 
 
-    def __str__(self) -> str:
-        return str(self.value)
+def unpack_bounded_int(t: object) -> Tuple[int, int]:
+    (_base, _args, annot) = split_type(t)
+
+    if not annot:
+        raise ValueError("Can only generate annotated integers like `Annotated[int, ValueRange(3, 9)]`.")
+
+    value_range_list = [x for x in annot if isinstance(x, ValueRange)]
+    if not value_range_list:
+        raise ValueError("Can only generate integers annotated with ValueRange, like `Annotated[int, ValueRange(3, 9)]`.")
+    if len(value_range_list) > 1:
+        raise ValueError("Multiple ValueRange annotations for int is not allowed..")
+
+    value_range = value_range_list[0]
+    low, high = (value_range.min, value_range.max)
+
+    return low, high

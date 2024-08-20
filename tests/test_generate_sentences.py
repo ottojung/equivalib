@@ -2,10 +2,10 @@
 # pylint: disable=duplicate-code
 
 from dataclasses import dataclass
-from typing import Tuple, Literal, Union
+from typing import Tuple, Literal, Union, Annotated
 import pytest
 import equivalib.all as eqv
-from equivalib.all import BoundedInt, supervalue
+from equivalib.all import supervalue, ValueRange
 
 
 def test_primitive():
@@ -89,11 +89,11 @@ def test_tuple2():
 @dataclass(frozen=True)
 class Inted:
     is_yes: bool
-    confidence: BoundedInt[Literal[1], Literal[3]]
+    confidence: Annotated[int, ValueRange(1, 3)]
 
 
 def test_ints():
-    theories = eqv.generate_sentences([bool, BoundedInt[Literal[1], Literal[3]], Inted])
+    theories = eqv.generate_sentences([bool, Annotated[int, ValueRange(1, 3)], Inted])
     assert len(theories) == 1
     assert len(theories[0].assignments) == 11 == 2 + 3 + (2 * 3)
 
@@ -182,7 +182,7 @@ def test_restricted_answer():
 
 @dataclass(frozen=True)
 class Superposed:
-    value: BoundedInt[Literal[0], Literal[9]] = supervalue()
+    value: Annotated[int, ValueRange(0, 9)] = supervalue()
 
 
 @pytest.mark.xfail(reason="No supervalue support yet.")
@@ -194,7 +194,7 @@ def test_super_simple():
 
 @dataclass(frozen=True)
 class SuperposedBounded:
-    value: BoundedInt[Literal[0], Literal[9]] = supervalue()
+    value: Annotated[int, ValueRange(0, 9)] = supervalue()
 
     def __post_init__(self):
         assert self.value < 5
@@ -247,7 +247,7 @@ def test_super_entangled_boring():
 
 @dataclass
 class Fizz:
-    n: BoundedInt[Literal[1], Literal[100]]
+    n: Annotated[int, ValueRange(1, 100)]
 
     def __post_init__(self):
         assert self.n % 3 == 0
@@ -255,7 +255,7 @@ class Fizz:
 
 @dataclass
 class Buzz:
-    n: BoundedInt[Literal[1], Literal[100]]
+    n: Annotated[int, ValueRange(1, 100)]
 
     def __post_init__(self):
         assert self.n % 5 == 0
@@ -263,7 +263,7 @@ class Buzz:
 
 @dataclass
 class FizzBuzz:
-    n: BoundedInt[Literal[1], Literal[100]]
+    n: Annotated[int, ValueRange(1, 100)]
 
     def __post_init__(self):
         assert self.n % 5 == 0
@@ -271,7 +271,7 @@ class FizzBuzz:
 
 
 def test_fizzbuzz():
-    theories = eqv.generate_sentences([BoundedInt[Literal[1], Literal[100]], Fizz, Buzz, FizzBuzz])
+    theories = eqv.generate_sentences([Annotated[int, ValueRange(1, 100)], Fizz, Buzz, FizzBuzz])
     sentences = [str(x) for x in theories]
     assert len(sentences) == 1
     assert len(theories[0].assignments) == 159

@@ -2,24 +2,24 @@
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from dataclasses import is_dataclass
-import typing
 from typing import Tuple, Literal, Union, Iterator
 import itertools
 
 from equivalib.dynamic import denv
 from equivalib.constant import Constant
-from equivalib.mytype import MyGenType, instantiate
-from equivalib.bounded_int import BoundedInt
+from equivalib.mytype import MyGenType
+from equivalib.instantiate import instantiate
 from equivalib.super import Super
 from equivalib.sentence import Sentence
 from equivalib.structure import Structure, VarName
 from equivalib.fieldvalue import Supertype, SFieldT, GFieldT
 from equivalib.read_type_information import read_type_information
+from equivalib.split_type import split_type
+from equivalib.bounded_int import unpack_bounded_int
 
 
 def retreive_from_cache(ctx: Sentence, t: MyGenType) -> Iterator[VarName]:
-    base_type = typing.get_origin(t) or t
-    args = typing.get_args(t)
+    (base_type, args, _annot) = split_type(t)
 
     if base_type == Union:
         for arg in args:
@@ -38,8 +38,7 @@ def generate_field_values(ctx: Sentence, t: MyGenType, is_super: bool) -> Iterat
         yield from retreive_from_cache(ctx, t)
         return
 
-    base_type = typing.get_origin(t) or t
-    args = typing.get_args(t)
+    (base_type, args, _annot) = split_type(t)
 
     if base_type == bool:
         assert len(args) == 0
@@ -64,9 +63,8 @@ def generate_field_values(ctx: Sentence, t: MyGenType, is_super: bool) -> Iterat
         for prod in itertools.product(*pointwise):
             yield Structure(tuple, t, tuple(prod))
 
-    elif base_type == BoundedInt:
-        assert len(args) == 2
-        low, high = BoundedInt.unpack_type(args)
+    elif base_type == int:
+        low, high = unpack_bounded_int(t)
         for i in range(low, high + 1):
             yield Structure(int, t, (Constant(i), ))
 
@@ -92,9 +90,9 @@ def generate_instances_fields(ctx: Sentence, t: MyGenType, is_super: bool) -> It
 def handle_supers(ctx: Sentence, value: GFieldT) -> SFieldT:
     if isinstance(value, Supertype):
         parameter = value.t
-        parameter_base = typing.get_origin(parameter) or parameter
-        if parameter_base not in (BoundedInt, bool):
-            raise ValueError("Can only have super of bool or BoundedInt.")
+        (parameter_base, _parameter_args, _parameter_annotations) = split_type(parameter)
+        if parameter_base not in (int, bool):
+            raise ValueError("Can only have super of bool or bounded integer.")
 
         s: Super[object] = Super.make(parameter)
         return Structure(Super, Super[object], (Constant(s), ))

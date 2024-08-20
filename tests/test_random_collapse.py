@@ -2,11 +2,11 @@
 # pylint: disable=duplicate-code
 
 from dataclasses import dataclass
-from typing import Literal
 import random
+from typing import Annotated
 import pytest
 
-from equivalib.all import BoundedInt, supervalue, generate_sentences, random_collapse
+from equivalib.all import supervalue, generate_sentences, random_collapse, ValueRange
 
 
 # Define the fixture to fix the random seed
@@ -46,8 +46,8 @@ def test_super_entangled():
 
 @dataclass(frozen=True)
 class Interval:
-    x: BoundedInt[Literal[1], Literal[9]] = supervalue()
-    y: BoundedInt[Literal[1], Literal[9]] = supervalue()
+    x: Annotated[int, ValueRange(1, 9)] = supervalue()
+    y: Annotated[int, ValueRange(1, 9)] = supervalue()
 
     def __post_init__(self):
         assert self.y > self.x

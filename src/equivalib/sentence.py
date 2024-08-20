@@ -1,7 +1,6 @@
 ## Copyright (C) 2023  Otto Jung
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import typing
 from typing import Dict, List, Tuple, Literal, Set
 from dataclasses import dataclass
 
@@ -9,9 +8,10 @@ from equivalib.sentence_model import SentenceModel
 from equivalib.dynamic import denv
 from equivalib.constant import Constant
 from equivalib.link import Link
-from equivalib.mytype import MyGenType, instantiate
-from equivalib.bounded_int import BoundedInt
+from equivalib.mytype import MyGenType
+from equivalib.instantiate import instantiate
 from equivalib.structure import Structure, VarName
+from equivalib.split_type import split_type
 
 
 @dataclass
@@ -161,8 +161,8 @@ class Sentence:
         for k, v in sorted(self.structure.items(), key=sortkey):
             ty = v.constructor
             args_names = v.arguments
-            base_type = typing.get_origin(ty) or ty
-            if base_type in (bool, int, Link, BoundedInt, Literal):
+            base_type = split_type(ty)[0]
+            if base_type in (bool, int, Link, Literal):
                 args_values = list(map(unwrap, args_names))
                 value = repr(instantiate(ty, v.signature, args_values))
             else:

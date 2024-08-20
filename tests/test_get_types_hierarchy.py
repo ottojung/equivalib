@@ -1,19 +1,19 @@
 
-from typing import Literal, Union, Iterable, Tuple
+from typing import Union, Iterable, Tuple, Annotated
 from dataclasses import dataclass
 import pytest
-from equivalib.all import get_types_hierarchy, BoundedInt, BannedType
+from equivalib.all import get_types_hierarchy, BannedType, ValueRange
 
 
 @dataclass
 class Interval:
-    start: BoundedInt[Literal[0], Literal[999]]
-    end: BoundedInt[Literal[0], Literal[999]]
+    start: Annotated[int, ValueRange(0, 999)]
+    end: Annotated[int, ValueRange(0, 999)]
 
 
 def test_singleton():
     hierarchy = list(map(set, get_types_hierarchy([Interval])))
-    assert hierarchy == [{BoundedInt[Literal[0], Literal[999]]}, {Interval}]
+    assert hierarchy == [{Annotated[int, ValueRange(0, 999)]}, {Interval}]
 
 
 def test_empty():
@@ -30,13 +30,13 @@ class Overlap:
 
 def test_simple():
     hierarchy = list(map(set, get_types_hierarchy([Interval, Overlap])))
-    assert hierarchy == [{BoundedInt[Literal[0], Literal[999]]},
+    assert hierarchy == [{Annotated[int, ValueRange(0, 999)]},
                          {Interval}, {Overlap}]
 
 
 def test_simple_2():
     hierarchy = list(map(set, get_types_hierarchy([Overlap])))
-    assert hierarchy == [{BoundedInt[Literal[0], Literal[999]]},
+    assert hierarchy == [{Annotated[int, ValueRange(0, 999)]},
                          {Interval}, {Overlap}]
 
 
@@ -63,7 +63,7 @@ class TupleRec:
 
 def test_tuple1():
     hierarchy = list(map(set, get_types_hierarchy([EmptyMyType, Interval, TupleRec])))
-    assert hierarchy == [{BoundedInt[Literal[0], Literal[999]], EmptyMyType}, {Interval}, {Tuple[EmptyMyType, Interval]}, {TupleRec}]
+    assert hierarchy == [{Annotated[int, ValueRange(0, 999)], EmptyMyType}, {Interval}, {Tuple[EmptyMyType, Interval]}, {TupleRec}]
 
 
 @dataclass
@@ -73,7 +73,7 @@ class UnionRec:
 
 def test_union1():
     hierarchy = list(map(set, get_types_hierarchy([EmptyMyType, Interval, UnionRec])))
-    assert hierarchy == [{BoundedInt[Literal[0], Literal[999]], EmptyMyType}, {Interval}, {Union[EmptyMyType, Interval]}, {UnionRec}]
+    assert hierarchy == [{Annotated[int, ValueRange(0, 999)], EmptyMyType}, {Interval}, {Union[EmptyMyType, Interval]}, {UnionRec}]
 
 
 @dataclass

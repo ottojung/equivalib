@@ -1,9 +1,9 @@
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Annotated, Dict, Tuple
 import pytest
 
-from equivalib.all import BoundedInt, supervalue, read_type_information
+from equivalib.all import supervalue, read_type_information, ValueRange
 
 
 @dataclass
@@ -24,14 +24,14 @@ def test_read_type_information_for_valid_dataclass():
 
 @dataclass
 class Interval:
-    start: BoundedInt[Literal[0], Literal[999]]
-    end: BoundedInt[Literal[0], Literal[999]]
+    start: Annotated[int, ValueRange(0, 999)]
+    end: Annotated[int, ValueRange(0, 999)]
 
 
 def test_read_type_information_for_valid_generic_dataclass():
-    expected = {
-        "start": (BoundedInt[Literal[0], Literal[999]], False),
-        "end": (BoundedInt[Literal[0], Literal[999]], False),
+    expected: Dict[str, Tuple[object, bool]] = {
+        "start": (Annotated[int, ValueRange(0, 999)], False),
+        "end": (Annotated[int, ValueRange(0, 999)], False),
     }
 
     result = read_type_information(Interval)
