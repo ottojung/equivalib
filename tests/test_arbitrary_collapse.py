@@ -8,7 +8,7 @@ import random
 import pytest
 
 import equivalib.all as equivalib
-from equivalib.all import supervalue, ValueRange
+from equivalib.all import ValueRange, Super
 
 
 # Define the fixture to fix the random seed
@@ -21,8 +21,8 @@ def fixed_random_seed():
 
 @dataclass
 class SuperEntangled:
-    a: bool = supervalue()
-    b: bool = supervalue()
+    a: Annotated[bool, Super]
+    b: Annotated[bool, Super]
 
     def __post_init__(self):
         assert self.a != self.b
@@ -47,8 +47,8 @@ def test_super_entangled():
 
 @dataclass(frozen=True)
 class Interval:
-    x: Annotated[int, ValueRange(1, 9)] = supervalue()
-    y: Annotated[int, ValueRange(1, 9)] = supervalue()
+    x: Annotated[int, ValueRange(1, 9), Super]
+    y: Annotated[int, ValueRange(1, 9), Super]
 
     def __post_init__(self):
         assert self.y > self.x
@@ -86,8 +86,8 @@ def test_1_overlaping_interval():
 @dataclass(frozen=True)
 class Interval2:
     name: Union[Literal["A"], Literal["B"]]
-    x: Annotated[int, ValueRange(1, 9)] = supervalue()
-    y: Annotated[int, ValueRange(1, 9)] = supervalue()
+    x: Annotated[int, ValueRange(1, 9), Super]
+    y: Annotated[int, ValueRange(1, 9), Super]
 
     def __post_init__(self):
         assert self.y > self.x
@@ -121,8 +121,8 @@ def test_2_overlaping_intervals():
 @dataclass(frozen=True)
 class Interval3:
     name: Union[Literal["A"], Literal["B"], Literal["C"]]
-    x: Annotated[int, ValueRange(1, 9)] = supervalue()
-    y: Annotated[int, ValueRange(1, 9)] = supervalue()
+    x: Annotated[int, ValueRange(1, 9), Super]
+    y: Annotated[int, ValueRange(1, 9), Super]
 
     def __post_init__(self):
         assert self.y > self.x
@@ -236,8 +236,8 @@ def test_super_compound_maxgreedy1():
 @dataclass(frozen=True)
 class IntervalMany:
     name: Union[Literal["A"], Literal["B"], Literal["C"], Literal["D"], Literal["E"], Literal["F"], Literal["G"], Literal["H"]]
-    x: Annotated[int, ValueRange(1, 9)] = supervalue()
-    y: Annotated[int, ValueRange(1, 9)] = supervalue()
+    x: Annotated[int, ValueRange(1, 9), Super]
+    y: Annotated[int, ValueRange(1, 9), Super]
 
     def __post_init__(self):
         assert self.y > self.x

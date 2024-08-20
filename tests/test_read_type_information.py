@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Annotated, Dict
 import pytest
 
-from equivalib.all import supervalue, read_type_information, ValueRange
+from equivalib.all import read_type_information, ValueRange, Super
 
 
 @dataclass
@@ -64,13 +64,13 @@ def superclass(x):
 @dataclass
 class SuperBools:
     start: bool
-    end: bool = supervalue()
+    end: Annotated[bool, Super]
 
 
 def test_read_type_information_for_valid_generic_super_dataclass():
     expected = {
         "start": bool,
-        "end": bool,
+        "end": Annotated[bool, Super],
     }
 
     result = read_type_information(SuperBools)

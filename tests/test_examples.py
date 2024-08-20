@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Set, Literal, Union, Tuple, Annotated
 import pytest
 
-from equivalib import MyType, ValueRange, supervalue, generate_instances
+from equivalib import MyType, ValueRange, generate_instances, Super
 
 
 def run_example(typ: MyType) -> Set[object]:
@@ -188,7 +188,7 @@ def test_people():
 
 @dataclass(frozen=True)
 class SuperMinimal:
-    happy: bool = supervalue()
+    happy: Annotated[bool, Super]
 
 
 @pytest.mark.xfail(reason="No supervalue support yet.")
@@ -200,8 +200,8 @@ def test_super_minimal():
 
 @dataclass(frozen=True)
 class SuperEntangled:
-    happy: bool = supervalue()
-    complain: bool = supervalue()
+    happy: Annotated[bool, Super]
+    complain: Annotated[bool, Super]
 
     def __post_init__(self):
         assert self.happy != self.complain
@@ -219,7 +219,7 @@ def test_super_entangled():
 @dataclass(frozen=True)
 class SuperGuest:
     who: Person
-    polite: bool = supervalue()
+    polite: Annotated[bool, Super]
 
 
 @dataclass(frozen=True)
@@ -253,8 +253,8 @@ def test_superpeople():
 @dataclass(frozen=True)
 class Interval:
     name: Union[Literal["A"], Literal["B"], Literal["C"]]
-    x: Annotated[int, ValueRange(1, 99)] = supervalue()
-    y: Annotated[int, ValueRange(1, 99)] = supervalue()
+    x: Annotated[int, ValueRange(1, 99), Super]
+    y: Annotated[int, ValueRange(1, 99), Super]
 
     def __post_init__(self):
         assert self.y > self.x

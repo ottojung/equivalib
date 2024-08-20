@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Tuple, Literal, Union, Annotated
 import pytest
 import equivalib.all as eqv
-from equivalib.all import supervalue, ValueRange
+from equivalib.all import ValueRange, Super
 
 
 def test_primitive():
@@ -182,7 +182,7 @@ def test_restricted_answer():
 
 @dataclass(frozen=True)
 class Superposed:
-    value: Annotated[int, ValueRange(0, 9)] = supervalue()
+    value: Annotated[int, ValueRange(0, 9), Super]
 
 
 @pytest.mark.xfail(reason="No supervalue support yet.")
@@ -194,7 +194,7 @@ def test_super_simple():
 
 @dataclass(frozen=True)
 class SuperposedBounded:
-    value: Annotated[int, ValueRange(0, 9)] = supervalue()
+    value: Annotated[int, ValueRange(0, 9), Super]
 
     def __post_init__(self):
         assert self.value < 5
@@ -211,8 +211,8 @@ def test_super_bounded():
 
 @dataclass(frozen=True)
 class SuperEntangled:
-    a: bool = supervalue()
-    b: bool = supervalue()
+    a: Annotated[bool, Super]
+    b: Annotated[bool, Super]
 
     def __post_init__(self):
         assert self.a != self.b
@@ -229,8 +229,8 @@ def test_super_entangled():
 
 @dataclass
 class SuperEntangledBoring:
-    a: bool = supervalue()
-    b: bool = supervalue()
+    a: Annotated[bool, Super]
+    b: Annotated[bool, Super]
 
     def __post_init__(self):
         assert self.a == True

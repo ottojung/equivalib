@@ -11,7 +11,6 @@ from .instance_mark_key import *
 from .constant import *
 from .link import *
 from .fieldvalue import *
-from .supervalue import *
 from .comparable import *
 from .partially_order import *
 from .read_type_information import *

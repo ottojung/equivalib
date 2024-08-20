@@ -6,7 +6,7 @@ import random
 from typing import Annotated
 import pytest
 
-from equivalib.all import supervalue, generate_sentences, random_collapse, ValueRange
+from equivalib.all import generate_sentences, random_collapse, ValueRange, Super
 
 
 # Define the fixture to fix the random seed
@@ -19,8 +19,8 @@ def fixed_random_seed():
 
 @dataclass
 class SuperEntangled:
-    a: bool = supervalue()
-    b: bool = supervalue()
+    a: Annotated[bool, Super]
+    b: Annotated[bool, Super]
 
     def __post_init__(self):
         assert self.a != self.b
@@ -46,8 +46,8 @@ def test_super_entangled():
 
 @dataclass(frozen=True)
 class Interval:
-    x: Annotated[int, ValueRange(1, 9)] = supervalue()
-    y: Annotated[int, ValueRange(1, 9)] = supervalue()
+    x: Annotated[int, ValueRange(1, 9), Super]
+    y: Annotated[int, ValueRange(1, 9), Super]
 
     def __post_init__(self):
         assert self.y > self.x
