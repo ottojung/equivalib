@@ -29,18 +29,19 @@ def retreive_from_cache(ctx: Sentence, t: MyGenType) -> Iterator[VarName]:
 
 
 # pylint: disable=too-many-branches
-def generate_field_values(ctx: Sentence, t: MyGenType, is_super: bool) -> Iterator[GFieldT]:
+def generate_field_values(ctx: Sentence, t: MyGenType) -> Iterator[GFieldT]:
+    (base_type, args, annot) = split_type(t)
+
+    is_super = Super in annot
+
     if is_super:
         yield Supertype(t)
-        return
 
     elif ctx.has_cached(t):
         yield from retreive_from_cache(ctx, t)
         return
 
-    (base_type, args, _annot) = split_type(t)
-
-    if base_type == bool:
+    elif base_type == bool:
         assert len(args) == 0
         yield Structure(bool, t, (Constant(False), ))
         yield Structure(bool, t, (Constant(True), ))
@@ -52,7 +53,7 @@ def generate_field_values(ctx: Sentence, t: MyGenType, is_super: bool) -> Iterat
     elif base_type == Union:
         assert len(args) > 0
         for arg in args:
-            yield from generate_field_values(ctx, arg, is_super=False)
+            yield from generate_field_values(ctx, arg)
 
     elif base_type in (tuple, Tuple):
         assert len(args) > 0
@@ -83,8 +84,8 @@ def generate_field_values(ctx: Sentence, t: MyGenType, is_super: bool) -> Iterat
         raise ValueError(f"Cannot generate values of type {t!r}.")
 
 
-def generate_instances_fields(ctx: Sentence, t: MyGenType, is_super: bool) -> Iterator[GFieldT]:
-    yield from generate_field_values(ctx, t, is_super=is_super)
+def generate_instances_fields(ctx: Sentence, t: MyGenType) -> Iterator[GFieldT]:
+    yield from generate_field_values(ctx, t)
 
 
 def handle_supers(ctx: Sentence, value: GFieldT) -> SFieldT:
@@ -133,8 +134,8 @@ def add_instance(ctx: Sentence, t: MyGenType, value: GFieldT) -> bool:
             return False
     return True
 
-def extend_sentence(ctx: Sentence, t: MyGenType, is_super: bool = False) -> Iterator[Sentence]:
-    inputs = generate_instances_fields(ctx, t, is_super=is_super)
+def extend_sentence(ctx: Sentence, t: MyGenType) -> Iterator[Sentence]:
+    inputs = generate_instances_fields(ctx, t)
 
     ctx.last = []
     for inp in inputs:
