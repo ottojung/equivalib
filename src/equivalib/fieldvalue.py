@@ -1,13 +1,7 @@
 
-from dataclasses import dataclass
 from typing import Union
-from equivalib.mytype import MyGenType
 from equivalib.structure import Structure, VarName
-
-
-@dataclass(frozen=True)
-class Supertype:
-    t: MyGenType
+from equivalib.supertype import Supertype
 
 
 SFieldT = Union[VarName, Structure]

@@ -12,10 +12,11 @@ from equivalib.instantiate import instantiate
 from equivalib.super import Super
 from equivalib.sentence import Sentence
 from equivalib.structure import Structure, VarName
-from equivalib.fieldvalue import Supertype, SFieldT, GFieldT
+from equivalib.fieldvalue import SFieldT, GFieldT
 from equivalib.read_type_information import read_type_information
 from equivalib.split_type import split_type
 from equivalib.bounded_int import unpack_bounded_int
+from equivalib.supertype import Supertype
 
 
 def retreive_from_cache(ctx: Sentence, t: MyGenType) -> Iterator[VarName]:
@@ -35,7 +36,8 @@ def generate_field_values(ctx: Sentence, t: MyGenType) -> Iterator[GFieldT]:
     is_super = Super in annot
 
     if is_super:
-        yield Supertype(t)
+        name = ctx.add_super_variable(t)
+        yield Structure(Supertype, Supertype, (Constant(name), Constant(t) ))
 
     elif ctx.has_cached(t):
         yield from retreive_from_cache(ctx, t)
@@ -70,11 +72,10 @@ def generate_field_values(ctx: Sentence, t: MyGenType) -> Iterator[GFieldT]:
             yield Structure(int, t, (Constant(i), ))
 
     elif isinstance(t, type) and is_dataclass(t):
-        information = read_type_information(t)
         pointwise = []
 
+        information = read_type_information(t)
         for type_signature in information.values():
-            # FIXME: handle supers.
             pointwise.append(tuple(retreive_from_cache(ctx, type_signature)))
 
         for prod in itertools.product(*pointwise):
@@ -88,19 +89,6 @@ def generate_instances_fields(ctx: Sentence, t: MyGenType) -> Iterator[GFieldT]:
     yield from generate_field_values(ctx, t)
 
 
-def handle_supers(ctx: Sentence, value: GFieldT) -> SFieldT:
-    if isinstance(value, Supertype):
-        parameter = value.t
-        (parameter_base, _parameter_args, _parameter_annotations) = split_type(parameter)
-        if parameter_base not in (int, bool):
-            raise ValueError("Can only have super of bool or bounded integer.")
-
-        s: Super[object] = Super.make(parameter)
-        return Structure(Super, Super[object], (Constant(s), ))
-    else:
-        return value
-
-
 def add_instance_nosuper(ctx: Sentence, t: MyGenType, handled: SFieldT) -> None:
     def loop2(handled: Union[SFieldT, Constant]) -> object:
         if isinstance(handled, Constant):
@@ -111,7 +99,10 @@ def add_instance_nosuper(ctx: Sentence, t: MyGenType, handled: SFieldT) -> None:
     def loop(handled: SFieldT) -> object:
         if isinstance(handled, Structure):
             args = [loop2(x) for x in handled.arguments]
-            return instantiate(handled.constructor, handled.signature, args)
+            if handled.constructor == Supertype:
+                return Super(str(args[0]))
+            else:
+                return instantiate(handled.constructor, handled.signature, args)
         else:
             return ctx.assignments[handled]
 
@@ -128,17 +119,27 @@ def add_instance_nosuper(ctx: Sentence, t: MyGenType, handled: SFieldT) -> None:
 def add_instance(ctx: Sentence, t: MyGenType, value: GFieldT) -> bool:
     with denv.let(sentence = ctx):
         try:
-            handled = handle_supers(ctx, value)
-            add_instance_nosuper(ctx, t, handled)
+            nosuper: SFieldT = value  # type: ignore
+            add_instance_nosuper(ctx, t, nosuper)
         except AssertionError:
             return False
     return True
 
 def extend_sentence(ctx: Sentence, t: MyGenType) -> Iterator[Sentence]:
     inputs = generate_instances_fields(ctx, t)
+    is_based_on_super = not ctx.model.is_empty()
 
     ctx.last = []
-    for inp in inputs:
-        add_instance(ctx, t, inp)
+    ret = ctx
 
-    yield ctx
+    for inp in inputs:
+        if is_based_on_super:
+            ret = ctx.copy()
+
+        add_instance(ret, t, inp)
+
+        if is_based_on_super:
+            yield ret
+
+    if not is_based_on_super:
+        yield ret

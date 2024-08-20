@@ -2,6 +2,7 @@
 from typing import Type, TypeVar, Iterable, Literal
 
 from equivalib.mytype import MyGenType
+from equivalib.supertype import Supertype
 from equivalib.split_type import split_type
 
 InstantiateT = TypeVar('InstantiateT')
@@ -16,5 +17,7 @@ def instantiate(t: Type[InstantiateT], sig: MyGenType, arguments: Iterable[objec
         return tuple(arguments)  # type: ignore
     elif base == set:
         return set(arguments)  # type: ignore
+    elif base == Supertype:
+        raise ValueError("Should not instantiate supertype.")
     else:
         return t(*arguments)

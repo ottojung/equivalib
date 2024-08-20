@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Optional, Dict, Tuple
 from ortools.sat.python import cp_model
 
-from equivalib.mytype import MyGenType
+from equivalib.mytype import MyType, MyGenType
 from equivalib.comparable import Comparable
 from equivalib.split_type import split_type
 from equivalib.bounded_int import unpack_bounded_int
@@ -14,12 +14,16 @@ from equivalib.bounded_int import unpack_bounded_int
 @dataclass
 class SentenceModel:
     _model: Optional[cp_model.CpModel]
-    _names: Dict[str, Tuple[MyGenType, int]]
+    _names: Dict[str, Tuple[MyType, int]]
 
 
     @staticmethod
     def empty() -> 'SentenceModel':
         return SentenceModel(None, {})
+
+
+    def is_empty(self) -> bool:
+        return len(self._names) == 0
 
 
     def copy(self) -> 'SentenceModel':
@@ -32,15 +36,15 @@ class SentenceModel:
     def add_variable(self, name: str, t: MyGenType) -> None:
         (base_type, _args, _annot) = split_type(t)
 
-        if base_type == int:
+        if isinstance(base_type, type) and base_type == int:
             low, high = unpack_bounded_int(t)
             var = self.model.NewIntVar(low, high, name)
-        elif base_type == bool:
+        if isinstance(base_type, type) and base_type == bool:
             var = self.model.NewBoolVar(name)
         else:
-            var = None
+            raise ValueError(f"Impossible base type {repr(base_type)}.")
 
-        var_index = var.Index()
+        var_index: int = var.Index()
         self._names[name] = (base_type, var_index)
 
 
@@ -56,12 +60,9 @@ class SentenceModel:
             return arg
 
 
-    def get_super_type(self, name: str) -> MyGenType:
+    def get_super_type(self, name: str) -> MyType:
         (base_type, _arg) = self._names[name]
-        if base_type == int:
-            return int
-        else:
-            return base_type
+        return base_type
 
 
     def add(self, expr: object) -> None:

@@ -185,6 +185,11 @@ def test_people():
     assert len(instances) == 128
 
 
+def test_super_bool():
+    instances = run_example(Annotated[bool, Super])
+    assert instances \
+        in [{False}, {True}]
+
 
 @dataclass(frozen=True)
 class SuperMinimal:

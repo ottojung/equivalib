@@ -29,13 +29,12 @@ class Sentence:
         return Sentence({}, {}, {}, {}, [], SentenceModel.empty())
 
 
-    # def __copy__(self) -> 'Sentence':
-    #     # Note: cache is SHARED among all copies.
-    #     return Sentence(self.assignments.copy(), self.structure.copy(), self.reverse.copy(), self.cache, self.last, self.model.copy())
+    def __copy__(self) -> 'Sentence':
+        return Sentence(self.assignments.copy(), self.structure.copy(), self.reverse.copy(), self.cache.copy(), self.last[:], self.model.copy())
 
 
-    # def copy(self) -> 'Sentence':
-    #     return self.__copy__()
+    def copy(self) -> 'Sentence':
+        return self.__copy__()
 
 
     def has_cached(self, typ: MyGenType) -> bool:
