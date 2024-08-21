@@ -38,11 +38,11 @@ def get_types_hierarchy(types: Iterable[TypeForm]) -> Iterator[OrderedSet[TypeFo
             recurse_subtypes(t, information.values())
 
         elif base in (Union,):
-            args2: Iterable[TypeForm] = args
-            recurse_subtypes(t, args2)
+            args1: Iterable[TypeForm] = args
+            recurse_subtypes(t, args1)
 
         elif base in (tuple, set):
-            args2: Iterable[TypeForm] = args  # type: ignore
+            args2: Iterable[TypeForm] = args
             recurse_subtypes(t, args2)
 
         elif base in (int, bool, Literal):
