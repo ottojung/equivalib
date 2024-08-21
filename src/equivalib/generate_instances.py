@@ -7,6 +7,7 @@ from equivalib.get_types_hierarchy import get_types_hierarchy
 from equivalib.arbitrary_collapse import arbitrary_collapse
 from equivalib.generate_sentences import generate_sentences
 from equivalib.typeform import TypeForm
+from equivalib.flatten_type_hierarchy import flatten_type_hierarchy
 
 
 def generate_instances(t: TypeForm, prefix: Optional[Sentence] = None) -> Iterator[object]:
@@ -14,7 +15,7 @@ def generate_instances(t: TypeForm, prefix: Optional[Sentence] = None) -> Iterat
         prefix = Sentence.empty()
 
     hierarchy = list(get_types_hierarchy([t]))
-    flatten = [typ for types in hierarchy for typ in types]
+    flatten = list(flatten_type_hierarchy(hierarchy))
 
     for sentence in generate_sentences(flatten, prefix=prefix):
         concrete = arbitrary_collapse(sentence)
