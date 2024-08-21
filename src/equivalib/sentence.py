@@ -29,6 +29,10 @@ class Sentence:
         return Sentence({}, {}, {}, {}, [], SentenceModel.empty())
 
 
+    def is_empty(self) -> bool:
+        return len(self.assignments) == 0
+
+
     def __copy__(self) -> 'Sentence':
         return Sentence(self.assignments.copy(), self.structure.copy(), self.reverse.copy(), self.cache.copy(), self.last[:], self.model.copy())
 

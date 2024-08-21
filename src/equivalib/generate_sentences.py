@@ -22,4 +22,4 @@ def generate_sentences(types: Iterable[TypeForm], prefix: Optional[Sentence] = N
     for t in types:
         ret = list(generate_suffixes(t, ret))
 
-    return [x for x in ret if x.assignments]
+    return [x for x in ret if not x.is_empty()]
