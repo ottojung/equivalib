@@ -2,8 +2,10 @@
 import typing
 from typing import Tuple, List
 
+from equivalib.typeform import TypeForm
 
-def split_type(t: object) -> Tuple[object, List[object], List[object]]:
+
+def split_type(t: TypeForm) -> Tuple[TypeForm, List[TypeForm], List[object]]:
     base0 = typing.get_origin(t) or t
     args0 = list(typing.get_args(t))
 
