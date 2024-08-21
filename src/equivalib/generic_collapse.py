@@ -36,8 +36,6 @@ def generic_collapse(self: Sentence, coll_t: type[Collapser]) -> Sentence:
                 else:
                     val = coll.collapse(var)
                     ty = self.model.get_super_type(v.name)
-                    print(ty)
                 struct[k] = Structure(ty, ty, tuple([val]))
-                print(struct[k])
 
     return Sentence.from_structure(struct, last_names)
