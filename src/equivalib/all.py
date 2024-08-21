@@ -15,8 +15,10 @@ from .fieldvalue import *
 from .comparable import *
 from .partially_order import *
 from .read_type_information import *
+from .labelled_type import *
 from .get_types_hierarchy import *
 from .flatten_type_hierarchy import *
+from .label_type_list import *
 from .sentence_model import *
 from .sentence import *
 from .mark_instance import *
