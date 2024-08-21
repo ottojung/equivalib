@@ -15,10 +15,8 @@ def partially_order(elements: Iterable[T], before: BeforeType[T]) -> Iterator[Or
 
     if callable(before):
         get_before = before
-    elif isinstance(before, dict):
-        get_before = lambda x: before.get(x, OrderedSet())
     else:
-        raise TypeError(f"Expected either a dict or callable, got {before!r}")
+        get_before = lambda x: before.get(x, OrderedSet())
 
     # A dictionary to keep track of elements that have not been placed into a level yet.
     remaining: OrderedSet[T] = OrderedSet(elements)
