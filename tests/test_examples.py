@@ -1,14 +1,14 @@
 
-# mypy: disable-error-code="arg-type"
+# # mypy: disable-error-code="arg-type"
 
 from dataclasses import dataclass
 from typing import Set, Literal, Union, Tuple, Annotated
 import pytest
 
-from equivalib import MyType, ValueRange, generate_instances, Super
+from equivalib import ValueRange, generate_instances, Super, TypeForm
 
 
-def run_example(typ: MyType) -> Set[object]:
+def run_example(typ: TypeForm) -> Set[object]:
     return set(generate_instances(typ))
 
 

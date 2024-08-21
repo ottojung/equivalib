@@ -4,7 +4,7 @@
 import dataclasses
 from typing import Iterable, Iterator, Union, Literal, Dict, Optional
 
-from equivalib.mytype import MyType
+from equivalib.typeform import TypeForm
 from equivalib.orderedset import OrderedSet
 from equivalib.partially_order import partially_order
 from equivalib.read_type_information import read_type_information
@@ -15,15 +15,15 @@ class BannedType(Exception):
     pass
 
 
-def get_types_hierarchy(types: Iterable[MyType]) -> Iterator[OrderedSet[MyType]]:
-    before: Dict[MyType, OrderedSet[MyType]] = {}
-    all_types: OrderedSet[MyType] = OrderedSet()
+def get_types_hierarchy(types: Iterable[TypeForm]) -> Iterator[OrderedSet[TypeForm]]:
+    before: Dict[TypeForm, OrderedSet[TypeForm]] = {}
+    all_types: OrderedSet[TypeForm] = OrderedSet()
 
-    def recurse_subtypes(parent: Optional[MyType], types: Iterable[MyType]) -> None:
+    def recurse_subtypes(parent: Optional[TypeForm], types: Iterable[TypeForm]) -> None:
         for typ in types:
             recurse_type(parent, typ)
 
-    def recurse_type(parent: Optional[MyType], t: MyType) -> None:
+    def recurse_type(parent: Optional[TypeForm], t: TypeForm) -> None:
         (base, args, _hints) = split_type(t)
 
         all_types.add(t)
@@ -38,11 +38,11 @@ def get_types_hierarchy(types: Iterable[MyType]) -> Iterator[OrderedSet[MyType]]
             recurse_subtypes(t, information.values())
 
         elif base in (Union,):
-            args2: Iterable[MyType] = args  # type: ignore
+            args2: Iterable[TypeForm] = args
             recurse_subtypes(t, args2)
 
         elif base in (tuple, set):
-            args2: Iterable[MyType] = args  # type: ignore
+            args2: Iterable[TypeForm] = args  # type: ignore
             recurse_subtypes(t, args2)
 
         elif base in (int, bool, Literal):

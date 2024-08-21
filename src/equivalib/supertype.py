@@ -1,8 +1,8 @@
 
 from dataclasses import dataclass
-from equivalib.mytype import MyGenType
+from equivalib.typeform import TypeForm
 
 
 @dataclass(frozen=True)
 class Supertype:
-    t: MyGenType
+    t: TypeForm

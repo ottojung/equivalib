@@ -3,13 +3,13 @@
 
 from typing import Iterator, Optional
 from equivalib.sentence import Sentence
-from equivalib.mytype import MyType
 from equivalib.get_types_hierarchy import get_types_hierarchy
 from equivalib.arbitrary_collapse import arbitrary_collapse
 from equivalib.generate_sentences import generate_sentences
+from equivalib.typeform import TypeForm
 
 
-def generate_instances(t: MyType, prefix: Optional[Sentence] = None) -> Iterator[object]:
+def generate_instances(t: TypeForm, prefix: Optional[Sentence] = None) -> Iterator[object]:
     if prefix is None:
         prefix = Sentence.empty()
 

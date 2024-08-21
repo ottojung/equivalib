@@ -1,5 +1,4 @@
 
-from typing import Type, TypeAlias, Union
+from typing import Type, TypeAlias
 
 MyType: TypeAlias = Type[object]
-MyGenType: TypeAlias = Union[MyType, object]

@@ -4,10 +4,10 @@
 import dataclasses
 from dataclasses import is_dataclass
 from typing import Dict
-from equivalib.mytype import MyType
+from equivalib.typeform import TypeForm
 
 
-def read_type_information(t: MyType) -> Dict[str, MyType]:
+def read_type_information(t: TypeForm) -> Dict[str, TypeForm]:
     """
     Returns a list of fields, ziped with their type information
 
@@ -28,7 +28,7 @@ def read_type_information(t: MyType) -> Dict[str, MyType]:
     if not is_dataclass(t):
         raise TypeError("read_type_information expects a dataclass type.")
 
-    type_information: Dict[str, MyType] = {}
+    type_information: Dict[str, TypeForm] = {}
     for field in dataclasses.fields(t):
         type_information[field.name] = field.type
 

@@ -7,7 +7,7 @@ from typing import Protocol, Union
 from equivalib.dynamic import denv
 from equivalib.constant import Constant
 from equivalib.link import Link
-from equivalib.mytype import MyGenType
+from equivalib.typeform import TypeForm
 from equivalib.comparable import Comparable
 from equivalib.super import Super
 from equivalib.sentence import Sentence
@@ -30,7 +30,7 @@ def generic_collapse(self: Sentence, coll_t: type[Collapser]) -> Sentence:
             if isinstance(v, Super):
                 var = v.get_var()
                 if isinstance(var, list):
-                    ty: MyGenType = Link
+                    ty: TypeForm = Link
                     chosen_name, chosen_value = random.choice(var)
                     val: Union[VarName, Constant] = chosen_name or Constant(chosen_value)
                 else:

@@ -4,16 +4,16 @@
 from typing import Iterable, List, Iterator, Optional
 
 from equivalib.sentence import Sentence
-from equivalib.mytype import MyGenType
+from equivalib.typeform import TypeForm
 from equivalib.extend_sentence import extend_sentence
 
 
-def generate_suffixes(t: MyGenType, ret: List[Sentence]) -> Iterator[Sentence]:
+def generate_suffixes(t: TypeForm, ret: List[Sentence]) -> Iterator[Sentence]:
     for prefix in ret:
         yield from list(extend_sentence(prefix, t))
 
 
-def generate_sentences(types: Iterable[MyGenType], prefix: Optional[Sentence] = None) -> List[Sentence]:
+def generate_sentences(types: Iterable[TypeForm], prefix: Optional[Sentence] = None) -> List[Sentence]:
 
     if prefix is None:
         prefix = Sentence.empty()

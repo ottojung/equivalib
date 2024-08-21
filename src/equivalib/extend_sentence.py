@@ -7,7 +7,7 @@ import itertools
 
 from equivalib.dynamic import denv
 from equivalib.constant import Constant
-from equivalib.mytype import MyGenType
+from equivalib.typeform import TypeForm
 from equivalib.instantiate import instantiate
 from equivalib.super import Super
 from equivalib.sentence import Sentence
@@ -19,7 +19,7 @@ from equivalib.bounded_int import unpack_bounded_int
 from equivalib.supertype import Supertype
 
 
-def retreive_from_cache(ctx: Sentence, t: MyGenType) -> Iterator[VarName]:
+def retreive_from_cache(ctx: Sentence, t: TypeForm) -> Iterator[VarName]:
     (base_type, args, _annot) = split_type(t)
 
     if base_type == Union:
@@ -30,7 +30,7 @@ def retreive_from_cache(ctx: Sentence, t: MyGenType) -> Iterator[VarName]:
 
 
 # pylint: disable=too-many-branches
-def generate_field_values(ctx: Sentence, t: MyGenType) -> Iterator[GFieldT]:
+def generate_field_values(ctx: Sentence, t: TypeForm) -> Iterator[GFieldT]:
     (base_type, args, annot) = split_type(t)
 
     is_super = Super in annot
@@ -85,11 +85,11 @@ def generate_field_values(ctx: Sentence, t: MyGenType) -> Iterator[GFieldT]:
         raise ValueError(f"Cannot generate values of type {t!r}.")
 
 
-def generate_instances_fields(ctx: Sentence, t: MyGenType) -> Iterator[GFieldT]:
+def generate_instances_fields(ctx: Sentence, t: TypeForm) -> Iterator[GFieldT]:
     yield from generate_field_values(ctx, t)
 
 
-def add_instance_nosuper(ctx: Sentence, t: MyGenType, handled: SFieldT) -> None:
+def add_instance_nosuper(ctx: Sentence, t: TypeForm, handled: SFieldT) -> None:
     def loop2(handled: Union[SFieldT, Constant]) -> object:
         if isinstance(handled, Constant):
             return handled.value
@@ -116,7 +116,7 @@ def add_instance_nosuper(ctx: Sentence, t: MyGenType, handled: SFieldT) -> None:
     ctx.insert_value(instance, struct)
 
 
-def add_instance(ctx: Sentence, t: MyGenType, value: GFieldT) -> bool:
+def add_instance(ctx: Sentence, t: TypeForm, value: GFieldT) -> bool:
     with denv.let(sentence = ctx):
         try:
             nosuper: SFieldT = value  # type: ignore
@@ -125,7 +125,7 @@ def add_instance(ctx: Sentence, t: MyGenType, value: GFieldT) -> bool:
             return False
     return True
 
-def extend_sentence(ctx: Sentence, t: MyGenType) -> Iterator[Sentence]:
+def extend_sentence(ctx: Sentence, t: TypeForm) -> Iterator[Sentence]:
     inputs = generate_instances_fields(ctx, t)
     is_based_on_super = not ctx.model.is_empty()
 

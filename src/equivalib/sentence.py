@@ -8,7 +8,7 @@ from equivalib.sentence_model import SentenceModel
 from equivalib.dynamic import denv
 from equivalib.constant import Constant
 from equivalib.link import Link
-from equivalib.mytype import MyGenType
+from equivalib.typeform import TypeForm
 from equivalib.instantiate import instantiate
 from equivalib.structure import Structure, VarName
 from equivalib.split_type import split_type
@@ -19,7 +19,7 @@ class Sentence:
     assignments: Dict[VarName, object]
     structure: Dict[VarName, Structure]
     reverse: Dict[Structure, VarName]
-    cache: Dict[MyGenType, List[VarName]]
+    cache: Dict[TypeForm, List[VarName]]
     last: List[VarName]
     model: SentenceModel
 
@@ -37,7 +37,7 @@ class Sentence:
         return self.__copy__()
 
 
-    def has_cached(self, typ: MyGenType) -> bool:
+    def has_cached(self, typ: TypeForm) -> bool:
         return typ in self.cache
 
 
@@ -79,7 +79,7 @@ class Sentence:
             return name
 
 
-    def add_super_variable(self, t: MyGenType) -> VarName:
+    def add_super_variable(self, t: TypeForm) -> VarName:
         name = self.generate_free_name()
         self.model.add_variable(name, t)
         return name

@@ -5,7 +5,8 @@ from dataclasses import dataclass
 from typing import Optional, Dict, Tuple
 from ortools.sat.python import cp_model
 
-from equivalib.mytype import MyType, MyGenType
+from equivalib.mytype import MyType
+from equivalib.typeform import TypeForm
 from equivalib.comparable import Comparable
 from equivalib.split_type import split_type
 from equivalib.bounded_int import unpack_bounded_int
@@ -33,7 +34,7 @@ class SentenceModel:
             return SentenceModel(self._model.Clone(), self._names.copy())
 
 
-    def add_variable(self, name: str, t: MyGenType) -> None:
+    def add_variable(self, name: str, t: TypeForm) -> None:
         (base_type, _args, _annot) = split_type(t)
 
         if isinstance(base_type, type) and base_type == int:
