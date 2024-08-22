@@ -13,6 +13,8 @@ from equivalib.instantiate import instantiate
 from equivalib.structure import Structure, VarName
 from equivalib.split_type import split_type
 
+import equivalib.labelled_type as LT
+
 
 @dataclass
 class Sentence:
@@ -83,7 +85,7 @@ class Sentence:
             return name
 
 
-    def add_super_variable(self, t: TypeForm) -> VarName:
+    def add_super_variable(self, t: LT.SuperType) -> VarName:
         name = self.generate_free_name()
         self.model.add_variable(name, t)
         return name

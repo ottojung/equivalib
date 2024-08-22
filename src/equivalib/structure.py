@@ -2,7 +2,7 @@
 from typing import Tuple, Union, NewType
 from dataclasses import dataclass
 
-from equivalib.typeform import TypeForm
+from equivalib.labelled_type import LabelledType
 from equivalib.mytype import MyType
 from equivalib.constant import Constant
 
@@ -14,5 +14,5 @@ StructureArgument = Union[VarName, Constant]
 @dataclass(frozen=True)
 class Structure:
     constructor: MyType
-    signature: TypeForm
+    signature: LabelledType
     arguments: Tuple[StructureArgument, ...]

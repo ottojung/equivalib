@@ -2,20 +2,19 @@
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from dataclasses import dataclass
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict, Tuple, NoReturn
 from ortools.sat.python import cp_model
 
-from equivalib.mytype import MyType
-from equivalib.typeform import TypeForm
 from equivalib.comparable import Comparable
-from equivalib.split_type import split_type
 from equivalib.bounded_int import unpack_bounded_int
+
+import equivalib.labelled_type as LT
 
 
 @dataclass
 class SentenceModel:
     _model: Optional[cp_model.CpModel]
-    _names: Dict[str, Tuple[MyType, int]]
+    _names: Dict[str, Tuple[LT.SuperType, int]]
 
 
     @staticmethod
@@ -34,36 +33,38 @@ class SentenceModel:
             return SentenceModel(self._model.Clone(), self._names.copy())
 
 
-    def add_variable(self, name: str, t: TypeForm) -> None:
-        (base_type, _args, _annot) = split_type(t)
-
-        if isinstance(base_type, type) and base_type == int:
+    def add_variable(self, name: str, t: LT.SuperType) -> None:
+        if isinstance(t.over, LT.BoundedIntType):
             low, high = unpack_bounded_int(t)
             var = self.model.NewIntVar(low, high, name)
-        if isinstance(base_type, type) and base_type == bool:
+        elif isinstance(t.over, LT.BoolType):
             var = self.model.NewBoolVar(name)
         else:
-            raise ValueError(f"Impossible base type {repr(base_type)}.")
+            _x: NoReturn = t.over
+            raise ValueError(f"Impossible base type {repr(t)}.")
 
         var_index: int = var.Index()
-        self._names[name] = (base_type, var_index)
+        self._names[name] = (t, var_index)
 
 
     def get_variable(self, name: str) -> Comparable:
-        (base_type, arg) = self._names[name]
-        if base_type == int:
-            ret1: cp_model.IntVar = self.model.GetIntVarFromProtoIndex(arg)
+        (t, index) = self._names[name]
+
+        if isinstance(t.over, LT.BoundedIntType):
+            ret1: cp_model.IntVar = self.model.GetIntVarFromProtoIndex(index)
             return ret1
-        elif base_type == bool:
-            ret2: cp_model.BoolVarT = self.model.GetBoolVarFromProtoIndex(arg)
+
+        if isinstance(t.over, LT.BoolType):
+            ret2: cp_model.BoolVarT = self.model.GetBoolVarFromProtoIndex(index)
             return ret2
-        else:
-            return arg
+
+        _x: NoReturn = t.over
+        raise ValueError(f"Impossible base type {repr(t)}.")
 
 
-    def get_super_type(self, name: str) -> MyType:
-        (base_type, _arg) = self._names[name]
-        return base_type
+    def get_super_type(self, name: str) -> LT.SuperType:
+        (t, _index) = self._names[name]
+        return t
 
 
     def add(self, expr: object) -> None:

@@ -3,10 +3,10 @@
 
 from dataclasses import dataclass
 import random
-from typing import Annotated
+from typing import Annotated, Iterable, Sequence
 import pytest
 
-from equivalib.all import generate_sentences, random_collapse, ValueRange, Super
+from equivalib.all import generate_sentences, random_collapse, ValueRange, Super, Sentence, label_type_list, TypeForm
 
 
 # Define the fixture to fix the random seed
@@ -15,6 +15,10 @@ def fixed_random_seed():
     random.seed(42)
     yield
     random.seed()
+
+
+def generate(types: Iterable[TypeForm]) -> Sequence[Sentence]:
+    return generate_sentences(label_type_list(types))
 
 
 @dataclass
@@ -28,7 +32,7 @@ class SuperEntangled:
 
 @pytest.mark.xfail(reason="No supervalue support yet.")
 def test_super_entangled():
-    theories = generate_sentences([SuperEntangled])
+    theories = generate([SuperEntangled])
 
     assert len(theories) == 1
 
@@ -55,7 +59,7 @@ class Interval:
 
 @pytest.mark.xfail(reason="No supervalue support yet.")
 def test_interval(fixed_random_seed): # pylint: disable=redefined-outer-name
-    theories = generate_sentences([Interval])
+    theories = generate([Interval])
     assert len(theories) == 1
     sentence = random_collapse(theories[0])
 

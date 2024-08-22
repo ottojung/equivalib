@@ -1,6 +1,6 @@
 
 from dataclasses import dataclass
-from typing import Union, Tuple, Mapping
+from typing import Union, Tuple
 
 from equivalib.value_range import ValueRange
 
@@ -37,7 +37,8 @@ class TupleType:
 
 @dataclass(frozen=True)
 class DataclassType:
-    fields: Mapping[str, 'LabelledType']
+    constructor: type[object]
+    fields: Tuple['LabelledType', ...]
 
 
 LabelledType = Union[BoolType, LiteralType, BoundedIntType, SuperType, UnionType, TupleType, DataclassType]

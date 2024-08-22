@@ -2,14 +2,18 @@
 # pylint: disable=duplicate-code
 
 from dataclasses import dataclass
-from typing import Tuple, Literal, Union, Annotated
+from typing import Tuple, Literal, Union, Annotated, Sequence, Iterable
 import pytest
 import equivalib.all as eqv
-from equivalib.all import ValueRange, Super
+from equivalib.all import ValueRange, Super, Sentence, TypeForm
+
+
+def generate(types: Iterable[TypeForm]) -> Sequence[Sentence]:
+    return eqv.generate_sentences(eqv.label_type_list(types))
 
 
 def test_primitive():
-    theories = eqv.generate_sentences([bool])
+    theories = generate([bool])
     expected = [{'a': False, 'b': True}]
     assignments = [x.assignments for x in theories]
     assert assignments == expected
@@ -21,7 +25,7 @@ class Answer:
 
 
 def test_simple():
-    theories = eqv.generate_sentences([bool, Answer])
+    theories = generate([bool, Answer])
     expected = [{'a': False, 'b': True, 'c': Answer(is_yes=False), 'd': Answer(is_yes=True)}]
     assignments = [x.assignments for x in theories]
     assert assignments == expected
@@ -34,7 +38,7 @@ class AnswerTuple:
 
 
 def test_complex():
-    theories = eqv.generate_sentences([bool, AnswerTuple])
+    theories = generate([bool, AnswerTuple])
     sentences = [set(x.assignments.values()) for x in theories]
     expected = [{False, True,
                  AnswerTuple(is_yes=False, is_sure=True),
@@ -45,7 +49,7 @@ def test_complex():
 
 
 def test_complex_twice():
-    theories = eqv.generate_sentences([bool, AnswerTuple])
+    theories = generate([bool, AnswerTuple])
     sentences = [set(x.assignments.values()) for x in theories]
     expected = [{False, True,
                  AnswerTuple(is_yes=False, is_sure=True),
@@ -64,11 +68,11 @@ class BadTuple:
 
 def test_invalid():
     with pytest.raises(ValueError):
-        eqv.generate_sentences([bool, str, Tuple[str, str], BadTuple])
+        generate([bool, str, Tuple[str, str], BadTuple])
 
 
 def test_tuple1():
-    theories = eqv.generate_sentences([bool, Tuple[bool, bool]])
+    theories = generate([bool, Tuple[bool, bool]])
     sentences = set(str(x) for x in theories)
     expected = {"a = False; b = True; c = (a, a); d = (a, b); e = (b, a); f = (b, b);"}
     assert sentences == expected
@@ -80,7 +84,7 @@ class Tuple1:
 
 
 def test_tuple2():
-    theories = eqv.generate_sentences([bool, Tuple[bool, bool], Tuple1])
+    theories = generate([bool, Tuple[bool, bool], Tuple1])
     sentences = set(str(x) for x in theories)
     expected = {"a = False; b = True; c = (a, a); d = (a, b); e = (b, a); f = (b, b); g = Tuple1(c); h = Tuple1(d); i = Tuple1(e); j = Tuple1(f);"}
     assert sentences == expected
@@ -93,7 +97,7 @@ class Inted:
 
 
 def test_ints():
-    theories = eqv.generate_sentences([bool, Annotated[int, ValueRange(1, 3)], Inted])
+    theories = generate([bool, Annotated[int, ValueRange(1, 3)], Inted])
     assert len(theories) == 1
     assert len(theories[0].assignments) == 11 == 2 + 3 + (2 * 3)
 
@@ -105,7 +109,7 @@ class Summary:
 
 
 def test_compound():
-    theories = eqv.generate_sentences([bool, Answer, Summary])
+    theories = generate([bool, Answer, Summary])
     sentences = [set(x.assignments.values()) for x in theories]
 
     expected = \
@@ -130,7 +134,7 @@ class Summary2b:
 
 
 def test_compound2():
-    theories = eqv.generate_sentences([bool, Answer, Summary2a, Summary2b])
+    theories = generate([bool, Answer, Summary2a, Summary2b])
     sentences = [set(x.assignments.values()) for x in theories]
     assert len(sentences) == 1
 
@@ -145,7 +149,7 @@ class Const:
 
 
 def test_constant():
-    theories = eqv.generate_sentences([bool, Literal[5], Const])
+    theories = generate([bool, Literal[5], Const])
     sentences = [set(x.assignments.values()) for x in theories]
     expected = [{False, True, 5, Const(first=True, second=5), Const(first=False, second=5)}]
     assert sentences == expected
@@ -158,7 +162,7 @@ class UnionAnswer:
 
 
 def test_union1():
-    theories = eqv.generate_sentences([bool, Literal[True], Literal[False], Literal["Unsure"], UnionAnswer])
+    theories = generate([bool, Literal[True], Literal[False], Literal["Unsure"], UnionAnswer])
     assert len(theories) == 1
     assert len(theories[0].assignments) == 11
 
@@ -173,7 +177,7 @@ class RestrictedAnswer:
 
 
 def test_restricted_answer():
-    theories = eqv.generate_sentences([bool, RestrictedAnswer])
+    theories = generate([bool, RestrictedAnswer])
     sentences = [set(x.assignments.values()) for x in theories]
     expected = [{False, True, RestrictedAnswer(is_yes=True, received=True), RestrictedAnswer(is_yes=True, received=False)}]
 
@@ -187,7 +191,7 @@ class Superposed:
 
 @pytest.mark.xfail(reason="No supervalue support yet.")
 def test_super_simple():
-    theories = eqv.generate_sentences([Superposed])
+    theories = generate([Superposed])
     sentences = [set(x.assignments.values()) for x in theories]
     assert len(sentences) == 1
 
@@ -202,7 +206,7 @@ class SuperposedBounded:
 
 @pytest.mark.xfail(reason="No supervalue support yet.")
 def test_super_bounded():
-    theories = eqv.generate_sentences([SuperposedBounded])
+    theories = generate([SuperposedBounded])
     sentences = [set(x.assignments.values()) for x in theories]
 
     assert len(sentences) == 1
@@ -220,7 +224,7 @@ class SuperEntangled:
 
 @pytest.mark.xfail(reason="No supervalue support yet.")
 def test_super_entangled():
-    theories = eqv.generate_sentences([SuperEntangled])
+    theories = generate([SuperEntangled])
     sentences = [set(x.assignments.values()) for x in theories]
 
     assert len(sentences) == 1
@@ -238,7 +242,7 @@ class SuperEntangledBoring:
 
 @pytest.mark.xfail(reason="No supervalue support yet.")
 def test_super_entangled_boring():
-    theories = eqv.generate_sentences([SuperEntangledBoring])
+    theories = generate([SuperEntangledBoring])
     sentences = [list(x.assignments.values()) for x in theories]
 
     assert len(sentences) == 1
@@ -271,7 +275,7 @@ class FizzBuzz:
 
 
 def test_fizzbuzz():
-    theories = eqv.generate_sentences([Annotated[int, ValueRange(1, 100)], Fizz, Buzz, FizzBuzz])
+    theories = generate([Annotated[int, ValueRange(1, 100)], Fizz, Buzz, FizzBuzz])
     sentences = [str(x) for x in theories]
     assert len(sentences) == 1
     assert len(theories[0].assignments) == 159

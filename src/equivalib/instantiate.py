@@ -1,23 +1,25 @@
 
-from typing import Type, TypeVar, Iterable, Literal
+from typing import Type, TypeVar, Iterable, NoReturn
 
-from equivalib.typeform import TypeForm
-from equivalib.supertype import Supertype
-from equivalib.split_type import split_type
+import equivalib.labelled_type as LT
 
 InstantiateT = TypeVar('InstantiateT')
 
-def instantiate(t: Type[InstantiateT], sig: TypeForm, arguments: Iterable[object]) -> InstantiateT:
-    (base, _args, _annot) = split_type(sig)
-    if base == Literal:
+def instantiate(t: Type[InstantiateT], sig: LT.LabelledType, arguments: Iterable[object]) -> InstantiateT:
+    if isinstance(sig, LT.LiteralType):
         return next(iter(arguments))  # type: ignore
-    elif base == int:
-        return int(*arguments)  # type: ignore
-    elif base == tuple:
+    elif isinstance(sig, LT.BoolType):
+        return next(iter(arguments))  # type: ignore
+    elif isinstance(sig, LT.BoundedIntType):
+        return next(iter(arguments))  # type: ignore
+    elif isinstance(sig, LT.TupleType):
         return tuple(arguments)  # type: ignore
-    elif base == set:
-        return set(arguments)  # type: ignore
-    elif base == Supertype:
-        raise ValueError("Should not instantiate supertype.")
+    elif isinstance(sig, LT.UnionType):
+        raise ValueError("Should not instantiate union type.")
+    elif isinstance(sig, LT.SuperType):
+        raise ValueError(f"Should not instantiate super type {repr(sig)}. Have t = {repr(t)}.")
+    elif isinstance(sig, LT.DataclassType):
+        return sig.constructor(*arguments)  # type: ignore
     else:
-        return t(*arguments)
+        _x: NoReturn = sig
+        raise TypeError(f"Unknown type {repr(sig)}.")

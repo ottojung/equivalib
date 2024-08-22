@@ -1,95 +1,84 @@
 ## Copyright (C) 2023  Otto Jung
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from dataclasses import is_dataclass
-from typing import Tuple, Literal, Union, Iterator
+from typing import Union, Iterator, NoReturn
 import itertools
 
 from equivalib.dynamic import denv
 from equivalib.constant import Constant
-from equivalib.typeform import TypeForm
+from equivalib.labelled_type import LabelledType
 from equivalib.instantiate import instantiate
 from equivalib.super import Super
 from equivalib.sentence import Sentence
 from equivalib.structure import Structure, VarName
 from equivalib.fieldvalue import SFieldT, GFieldT
-from equivalib.read_type_information import read_type_information
-from equivalib.split_type import split_type
-from equivalib.bounded_int import unpack_bounded_int
 from equivalib.supertype import Supertype
 
+import equivalib.labelled_type as LT
 
-def retreive_from_cache(ctx: Sentence, t: TypeForm) -> Iterator[VarName]:
-    (base_type, args, _annot) = split_type(t)
 
-    if base_type == Union:
-        for arg in args:
+def retreive_from_cache(ctx: Sentence, t: LabelledType) -> Iterator[VarName]:
+    if isinstance(t, LT.UnionType):
+        for arg in t.over:
             yield from retreive_from_cache(ctx, arg)
     else:
         yield from ctx.cache[t]
 
 
 # pylint: disable=too-many-branches
-def generate_field_values(ctx: Sentence, t: TypeForm) -> Iterator[GFieldT]:
-    (base_type, args, annot) = split_type(t)
-
-    is_super = Super in annot
-
-    if is_super:
+def generate_field_values(ctx: Sentence, t: LabelledType) -> Iterator[GFieldT]:
+    if isinstance(t, LT.SuperType):
         name = ctx.add_super_variable(t)
-        yield Structure(Supertype, Supertype, (Constant(name), Constant(t) ))
+        yield Structure(Supertype, t, (Constant(name), Constant(t) ))
 
     elif ctx.has_cached(t):
         yield from retreive_from_cache(ctx, t)
         return
 
-    elif base_type == bool:
-        assert len(args) == 0
+    elif isinstance(t, LT.BoolType):
         yield Structure(bool, t, (Constant(False), ))
         yield Structure(bool, t, (Constant(True), ))
 
-    elif base_type == Literal:
-        assert len(args) == 1
-        yield Structure(type(args[0]), t, arguments=(Constant(args[0]),))
+    elif isinstance(t, LT.LiteralType):
+        literal_value = t.value
+        yield Structure(type(literal_value), t, arguments=(Constant(literal_value), ))
 
-    elif base_type == Union:
-        assert len(args) > 0
-        for arg in args:
+    elif isinstance(t, LT.UnionType):
+        for arg in t.over:
             yield from generate_field_values(ctx, arg)
 
-    elif base_type in (tuple, Tuple):
-        assert len(args) > 0
+    elif isinstance(t, LT.TupleType):
         pointwise = []
-        for arg in args:
+        for arg in t.over:
             pointwise.append(tuple(retreive_from_cache(ctx, arg)))
 
         for prod in itertools.product(*pointwise):
             yield Structure(tuple, t, tuple(prod))
 
-    elif base_type == int:
-        low, high = unpack_bounded_int(t)
+    elif isinstance(t, LT.BoundedIntType):
+        low, high = (t.range.min, t.range.max)
         for i in range(low, high + 1):
             yield Structure(int, t, (Constant(i), ))
 
-    elif isinstance(t, type) and is_dataclass(t):
+    elif isinstance(t, LT.DataclassType):
         pointwise = []
 
-        information = read_type_information(t)
-        for type_signature in information.values():
+        for type_signature in t.fields:
             pointwise.append(tuple(retreive_from_cache(ctx, type_signature)))
 
         for prod in itertools.product(*pointwise):
-            yield Structure(t, t, tuple(prod))
+            yield Structure(t.constructor, t, tuple(prod))
 
     else:
-        raise ValueError(f"Cannot generate values of type {t!r}.")
+        _x: NoReturn = t
+        raise ValueError(f"Cannot generate values of type {repr(t)}.")
 
 
-def generate_instances_fields(ctx: Sentence, t: TypeForm) -> Iterator[GFieldT]:
+def generate_instances_fields(ctx: Sentence, t: LabelledType) -> Iterator[GFieldT]:
     yield from generate_field_values(ctx, t)
 
 
-def add_instance_nosuper(ctx: Sentence, t: TypeForm, handled: SFieldT) -> None:
+def add_instance_nosuper(ctx: Sentence, t: LabelledType, handled: SFieldT) -> None:
     def loop2(handled: Union[SFieldT, Constant]) -> object:
         if isinstance(handled, Constant):
             return handled.value
@@ -116,7 +105,7 @@ def add_instance_nosuper(ctx: Sentence, t: TypeForm, handled: SFieldT) -> None:
     ctx.insert_value(instance, struct)
 
 
-def add_instance(ctx: Sentence, t: TypeForm, value: GFieldT) -> bool:
+def add_instance(ctx: Sentence, t: LabelledType, value: GFieldT) -> bool:
     with denv.let(sentence = ctx):
         try:
             nosuper: SFieldT = value  # type: ignore
@@ -125,7 +114,7 @@ def add_instance(ctx: Sentence, t: TypeForm, value: GFieldT) -> bool:
             return False
     return True
 
-def extend_sentence(ctx: Sentence, t: TypeForm) -> Iterator[Sentence]:
+def extend_sentence(ctx: Sentence, t: LabelledType) -> Iterator[Sentence]:
     inputs = generate_instances_fields(ctx, t)
     is_based_on_super = not ctx.model.is_empty()
 

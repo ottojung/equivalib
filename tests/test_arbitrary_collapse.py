@@ -2,13 +2,13 @@
 # pylint: disable=duplicate-code
 
 from dataclasses import dataclass
-from typing import Literal, Union, Annotated
+from typing import Literal, Union, Annotated, Iterable, Sequence
 import os
 import random
 import pytest
 
 import equivalib.all as equivalib
-from equivalib.all import ValueRange, Super
+from equivalib.all import ValueRange, Super, Sentence, TypeForm
 
 
 # Define the fixture to fix the random seed
@@ -17,6 +17,10 @@ def fixed_random_seed():
     random.seed(42)
     yield
     random.seed()
+
+
+def generate(types: Iterable[TypeForm]) -> Sequence[Sentence]:
+    return equivalib.generate_sentences(equivalib.label_type_list(types))
 
 
 @dataclass
@@ -30,7 +34,7 @@ class SuperEntangled:
 
 @pytest.mark.xfail(reason="No supervalue support yet.")
 def test_super_entangled():
-    theories = equivalib.generate_sentences([SuperEntangled])
+    theories = generate([SuperEntangled])
 
     assert len(theories) == 1
 
@@ -56,7 +60,7 @@ class Interval:
 
 @pytest.mark.xfail(reason="No supervalue support yet.")
 def test_interval():
-    theories = equivalib.generate_sentences([Interval])
+    theories = generate([Interval])
     assert len(theories) == 1
     sentence = equivalib.arbitrary_collapse(theories[0])
     assert str(sentence) \
@@ -75,7 +79,7 @@ class Overlap:
 
 @pytest.mark.xfail(reason="No supervalue support yet.")
 def test_1_overlaping_interval():
-    theories = equivalib.generate_sentences([Interval, Overlap])
+    theories = generate([Interval, Overlap])
     assert len(theories) == 1
     sentence = equivalib.arbitrary_collapse(theories[0])
     assert str(sentence) \
@@ -105,7 +109,7 @@ class Overlap2:
 
 @pytest.mark.xfail(reason="No supervalue support yet.")
 def test_2_overlaping_intervals():
-    theories = equivalib.generate_sentences([Interval2, Overlap2])
+    theories = generate([Interval2, Overlap2])
     assert len(theories) == 2
     strings = list(map(str, map(equivalib.arbitrary_collapse, theories)))
 
@@ -141,7 +145,7 @@ class Overlap3:
 @pytest.mark.xfail(reason="No supervalue support yet.")
 @pytest.mark.skipif(not os.getenv('CI'), reason="This test takes too long, it is for CI only")
 def test_3_overlaping_intervals():
-    theories = equivalib.generate_sentences([Interval3, Overlap3])
+    theories = generate([Interval3, Overlap3])
     assert len(theories) == 30
     strings = list(map(str, map(equivalib.arbitrary_collapse, theories)))
 
@@ -217,13 +221,13 @@ class Kissing:
 @pytest.mark.xfail(reason="No supervalue support yet.")
 @pytest.mark.skipif(not os.getenv('CI'), reason="This test takes too long, it is for CI only")
 def test_super_compound_3():
-    theories = equivalib.generate_sentences([Interval3, Then, Tangent, Kissing])
+    theories = generate([Interval3, Then, Tangent, Kissing])
     assert len(theories) == 54
 
 
 @pytest.mark.xfail(reason="No supervalue support yet.")
 def test_super_compound_maxgreedy1():
-    theories = equivalib.generate_sentences([Interval3, Then])
+    theories = generate([Interval3, Then])
     strings = list(map(str, map(equivalib.arbitrary_collapse, theories)))
 
     assert len(theories) == 1
@@ -278,5 +282,5 @@ class KissingMany:
 @pytest.mark.xfail(reason="No supervalue support yet.")
 @pytest.mark.skipif(not os.getenv('CI'), reason="This test takes too long, it is for CI only")
 def test_super_compound_manygreedy_maxgreedy1():
-    theories = equivalib.generate_sentences([IntervalMany, ThenMany, TangentMany, KissingMany])
+    theories = generate([IntervalMany, ThenMany, TangentMany, KissingMany])
     assert len(theories) == 1261

@@ -8,6 +8,7 @@ from equivalib.arbitrary_collapse import arbitrary_collapse
 from equivalib.generate_sentences import generate_sentences
 from equivalib.typeform import TypeForm
 from equivalib.flatten_type_hierarchy import flatten_type_hierarchy
+from equivalib.label_type_list import label_type_list
 
 
 def generate_instances(t: TypeForm, prefix: Optional[Sentence] = None) -> Iterator[object]:
@@ -16,8 +17,9 @@ def generate_instances(t: TypeForm, prefix: Optional[Sentence] = None) -> Iterat
 
     hierarchy = list(get_types_hierarchy([t]))
     flatten = list(flatten_type_hierarchy(hierarchy))
+    labelled = list(label_type_list(flatten))
 
-    for sentence in generate_sentences(flatten, prefix=prefix):
+    for sentence in generate_sentences(labelled, prefix=prefix):
         concrete = arbitrary_collapse(sentence)
         for name in concrete.last:
             value = concrete.assignments[name]
