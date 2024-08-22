@@ -84,23 +84,29 @@ def add_instance_nosuper(ctx: Sentence, t: LabelledType, handled: SFieldT) -> No
             return loop(handled)
 
     def loop(handled: SFieldT) -> object:
-        if isinstance(t, LT.SuperType):
-            name = ctx.add_super_variable(t)
+        if isinstance(handled, LT.SuperType):
+            name = ctx.add_super_variable(handled)
             return Super(name)
         elif isinstance(handled, Structure):
             args = [loop2(x) for x in handled.arguments]
             return instantiate(handled.constructor, handled.signature, args)
-        else:
+        elif isinstance(handled, str):
             return ctx.assignments[handled]
+        else:
+            _x: NoReturn = handled
+            raise ValueError(f"Unexpected type {repr(handled)}.")
 
     instance = loop(handled)
 
     if isinstance(handled, Structure):
         struct = handled
-    elif isinstance(t, LT.SuperType):
+    elif isinstance(handled, LT.SuperType):
         struct = Structure(LT.SuperType, t, tuple([]))
-    else:
+    elif isinstance(handled, str):
         struct = ctx.structure[handled]
+    else:
+        _x: NoReturn = handled
+        raise ValueError(f"Unexpected type {repr(handled)}.")
 
     ctx.insert_value(instance, struct)
 
