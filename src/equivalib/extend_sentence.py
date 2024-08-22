@@ -12,7 +12,6 @@ from equivalib.super import Super
 from equivalib.sentence import Sentence
 from equivalib.structure import Structure, VarName
 from equivalib.fieldvalue import SFieldT, GFieldT
-from equivalib.supertype import Supertype
 
 import equivalib.labelled_type as LT
 
@@ -28,7 +27,7 @@ def retreive_from_cache(ctx: Sentence, t: LabelledType) -> Iterator[VarName]:
 # pylint: disable=too-many-branches
 def generate_field_values(ctx: Sentence, t: LabelledType) -> Iterator[GFieldT]:
     if isinstance(t, LT.SuperType):
-        yield Structure(Supertype, t, tuple([]))
+        yield t
 
     elif ctx.has_cached(t):
         yield from retreive_from_cache(ctx, t)
@@ -85,13 +84,12 @@ def add_instance_nosuper(ctx: Sentence, t: LabelledType, handled: SFieldT) -> No
             return loop(handled)
 
     def loop(handled: SFieldT) -> object:
-        if isinstance(handled, Structure):
+        if isinstance(t, LT.SuperType):
+            name = ctx.add_super_variable(t)
+            return Super(name)
+        elif isinstance(handled, Structure):
             args = [loop2(x) for x in handled.arguments]
-            if isinstance(t, LT.SuperType):
-                name = ctx.add_super_variable(t)
-                return Super(name)
-            else:
-                return instantiate(handled.constructor, handled.signature, args)
+            return instantiate(handled.constructor, handled.signature, args)
         else:
             return ctx.assignments[handled]
 
@@ -99,6 +97,8 @@ def add_instance_nosuper(ctx: Sentence, t: LabelledType, handled: SFieldT) -> No
 
     if isinstance(handled, Structure):
         struct = handled
+    elif isinstance(t, LT.SuperType):
+        struct = Structure(LT.SuperType, t, tuple([]))
     else:
         struct = ctx.structure[handled]
 

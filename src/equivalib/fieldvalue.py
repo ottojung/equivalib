@@ -1,8 +1,9 @@
 
 from typing import Union
 from equivalib.structure import Structure, VarName
-from equivalib.supertype import Supertype
+
+import equivalib.labelled_type as LT
 
 
 SFieldT = Union[VarName, Structure]
-GFieldT = Union[Supertype, SFieldT]
+GFieldT = Union[LT.SuperType, SFieldT]
