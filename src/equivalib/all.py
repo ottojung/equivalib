@@ -5,7 +5,6 @@ from .orderedset import *
 from .value_range import *
 from .mytype import *
 from .split_type import *
-from .bounded_int import *
 from .dynamic import *
 from .instantiate import *
 from .instance_mark_key import *

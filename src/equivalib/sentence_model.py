@@ -6,7 +6,6 @@ from typing import Optional, Dict, Tuple, NoReturn
 from ortools.sat.python import cp_model
 
 from equivalib.comparable import Comparable
-from equivalib.bounded_int import unpack_bounded_int
 
 import equivalib.labelled_type as LT
 
@@ -35,7 +34,7 @@ class SentenceModel:
 
     def add_variable(self, name: str, t: LT.SuperType) -> None:
         if isinstance(t.over, LT.BoundedIntType):
-            low, high = unpack_bounded_int(t)
+            low, high = (t.over.range.min, t.over.range.max)
             var = self.model.NewIntVar(low, high, name)
         elif isinstance(t.over, LT.BoolType):
             var = self.model.NewBoolVar(name)
