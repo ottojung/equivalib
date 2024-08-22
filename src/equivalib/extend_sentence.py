@@ -28,8 +28,7 @@ def retreive_from_cache(ctx: Sentence, t: LabelledType) -> Iterator[VarName]:
 # pylint: disable=too-many-branches
 def generate_field_values(ctx: Sentence, t: LabelledType) -> Iterator[GFieldT]:
     if isinstance(t, LT.SuperType):
-        name = ctx.add_super_variable(t)
-        yield Structure(Supertype, t, (Constant(name), Constant(t) ))
+        yield Structure(Supertype, t, tuple([]))
 
     elif ctx.has_cached(t):
         yield from retreive_from_cache(ctx, t)
@@ -88,8 +87,9 @@ def add_instance_nosuper(ctx: Sentence, t: LabelledType, handled: SFieldT) -> No
     def loop(handled: SFieldT) -> object:
         if isinstance(handled, Structure):
             args = [loop2(x) for x in handled.arguments]
-            if handled.constructor == Supertype:
-                return Super(str(args[0]))
+            if isinstance(t, LT.SuperType):
+                name = ctx.add_super_variable(t)
+                return Super(name)
             else:
                 return instantiate(handled.constructor, handled.signature, args)
         else:
