@@ -9,7 +9,7 @@ def instantiate(t: Type[InstantiateT], sig: LT.LabelledType, arguments: Iterable
     if isinstance(sig, LT.LiteralType):
         return next(iter(arguments))  # type: ignore
     elif isinstance(sig, LT.BoolType):
-        return next(iter(arguments))  # type: ignore
+        return bool(next(iter(arguments)))  # type: ignore
     elif isinstance(sig, LT.BoundedIntType):
         return next(iter(arguments))  # type: ignore
     elif isinstance(sig, LT.TupleType):

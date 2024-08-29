@@ -191,12 +191,19 @@ def test_super_bool():
         in [{False}, {True}]
 
 
+def test_tuple_with_super_bool():
+    instances = run_example(Tuple[bool, Annotated[bool, Super]])
+    assert instances \
+        in [{(False, False), (True, False),},
+            {(False, True), (True, True),},
+            ]
+
+
 @dataclass(frozen=True)
 class SuperMinimal:
     happy: Annotated[bool, Super]
 
 
-@pytest.mark.xfail(reason="No supervalue support yet.")
 def test_super_minimal():
     instances = run_example(SuperMinimal)
     assert instances \

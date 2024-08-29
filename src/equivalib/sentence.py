@@ -47,19 +47,25 @@ class Sentence:
         return typ in self.cache
 
 
-    def insert_new_value(self, name: VarName, value: object, struct: Structure) -> None:
-        self.assignments[name] = value
-        self.structure[name] = struct
-        if struct in self.reverse:
-            raise ValueError(f"Struct {repr(struct)} is already in the Sentence.")
+    def add_to_cache(self, name: VarName, sig: TypeForm, value: object) -> None:
+        (_, _, annot) = split_type(sig)
+        if LT.SuperType in annot:
+            return
 
-        self.reverse[struct] = name
-        sig = struct.signature
         if sig in self.cache:
             self.cache[sig].append(VarName(name))
         else:
             self.cache[sig] = [VarName(name)]
 
+
+    def insert_new_value(self, name: VarName, value: object, struct: Structure) -> None:
+        if struct in self.reverse:
+            raise ValueError(f"Struct {repr(struct)} is already in the Sentence.")
+
+        self.assignments[name] = value
+        self.structure[name] = struct
+        self.reverse[struct] = name
+        self.add_to_cache(name, struct.signature, value)
         self.last.append(name)
 
 
@@ -73,15 +79,8 @@ class Sentence:
             self.reverse[struct] = name
             self.assignments[name] = value
             self.structure[name] = struct
-
-            sig = struct.signature
-            if sig in self.cache:
-                self.cache[sig].append(VarName(name))
-            else:
-                self.cache[sig] = [VarName(name)]
-
+            self.add_to_cache(name, struct.signature, value)
             self.last.append(name)
-
             return name
 
 
@@ -134,7 +133,11 @@ class Sentence:
                 args_names = struct.arguments
                 args = [unwrap(name) for name in args_names]
                 instance = instantiate(ty, sig, args)
-                ret.insert_new_value(name, instance, struct)
+
+                if struct not in ret.reverse:
+                    ret.insert_new_value(name, instance, struct)
+                else:
+                    name = VarName(ret.insert_value(instance, struct))
 
             val = ret.assignments[name]
             while isinstance(val, Constant):
