@@ -211,6 +211,34 @@ def test_super_minimal():
 
 
 @dataclass(frozen=True)
+class SuperMinimalRefined:
+    happy: Annotated[bool, Super]
+
+    def __post_init__(self):
+        assert self.happy == True
+
+
+def test_super_minimal_refined():
+    instances = run_example(SuperMinimalRefined)
+    assert instances \
+        == {SuperMinimalRefined(True)}
+
+
+@dataclass(frozen=True)
+class SuperMinimalImpossible:
+    happy: Annotated[bool, Super]
+
+    def __post_init__(self):
+        assert self.happy == True
+        assert self.happy == False
+
+
+def test_super_minimal_impossible():
+    instances = run_example(SuperMinimalImpossible)
+    assert instances == set()
+
+
+@dataclass(frozen=True)
 class SuperEntangled:
     happy: Annotated[bool, Super]
     complain: Annotated[bool, Super]

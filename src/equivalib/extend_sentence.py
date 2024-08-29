@@ -131,10 +131,9 @@ def extend_sentence(ctx: Sentence, t: LabelledType) -> Iterator[Sentence]:
         if is_based_on_super:
             ret = ctx.copy()
 
-        add_instance(ret, t, inp)
-
-        if is_based_on_super:
-            yield ret
+        if add_instance(ret, t, inp):
+            if is_based_on_super:
+                yield ret
 
     if not is_based_on_super:
         yield ret
