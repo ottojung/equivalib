@@ -231,6 +231,24 @@ def test_super_minimal_refined():
 
 
 @dataclass(frozen=True)
+class SuperMinimalRefinedInt:
+    happiness: Annotated[int, Super, ValueRange(0, 9)]
+
+    def __post_init__(self):
+        assert self.happiness > 5
+
+
+def test_super_minimal_refined_int():
+    instances = run_example(SuperMinimalRefinedInt)
+    assert instances \
+        in [{SuperMinimalRefinedInt(6)},
+            {SuperMinimalRefinedInt(7)},
+            {SuperMinimalRefinedInt(8)},
+            {SuperMinimalRefinedInt(9)},
+            ]
+
+
+@dataclass(frozen=True)
 class SuperMinimalImpossible:
     happy: Annotated[bool, Super]
 
