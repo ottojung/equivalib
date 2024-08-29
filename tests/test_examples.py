@@ -239,6 +239,23 @@ def test_super_minimal_impossible():
 
 
 @dataclass(frozen=True)
+class SuperCompoundRefined:
+    happy: Annotated[bool, Super]
+    complain: bool
+
+    def __post_init__(self):
+        assert self.happy != self.complain
+
+
+def test_super_compound_refined():
+    instances = run_example(SuperCompoundRefined)
+    assert len(instances) == 2
+    assert instances \
+        == {SuperCompoundRefined(True, False),
+            SuperCompoundRefined(False, True)}
+
+
+@dataclass(frozen=True)
 class SuperEntangled:
     happy: Annotated[bool, Super]
     complain: Annotated[bool, Super]
