@@ -13,7 +13,7 @@ class Interval:
 
 def test_singleton():
     hierarchy = list(map(list, get_types_hierarchy([Interval])))
-    assert hierarchy == [[Annotated[int, ValueRange(0, 999)]], [Interval]]
+    assert hierarchy == [[Annotated[int, ValueRange(0, 999)], Annotated[int, ValueRange(0, 999)]], [Interval]]
 
 
 def test_empty():
@@ -30,14 +30,14 @@ class Overlap:
 
 def test_simple():
     hierarchy = list(map(list, get_types_hierarchy([Interval, Overlap])))
-    assert hierarchy == [[Annotated[int, ValueRange(0, 999)]],
-                         [Interval], [Overlap]]
+    assert hierarchy == [[Annotated[int, ValueRange(0, 999)], Annotated[int, ValueRange(0, 999)], Annotated[int, ValueRange(0, 999)], Annotated[int, ValueRange(0, 999)], Annotated[int, ValueRange(0, 999)], Annotated[int, ValueRange(0, 999)]],
+                         [Interval, Interval, Interval], [Overlap]]
 
 
 def test_simple_2():
     hierarchy = list(map(list, get_types_hierarchy([Overlap])))
-    assert hierarchy == [[Annotated[int, ValueRange(0, 999)]],
-                         [Interval], [Overlap]]
+    assert hierarchy == [[Annotated[int, ValueRange(0, 999)], Annotated[int, ValueRange(0, 999)], Annotated[int, ValueRange(0, 999)], Annotated[int, ValueRange(0, 999)]],
+                         [Interval, Interval], [Overlap]]
 
 
 @dataclass
@@ -53,7 +53,7 @@ class Overlap2:
 
 def test_empty_base():
     hierarchy = list(map(list, get_types_hierarchy([EmptyMyType, Overlap2])))
-    assert hierarchy == [[EmptyMyType], [Overlap2]]
+    assert hierarchy == [[EmptyMyType, EmptyMyType, EmptyMyType], [Overlap2]]
 
 
 @dataclass
@@ -62,8 +62,15 @@ class TupleRec:
 
 
 def test_tuple1():
+    hierarchy = list(map(list, get_types_hierarchy([TupleRec])))
+    assert hierarchy == [[EmptyMyType, Annotated[int, ValueRange(0, 999)], Annotated[int, ValueRange(0, 999)]], [Interval], [Tuple[EmptyMyType, Interval]], [TupleRec]]
+
+
+def test_tuple2():
     hierarchy = list(map(list, get_types_hierarchy([EmptyMyType, Interval, TupleRec])))
-    assert hierarchy == [[EmptyMyType, Annotated[int, ValueRange(0, 999)]], [Interval], [Tuple[EmptyMyType, Interval]], [TupleRec]]
+    assert hierarchy == [[EmptyMyType, Annotated[int, ValueRange(0, 999)], Annotated[int, ValueRange(0, 999)],
+                          EmptyMyType, Annotated[int, ValueRange(0, 999)], Annotated[int, ValueRange(0, 999)],
+                          ], [Interval, Interval], [Tuple[EmptyMyType, Interval]], [TupleRec]]
 
 
 @dataclass
@@ -72,8 +79,13 @@ class UnionRec:
 
 
 def test_union1():
+    hierarchy = list(map(list, get_types_hierarchy([UnionRec])))
+    assert hierarchy == [[EmptyMyType, Annotated[int, ValueRange(0, 999)], Annotated[int, ValueRange(0, 999)]], [Interval], [Union[EmptyMyType, Interval]], [UnionRec]]
+
+
+def test_union2():
     hierarchy = list(map(list, get_types_hierarchy([EmptyMyType, Interval, UnionRec])))
-    assert hierarchy == [[EmptyMyType, Annotated[int, ValueRange(0, 999)]], [Interval], [Union[EmptyMyType, Interval]], [UnionRec]]
+    assert hierarchy == [[EmptyMyType, Annotated[int, ValueRange(0, 999)], Annotated[int, ValueRange(0, 999)], EmptyMyType, Annotated[int, ValueRange(0, 999)], Annotated[int, ValueRange(0, 999)]], [Interval, Interval], [Union[EmptyMyType, Interval]], [UnionRec]]
 
 
 @dataclass
