@@ -3,6 +3,6 @@
 set -e
 set -x
 
-mypy
-pytest -s -v --cov=./src --cov-branch
-pylint ./src/ ./tests/
+uv run mypy
+uv run pytest -s -v --cov=./src --cov-branch
+uv run ruff check ./src/ ./tests/

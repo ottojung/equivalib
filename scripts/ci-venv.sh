@@ -1,14 +1,11 @@
 #! /bin/sh
 
 set -e
-
-set -x
-python3 -m venv venv
-
-set +x
-. venv/bin/activate
 set -x
 
-pip3 install .[dev,test]
+curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+
+uv sync --extra dev --extra test
 
 sh scripts/ci-check.sh

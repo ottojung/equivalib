@@ -27,7 +27,7 @@ test = [
 ]
 dev = [
     # Dependencies required for development (linting, type checking, etc.)
-    "pylint",
+    "ruff>=0.11",
     "mypy>=0.800",
 ]
 
@@ -52,3 +52,26 @@ strict = true
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "PLC", "PLR", "PLW"]
+ignore = [
+    "E501",     # line-too-long (handled by formatter)
+    "E711",     # comparison to None (singleton-comparison)
+    "E712",     # comparison to True/False
+    "E721",     # type-comparison (comparison-with-callable equivalent)
+    "E731",     # lambda-assignment (unnecessary-lambda-assignment)
+    "PLR0911",  # too-many-return-statements
+    "PLR0912",  # too-many-branches
+    "PLR0913",  # too-many-arguments
+    "PLR2004",  # magic-value-comparison
+    "PLC2801",  # unnecessary-dunder-call
+    "PLW1641",  # eq-without-hash
+]
+
+[tool.ruff.lint.per-file-ignores]
+"src/equivalib/__init__.py" = ["F401", "F403"]
+"src/equivalib/all.py" = ["F401", "F403"]
