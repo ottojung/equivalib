@@ -16,6 +16,7 @@ dist/
 *.egg-info/
 .eggs/
 venv
+.venv
 
 # Other
 flycheck*.py

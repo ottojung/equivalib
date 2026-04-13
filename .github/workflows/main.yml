@@ -10,21 +10,35 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
     - name: Install dependencies
-      run: sudo apt-get update && sudo apt-get install -y python3 && python3 -m pip install pip -U
-    - name: Run build
-      run: pip3 install --user .
-    - name: Run build all
-      run: pip3 install --user .[dev,test]
+      run: uv sync --extra dev --extra test
+
     - name: Run tests and collect coverage
-      run: pytest -v --cov=./src
+      run: uv run pytest -v --cov=./src --cov-branch
+
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
     - name: Type check
-      run: mypy
-    - name: Linter check
-      run: pylint ./src/ ./tests/
+      run: uv run mypy
+
+    - name: Lint check
+      run: uv run ruff check ./src/ ./tests/
