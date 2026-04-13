@@ -29,7 +29,7 @@ class SentenceModel:
         if self._model is None:
             return SentenceModel.empty()
         else:
-            return SentenceModel(self._model.Clone(), self._names.copy())
+            return SentenceModel(self._model.clone(), self._names.copy())
 
 
     def add_variable(self, name: str, t: LT.SuperType) -> None:
@@ -73,7 +73,7 @@ class SentenceModel:
     def check_satisfiability(self) -> bool:
         solver = cp_model.CpSolver()
         status = solver.Solve(self.model)
-        return status in (cp_model.OPTIMAL, cp_model.FEASIBLE)  # type: ignore
+        return status in (cp_model.OPTIMAL, cp_model.FEASIBLE)
 
 
     @property
