@@ -1,560 +1,597 @@
-# Spec 1: Core TypeTree Semantics
+# Spec 1: Core Generate Semantics
 
 ## Purpose
 
-This document specifies the "core" layer of the library.
+This document specifies the core semantics of the library as a single generation interface over finite type trees, label assignments, and boolean constraints.
 
-The core is intentionally smaller than the current repository surface. It is the layer that operates on finite type trees, finite domains, and labelled symbolic leaves. It does not know about Python dataclasses, `__post_init__`, OR-Tools, or sentence construction.
+The core is defined by observable behavior only.
 
-The purpose of this split is architectural: the current repository mixes structural expansion with symbolic identity management. The core defined here makes symbolic identity explicit.
-
-The key rule is:
-
-- symbolic identity is defined by `Super(label)`
-- not by occurrence position
-- and not by structural equality alone
-
-If two symbolic occurrences are intended to be independent, they MUST have different labels. If they are intended to denote the same logical variable, they MUST reuse the same label.
+It does not require any specific internal architecture. A compliant implementation MAY use staged expansion, direct search, a solver-backed model, or some other implementation strategy.
 
 ## Scope
 
 The core MUST support:
 
 - finite boolean domains
-- finite integer ranges
+- finite bounded integer domains via `ValueRange`
 - literal values
 - tuples
 - unions
-- labelled symbolic leaves via `Super(label)`
-- two conceptual stages:
-  - `generate_ground(tree)`
-  - `collapse(tree, label, method)`
+- named subtrees via `Name(label)`
+- parsed boolean constraint expressions over labels and addresses
+- one public generation function
 
 The core does not specify:
 
-- dataclass compilation
-- solver-based relational constraints
-- runtime Python object instantiation
-- a particular internal class hierarchy
-
-Those can live in higher layers that compile down to and interpret this core.
-
-## Layer Boundary
-
-The intended layering is:
-
-1. A frontend maps user-facing Python types and constraints into core `TypeTree` values plus labels.
-2. The core performs structural expansion and label-based refinement.
-3. A higher layer may project refined trees back into runtime objects.
-
-This means a frontend has an important responsibility:
-
-- if two symbolic field occurrences are independent, it MUST allocate different labels
-- if two symbolic field occurrences are intentionally linked, it MUST reuse the same label
-
-That rule is the architectural fix for the aliasing problem observed in the current repository.
+- compilation from any other representation
+- dataclass-specific behavior
+- a particular parser implementation strategy
+- a particular solver backend
 
 ## Normative Terms
 
 The words MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY are to be interpreted as normative requirements.
 
-## Core Concepts
+## Core Interface
 
-### Canonical constructors
+```python
+Label: TypeAlias = str
+Method: TypeAlias = Literal["all", "arbitrary", "uniform_random", "arbitrarish_randomish"]
+Constraint: TypeAlias = Expr
+
+generate(tree: TypeTree, methods: Mapping[Label, Method], constraints: Set[Constraint]) -> Set[object]
+```
+
+Default behavior:
+
+- if a label is not present in `methods`, its method is `"all"`
+- if `constraints` is empty, it is equivalent to `{ "True" }`
+
+Examples in this document MAY omit trailing default arguments. Therefore:
+
+```python
+generate(tree)
+```
+
+means:
+
+```python
+generate(tree, {}, {})
+```
+
+## TypeTree
+
+### Canonical syntax
 
 The core is specified in terms of these conceptual constructors:
 
 ```text
 TypeTree :=
-    bool
-  | None
+    None
+  | bool
   | Literal[value]
-  | IntRange(min, max)
   | Tuple[t1, t2, ..., tn]
   | Union[t1, t2, ..., tn]
-  | Annotated[domain, Super(label)]
+  | Annotated[base, metadata1, metadata2, ..., metadatan]
+
+metadata :=
+    ValueRange(min, max)
+  | Name(label)
 ```
 
-Where:
+The canonical constraints on `Annotated[...]` are:
 
-- `value` is a literal boolean, integer, or string in core v1
-- `IntRange(min, max)` denotes the finite closed interval `{min, min+1, ..., max}`
-- `label` is a non-empty string
-- `domain` in an input `Annotated[..., Super(label)]` MUST be one of:
-  - `bool`
-  - `IntRange(min, max)`
+- it MAY contain at most one `ValueRange(...)`
+- it MAY contain at most one `Name(...)`
+- if it contains `ValueRange(min, max)`, then `base` MUST be `int`
+- plain `int` MUST NOT appear unless it is immediately annotated with exactly one `ValueRange(...)`
+- `label` MUST be a non-empty string
 
-### Surface syntax sugar
+The value space is finite by construction.
 
-The implementation MAY accept frontend sugar, but the following normalizations MUST hold semantically:
+### Examples of valid trees
+
+```python
+bool
+Tuple[bool, Literal["N\\A"]]
+Annotated[int, ValueRange(-5, 7)]
+Tuple[Union[bool, None], Annotated[int, ValueRange(3, 9)]]
+Annotated[bool, Name("X")]
+Annotated[int, ValueRange(3, 9), Name("X")]
+Annotated[Tuple[bool, bool], Name("X")]
+Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
+```
+
+### Named occurrences
+
+A named occurrence is any subtree of the form:
 
 ```text
-Annotated[int, ValueRange(a, b)]
-    == IntRange(a, b)
-
-Annotated[int, ValueRange(a, b), Super(label)]
-    == Annotated[IntRange(a, b), Super(label)]
+Annotated[base, ..., Name(label), ...]
 ```
 
-So the spec uses `IntRange(...)` as the canonical range constructor, while allowing `Annotated[int, ValueRange(...)]` as frontend syntax.
+`Name(label)` defines variable identity.
 
-### GroundTypeTree
+The core MUST satisfy all of the following:
 
-A `GroundTypeTree` is a `TypeTree` with these properties:
+- two occurrences with the same label denote the same logical variable
+- two occurrences with different labels denote different logical variables
+- an implementation MUST NOT merge two different labels merely because their underlying domains are equal
 
-- it contains no plain `bool`
-- it contains no plain `IntRange(...)`
-- it contains no `Union[...]`
-- it may still contain symbolic leaves of the form:
-  - `Annotated[bool, Super(label)]`
-  - `Annotated[IntRange(min, max), Super(label)]`
-  - `Annotated[Literal[value], Super(label)]`
-- tuples are allowed recursively
-- `None` is allowed
-- `Literal[value]` is allowed
+Repeated labels are allowed.
 
-Intuitively, a ground tree has had all non-symbolic branching expanded, but symbolic leaves may remain abstract.
-
-### TypeTreeInstance
-
-A `TypeTreeInstance` is the result of zero or more `collapse(...)` operations applied to a ground tree.
-
-In this spec, a collapsed symbolic occurrence keeps its label provenance and becomes:
-
-```text
-Annotated[Literal[value], Super(label)]
-```
-
-This preserves the information that a concrete choice came from a symbolic label.
-
-Implementations MAY also provide a projection that drops the annotation and produces plain runtime values, but that projection is outside this spec.
+If the same label appears more than once, the effective domain of that label is the intersection of the denotations of all of its occurrences.
 
 ### Structural equality and sets
 
-All result collections in this spec are mathematical sets.
+All results in this spec are mathematical sets.
 
 Therefore:
 
 - duplicates MUST be removed by structural equality
-- result ordering is not observable
-- union branch order is not semantically observable
+- output ordering is not observable
+- union branch order is not observable
 - tuple element order remains semantically significant
 
-## Label Semantics
+## Validation Rules
 
-`Super(label)` is not decorative metadata. It defines variable identity.
+A compliant implementation MUST reject invalid trees, including at least:
 
-The core MUST satisfy all of the following:
+- `ValueRange(min, max)` with `min > max`
+- `Name("")`
+- plain `int` without a `ValueRange(...)`
+- `Annotated[...]` with more than one `ValueRange(...)`
+- `Annotated[...]` with more than one `Name(...)`
+- `methods` containing a label that does not appear in the tree
+- constraints referring to a label that does not appear in the tree
 
-- two occurrences with the same label denote the same logical symbolic variable
-- two occurrences with different labels denote different logical symbolic variables, even if their wrapped domains are structurally equal
-- `generate_ground(...)` MUST preserve labels unchanged
-- `collapse(tree, label, ...)` MUST affect only occurrences whose label exactly matches `label`
-- an implementation MUST NOT merge two different labels merely because their wrapped domains are equal
+The implementation MAY reject additional malformed inputs if they are outside this spec.
 
-### Compatible repeated labels
+## Constraint Language
 
-A label MAY occur more than once in the same tree.
+### Constraint type
 
-When it does, all occurrences of that label MUST have the same base sort:
+`Constraint` is an expression in the grammar below.
 
-- boolean sort
-- integer sort
+Implementations MAY store parsed ASTs internally, but they MUST accept expressions written in the textual syntax defined here.
 
-Within a sort, repeated occurrences MAY narrow each other. For example:
+The set of constraints is conjunctive:
 
-```text
-Annotated[IntRange(1, 5), Super("X")]
-Annotated[IntRange(3, 7), Super("X")]
-```
+- every constraint in the set MUST evaluate to `True`
+- an empty set is equivalent to `{ "True" }`
 
-are compatible and jointly imply the effective domain `{3, 4, 5}`.
-
-### Invalid repeated labels
-
-If the same label appears with incompatible base sorts, the tree is invalid.
-
-Example:
+### Grammar
 
 ```text
-Tuple[
-  Annotated[bool, Super("X")],
-  Annotated[IntRange(1, 3), Super("X")]
-]
+Expr      := OrExpr
+OrExpr    := AndExpr ("or" AndExpr)*
+AndExpr   := CmpExpr ("and" CmpExpr)*
+CmpExpr   := SumExpr (("==" | "!=" | "<" | "<=" | ">" | ">=") SumExpr)?
+SumExpr   := ProdExpr (("+" | "-") ProdExpr)*
+ProdExpr  := UnaryExpr (("*" | "//" | "%") UnaryExpr)*
+UnaryExpr := Primary | "-" UnaryExpr
+Primary   := "True" | "False" | IntLiteral | Ref | "(" Expr ")"
+Ref       := Label Address*
+Address   := "[" Nat "]"
 ```
 
-This MUST be rejected as invalid input by the implementation, either during validation or at the first operation that requires validation.
+### Labels and addresses
 
-## Stage 1: `generate_ground`
+- `Label` syntax is implementation-defined, but it MUST at least support identifiers such as `X`, `Y`, and `score_1`
+- an address is a zero-based tuple path, such as `X[0]` or `X[1][0]`
+- address evaluation MUST fail if any step attempts to index a non-tuple value or an out-of-range position
 
-### Signature
+### Type rules
 
-```text
-generate_ground(tree: TypeTree) -> Set[GroundTypeTree]
-```
-
-### Intent
-
-`generate_ground(...)` expands all non-symbolic branching and leaves symbolic leaves intact.
-
-It does not solve labels and it does not choose symbolic values.
-
-### Recursive semantics
-
-The semantics of `generate_ground(...)` are:
-
-```text
-generate_ground(None)
-  = { None }
-
-generate_ground(Literal[v])
-  = { Literal[v] }
-
-generate_ground(bool)
-  = { Literal[True], Literal[False] }
-
-generate_ground(IntRange(min, max))
-  = { Literal[min], Literal[min+1], ..., Literal[max] }
-
-generate_ground(Union[t1, t2, ..., tn])
-  = generate_ground(t1)
-    union generate_ground(t2)
-    union ...
-    union generate_ground(tn)
-
-generate_ground(Tuple[t1, t2, ..., tn])
-  = {
-      Tuple[g1, g2, ..., gn]
-      | g1 in generate_ground(t1),
-        g2 in generate_ground(t2),
-        ...,
-        gn in generate_ground(tn)
-    }
-
-generate_ground(Annotated[domain, Super(label)])
-  = { Annotated[domain, Super(label)] }
-```
-
-### Validation rules
-
-The implementation MUST reject invalid input trees, including at least:
-
-- `IntRange(min, max)` where `min > max`
-- `Super(label)` where `label` is empty
-- symbolic wrappers around unsupported input domains
+- arithmetic operators apply only to integers
+- ordered comparisons `<`, `<=`, `>`, `>=` apply only to integers
+- equality and inequality apply by structural equality to booleans, integers, `None`, strings, and tuples thereof
+- `and` and `or` apply only to booleans
 
 ### Examples
 
+Valid expressions include:
+
 ```text
-generate_ground(bool)
-  == { Literal[True], Literal[False] }
-
-generate_ground(Tuple[bool, Literal["N\\A"]])
-  == {
-       Tuple[Literal[True],  Literal["N\\A"]],
-       Tuple[Literal[False], Literal["N\\A"]]
-     }
-
-generate_ground(IntRange(-5, 7))
-  == {
-       Literal[-5], Literal[-4], Literal[-3], Literal[-2], Literal[-1],
-       Literal[0], Literal[1], Literal[2], Literal[3], Literal[4],
-       Literal[5], Literal[6], Literal[7]
-     }
-
-generate_ground(Annotated[bool, Super("X")])
-  == { Annotated[bool, Super("X")] }
-
-generate_ground(Tuple[bool, Union[Annotated[bool, Super("X")], None]])
-  == {
-       Tuple[Literal[True],  None],
-       Tuple[Literal[False], None],
-       Tuple[Literal[True],  Annotated[bool, Super("X")]],
-       Tuple[Literal[False], Annotated[bool, Super("X")]]
-     }
-
-generate_ground(Tuple[Union[Annotated[bool, Super("X")], None], IntRange(3, 4)])
-  == {
-       Tuple[None,                          Literal[3]],
-       Tuple[None,                          Literal[4]],
-       Tuple[Annotated[bool, Super("X")],  Literal[3]],
-       Tuple[Annotated[bool, Super("X")],  Literal[4]]
-     }
+X > 5
+X < Y and X > 0
+(X < Y and X > 0) or X < 0
+X[0] != X[1]
 ```
 
-## Stage 2: `collapse`
+## Denotation of Unnamed Trees
 
-### Signature
+The core needs a finite denotation for every name-free subtree.
 
-```text
-collapse(
-    tree: GroundTypeTree,
-    label: str,
-    method: Literal["all", "arbitrary", "uniform_random", "arbitrarish_randomish"]
-) -> Set[TypeTreeInstance]
-```
-
-### Intent
-
-`collapse(...)` refines all occurrences of one symbolic label within one ground tree.
-
-The refinement is simultaneous across every occurrence of the target label.
-
-### Effective domain
-
-For a given `tree` and target `label`, define the set of target occurrences as every subtree of one of these forms:
-
-- `Annotated[bool, Super(label)]`
-- `Annotated[IntRange(min, max), Super(label)]`
-- `Annotated[Literal[value], Super(label)]`
-
-Each target occurrence contributes a finite value set:
+Define `values(t)` for trees that contain no `Name(...)` metadata.
 
 ```text
-values(Annotated[bool, Super(label)])
+values(None)
+  = { None }
+
+values(bool)
   = { True, False }
 
-values(Annotated[IntRange(min, max), Super(label)])
-  = { min, min+1, ..., max }
-
-values(Annotated[Literal[v], Super(label)])
+values(Literal[v])
   = { v }
+
+values(Annotated[int, ValueRange(min, max)])
+  = { min, min + 1, ..., max }
+
+values(Union[t1, t2, ..., tn])
+  = values(t1) union values(t2) union ... union values(tn)
+
+values(Tuple[t1, t2, ..., tn])
+  = {
+      (v1, v2, ..., vn)
+      | v1 in values(t1),
+        v2 in values(t2),
+        ...,
+        vn in values(tn)
+    }
 ```
 
-If there are no target occurrences, then for all methods:
+If a tree is name-free, then:
 
 ```text
-collapse(tree, label, method) == { tree }
+generate(tree, {}, {}) == values(tree)
 ```
 
-If there are target occurrences, their effective domain is the intersection of their contributed value sets.
+## Effective Label Domains
+
+For each named occurrence of label `L`, remove only the `Name(L)` metadata and call the resulting name-free subtree the occurrence domain tree.
+
+The effective domain of label `L` is:
 
 ```text
-effective_domain(tree, label)
-  = intersection(values(occurrence_i) for each target occurrence i)
+domain(L) = intersection(values(occurrence_domain_tree_i) for every occurrence i of label L)
 ```
 
-If the intersection is empty, then:
+Consequences:
+
+- if a label occurs once, its domain is the denotation of that one occurrence
+- if a label occurs several times, all occurrences must agree on one shared value
+- if the intersection is empty, then `generate(...)` MUST return `{}`
+
+### Example
 
 ```text
-collapse(tree, label, "all") == {}
+Tuple[
+  Annotated[int, ValueRange(1, 5), Name("X")],
+  Annotated[int, ValueRange(3, 7), Name("X")]
+]
 ```
 
-and every other method MUST also return `{}`.
-
-### Refinement
-
-For each `v` in the effective domain, define `refine(tree, label, v)` as the tree obtained by replacing every target occurrence with:
+has:
 
 ```text
-Annotated[Literal[v], Super(label)]
+domain("X") = { 3, 4, 5 }
 ```
 
-All non-target subtrees MUST remain unchanged.
+## Satisfying Assignments
 
-### Semantics by method
+Let `Labels(tree)` be the set of labels used in the tree.
+
+A candidate assignment `σ` maps every label in `Labels(tree)` to one concrete runtime value.
+
+An assignment is admissible if:
+
+- for every label `L`, `σ(L)` is in `domain(L)`
+- every constraint evaluates to `True` under `σ`
 
 Let:
 
 ```text
-ALL(tree, label) = { refine(tree, label, v) | v in effective_domain(tree, label) }
+Sat(tree, constraints)
 ```
 
-Then the methods are defined as follows.
+denote the set of all admissible assignments.
 
-#### Method `"all"`
+If `Sat(tree, constraints)` is empty, then:
 
 ```text
-collapse(tree, label, "all") == ALL(tree, label)
+generate(tree, methods, constraints) == {}
 ```
 
-This method MUST return the full set of refinements.
+for every method configuration.
 
-#### Method `"arbitrary"`
+## Concretization Under an Assignment
 
-If `ALL(tree, label)` is empty, return `{}`.
-
-Otherwise return any singleton subset of `ALL(tree, label)`.
-
-No fairness or determinism guarantee is required.
-
-#### Method `"uniform_random"`
-
-If `ALL(tree, label)` is empty, return `{}`.
-
-Otherwise return a singleton subset of `ALL(tree, label)` selected uniformly over the distinct members of `ALL(tree, label)`.
-
-#### Method `"arbitrarish_randomish"`
-
-If `ALL(tree, label)` is empty, return `{}`.
-
-Otherwise return a singleton subset of `ALL(tree, label)`.
-
-This method is explicitly heuristic. It MAY be biased and does not need to be uniform.
-
-### Important semantic consequences
-
-#### Same label means same value
+For an admissible assignment `σ`, define `concretize(tree, σ)` as the set of runtime objects obtained by recursively interpreting the tree with labels replaced by `σ`.
 
 ```text
-collapse(
-  Tuple[
-    Annotated[bool, Super("X")],
-    Annotated[bool, Super("X")]
-  ],
-  "X",
-  "all"
+concretize(None, σ)
+  = { None }
+
+concretize(bool, σ)
+  = { True, False }
+
+concretize(Literal[v], σ)
+  = { v }
+
+concretize(Annotated[int, ValueRange(min, max)], σ)
+  = { min, min + 1, ..., max }
+
+concretize(Union[t1, t2, ..., tn], σ)
+  = concretize(t1, σ) union concretize(t2, σ) union ... union concretize(tn, σ)
+
+concretize(Tuple[t1, t2, ..., tn], σ)
+  = {
+      (v1, v2, ..., vn)
+      | v1 in concretize(t1, σ),
+        v2 in concretize(t2, σ),
+        ...,
+        vn in concretize(tn, σ)
+    }
+
+concretize(Annotated[base, ..., Name(L), ...], σ)
+  = { σ(L) }
+```
+
+In other words:
+
+- unnamed structure still expands normally
+- named occurrences are replaced atomically by the assigned value for their label
+
+This is why:
+
+```python
+generate(Tuple[bool, Literal["N\\A"]], {}, {})
+```
+
+returns two tuples, while:
+
+```python
+generate(Annotated[Tuple[bool, bool], Name("X")], {"X": "all"}, {})
+```
+
+returns the values of one named tuple variable.
+
+## Method Semantics
+
+### Overview
+
+Methods control how labels are fixed before concretization.
+
+- `"all"` means do not pre-fix that label
+- every other method chooses exactly one witness value for that label
+
+Unnamed structure is never affected by methods. It always expands fully.
+
+### Processing order
+
+Let:
+
+```text
+S0 = Sat(tree, constraints)
+```
+
+If `S0` is empty, the result is `{}`.
+
+Otherwise, let `S := S0` and process every label whose method is not `"all"` in ascending lexicographic order of the label string.
+
+For any current assignment set `S` and label `L`, define:
+
+```text
+projection(L, S) = { σ(L) | σ in S }
+```
+
+Since `S` is non-empty while processing continues, every such projection is non-empty.
+
+### Method `"all"`
+
+`"all"` does not filter assignments.
+
+It exists to preserve the full satisfying variation of that label.
+
+This method MUST be deterministic.
+
+### Method `"arbitrary"`
+
+For label `L`, choose one value:
+
+```text
+v = select_arbitrary(L, S)
+```
+
+such that:
+
+- `v` is in `projection(L, S)`
+- the selection is deterministic for fixed input
+- the selection MAY depend on the full current assignment set `S`, not only on the projection
+
+Then replace `S` by:
+
+```text
+{ σ in S | σ(L) = v }
+```
+
+This method prioritizes speed and witness production.
+
+It MUST be deterministic.
+
+It MUST satisfy this non-emptiness invariant:
+
+- if `S0` is non-empty, applying `"arbitrary"` MUST NOT make the result empty
+
+### Method `"uniform_random"`
+
+For label `L`, choose one value `v` from `projection(L, S)` with probability:
+
+```text
+P(v) = |{ σ in S | σ(L) = v }| / |S|
+```
+
+Then replace `S` by:
+
+```text
+{ σ in S | σ(L) = v }
+```
+
+This method MUST be non-deterministic.
+
+It MUST satisfy this non-emptiness invariant:
+
+- if `S0` is non-empty, applying `"uniform_random"` MUST NOT make the result empty
+
+If every label uses `"uniform_random"`, then the final singleton assignment MUST be uniformly distributed over the satisfying assignments in `S0`, modulo deduplication of equal runtime outputs.
+
+### Method `"arbitrarish_randomish"`
+
+For label `L`, choose one value `v` from `projection(L, S)` using a non-deterministic heuristic policy, then replace `S` by:
+
+```text
+{ σ in S | σ(L) = v }
+```
+
+This method:
+
+- MUST be non-deterministic
+- MUST choose only values that are in `projection(L, S)`
+- MUST satisfy the same non-emptiness invariant as the other witness methods
+- SHOULD give non-zero probability to at least two different projected values whenever `projection(L, S)` has more than one member
+
+This method prioritizes speed over distribution quality, while still aiming to avoid returning the same witness all the time.
+
+## Definition of `generate`
+
+Let `S*` be the assignment set that remains after processing every non-`"all"` label according to its method.
+
+Then:
+
+```text
+generate(tree, methods, constraints)
+  = union(concretize(tree, σ) for every σ in S*)
+```
+
+This definition implies the key guarantee requested by the core design:
+
+- a non-`"all"` method MUST return a non-empty result if and only if the corresponding `"all"` problem is non-empty
+
+Methods may change completeness, determinism, and distribution, but they MUST NOT introduce emptiness when satisfying assignments already exist.
+
+## Examples
+
+The `"all"` examples below are exact.
+
+The examples using `"arbitrary"`, `"uniform_random"`, or `"arbitrarish_randomish"` show one compliant outcome unless stated otherwise.
+
+```python
+generate(Literal[True], {}, {})
+== { True }
+
+generate(Tuple[bool, Literal["N\\A"]], {}, {})
+== { (True, "N\\A"), (False, "N\\A") }
+
+generate(Annotated[bool, Name("X")], {"X": "all"}, {})
+== { True, False }
+
+generate(Annotated[bool, Name("X")], {"X": "arbitrary"}, {})
+== { True }
+
+generate(Annotated[Tuple[bool, bool], Name("X")], {"X": "arbitrary"}, {})
+== { (True, False) }
+
+generate(
+    Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
+    {"X": "all", "Y": "all"},
+    {"X == Y"},
 )
-== {
-     Tuple[
-       Annotated[Literal[True],  Super("X")],
-       Annotated[Literal[True],  Super("X")]
-     ],
-     Tuple[
-       Annotated[Literal[False], Super("X")],
-       Annotated[Literal[False], Super("X")]
-     ]
-   }
-```
+== { (True, True), (False, False) }
 
-The core MUST NOT produce mixed `True/False` combinations for the same label.
-
-#### Different labels are independent
-
-```text
-collapse(
-  Tuple[
-    Annotated[bool, Super("X")],
-    Annotated[bool, Super("Y")]
-  ],
-  "X",
-  "all"
+generate(
+    Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
+    {"X": "all", "Y": "all"},
+    {"X != Y"},
 )
-== {
-     Tuple[
-       Annotated[Literal[True],  Super("X")],
-       Annotated[bool,           Super("Y")]
-     ],
-     Tuple[
-       Annotated[Literal[False], Super("X")],
-       Annotated[bool,           Super("Y")]
-     ]
-   }
-```
+== { (True, False), (False, True) }
 
-Only the target label changes.
-
-#### Range intersection
-
-```text
-collapse(
-  Tuple[
-    Annotated[IntRange(1, 5), Super("X")],
-    Annotated[IntRange(3, 7), Super("X")]
-  ],
-  "X",
-  "all"
+generate(
+    Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
+    {"X": "all", "Y": "arbitrary"},
+    {"X == Y"},
 )
-== {
-     Tuple[
-       Annotated[Literal[3], Super("X")],
-       Annotated[Literal[3], Super("X")]
-     ],
-     Tuple[
-       Annotated[Literal[4], Super("X")],
-       Annotated[Literal[4], Super("X")]
-     ],
-     Tuple[
-       Annotated[Literal[5], Super("X")],
-       Annotated[Literal[5], Super("X")]
-     ]
-   }
+== { (True, True) }
+
+generate(
+    Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
+    {"X": "all", "Y": "arbitrary"},
+    {"X != Y"},
+)
+== { (True, False) }
+
+generate(
+    Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
+    {"X": "arbitrary", "Y": "arbitrary"},
+    {"X != Y"},
+)
+== { (True, False) }
 ```
 
-#### Idempotence after collapse
+The examples above are consistent with the required non-emptiness rule:
 
-If a label is already fully refined to one literal, then collapsing it again MUST return the same singleton tree.
-
-Example:
-
-```text
-collapse(Annotated[Literal[True], Super("X")], "X", "all")
-  == { Annotated[Literal[True], Super("X")] }
-```
-
-## Derived Usage Pattern
-
-The core only collapses one label at a time. To refine multiple labels, a caller repeatedly applies `collapse(...)` across a set of current trees.
-
-Conceptually:
-
-```text
-expand_label_set(trees, label, method)
-  = union(collapse(tree, label, method) for tree in trees)
-```
-
-Then a full pipeline can look like:
-
-```text
-trees0 = generate_ground(tree)
-trees1 = expand_label_set(trees0, "X", "all")
-trees2 = expand_label_set(trees1, "Y", "all")
-...
-```
-
-This staged API is intentional. It keeps symbolic identity explicit and local.
+- if the `"all"` version has a non-empty satisfying set, then every witness-based method also has a non-empty result
 
 ## Compliance
 
 A core implementation is compliant with this spec if it:
 
-- accepts all valid inputs covered by this document
+- accepts valid inputs covered by this document
 - rejects invalid inputs covered by this document
-- satisfies the exact set semantics of `generate_ground(...)`
-- satisfies the exact label semantics of `collapse(..., "all")`
-- satisfies the subset and cardinality properties of the non-`"all"` methods
+- implements the denotation of unnamed trees correctly
+- implements label-domain intersection correctly
+- parses and evaluates constraints according to the grammar and type rules above
+- implements method semantics and the non-emptiness invariant correctly
+- returns plain runtime values as a set
 
-For randomized methods, compliance has two parts:
+For randomized methods, compliance has two layers:
 
 - MUST-level shape guarantees
-- SHOULD-level distribution guarantees
+- SHOULD-level distribution-quality guarantees
 
 ### Compliance matrix
 
 | ID | Level | Requirement | Input / Operation | Expected result |
 | --- | --- | --- | --- | --- |
-| GG-01 | MUST | Boolean grounding | `generate_ground(bool)` | `{Literal[True], Literal[False]}` |
-| GG-02 | MUST | Literal stability | `generate_ground(Literal[5])` | `{Literal[5]}` |
-| GG-03 | MUST | Range grounding is finite and inclusive | `generate_ground(IntRange(-1, 1))` | `{Literal[-1], Literal[0], Literal[1]}` |
-| GG-04 | MUST | Frontend range sugar normalizes correctly | `generate_ground(Annotated[int, ValueRange(3, 4)])` | `{Literal[3], Literal[4]}` |
-| GG-05 | MUST | Tuple grounding is cartesian product | `generate_ground(Tuple[bool, Literal["N\\A"]])` | `{Tuple[Literal[True], Literal["N\\A"]], Tuple[Literal[False], Literal["N\\A"]]}` |
-| GG-06 | MUST | Union grounding deduplicates equal branches | `generate_ground(Union[bool, bool])` | `{Literal[True], Literal[False]}` |
-| GG-07 | MUST | `None` behaves as a singleton branch | `generate_ground(Union[bool, None])` | `{Literal[True], Literal[False], None}` |
-| GG-08 | MUST | Symbolic leaves are preserved | `generate_ground(Annotated[bool, Super("X")])` | `{Annotated[bool, Super("X")]}` |
-| GG-09 | MUST | Mixed ground generation preserves symbolic leaves while expanding concrete branches | `generate_ground(Tuple[bool, Union[Annotated[bool, Super("X")], None]])` | `{Tuple[Literal[True], None], Tuple[Literal[False], None], Tuple[Literal[True], Annotated[bool, Super("X")]], Tuple[Literal[False], Annotated[bool, Super("X")]]}` |
-| CL-01 | MUST | Absent label is identity | `collapse(Literal[True], "X", "all")` | `{Literal[True]}` |
-| CL-02 | MUST | `all` over a boolean symbol returns both refinements | `collapse(Annotated[bool, Super("X")], "X", "all")` | `{Annotated[Literal[True], Super("X")], Annotated[Literal[False], Super("X")]}` |
-| CL-03 | MUST | `all` over a range symbol returns all refinements | `collapse(Annotated[IntRange(3, 4), Super("X")], "X", "all")` | `{Annotated[Literal[3], Super("X")], Annotated[Literal[4], Super("X")]}` |
-| CL-04 | MUST | Same label collapses simultaneously across all occurrences | `collapse(Tuple[Annotated[bool, Super("X")], Annotated[bool, Super("X")]], "X", "all")` | exactly two results, both positions equal in each result |
-| CL-05 | MUST | Same label with compatible ranges intersects domains | `collapse(Tuple[Annotated[IntRange(1, 5), Super("X")], Annotated[IntRange(3, 7), Super("X")]], "X", "all")` | exactly `{3, 4, 5}` projected through both positions |
-| CL-06 | MUST | Same label with disjoint compatible ranges yields empty result | `collapse(Tuple[Annotated[IntRange(1, 2), Super("X")], Annotated[IntRange(5, 6), Super("X")]], "X", "all")` | `{}` |
-| CL-07 | MUST | Same label with incompatible sorts is invalid | `collapse(Tuple[Annotated[bool, Super("X")], Annotated[IntRange(1, 3), Super("X")]], "X", "all")` | invalid-tree error |
-| CL-08 | MUST | Non-target labels remain symbolic | `collapse(Tuple[Annotated[bool, Super("X")], Annotated[bool, Super("Y")]], "X", "all")` | two results where only `"X"` is refined |
-| CL-09 | MUST | `arbitrary` returns either empty or a singleton subset of `all` | compare `collapse(tree, "X", "arbitrary")` against `collapse(tree, "X", "all")` | result cardinality is `0` or `1`, and every member is in `all` |
-| CL-10 | MUST | `uniform_random` returns either empty or a singleton subset of `all` | compare `collapse(tree, "X", "uniform_random")` against `collapse(tree, "X", "all")` | result cardinality is `0` or `1`, and every member is in `all` |
-| CL-11 | SHOULD | `uniform_random` is statistically close to uniform over repeated trials | sample `collapse(Annotated[bool, Super("X")], "X", "uniform_random")` many times | both boolean outcomes appear with near-equal frequency |
-| CL-12 | MUST | `arbitrarish_randomish` returns either empty or a singleton subset of `all` | compare `collapse(tree, "X", "arbitrarish_randomish")` against `collapse(tree, "X", "all")` | result cardinality is `0` or `1`, and every member is in `all` |
-| CL-13 | MUST | Re-collapsing an already refined label is idempotent | `collapse(Annotated[Literal[True], Super("X")], "X", "all")` | `{Annotated[Literal[True], Super("X")]}` |
+| GEN-01 | MUST | Literal generation | `generate(Literal[True], {}, {})` | `{True}` |
+| GEN-02 | MUST | Unnamed tuple expansion | `generate(Tuple[bool, Literal["N\\A"]], {}, {})` | `{(True, "N\\A"), (False, "N\\A")}` |
+| GEN-03 | MUST | Bounded integer expansion | `generate(Annotated[int, ValueRange(3, 4)], {}, {})` | `{3, 4}` |
+| GEN-04 | MUST | Default method is `"all"` | `generate(Annotated[bool, Name("X")], {}, {})` | `{True, False}` |
+| GEN-05 | MUST | Same label means same value | `generate(Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("X")]], {"X": "all"}, {})` | `{(True, True), (False, False)}` |
+| GEN-06 | MUST | Equality constraint with exhaustive methods | `generate(Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]], {"X": "all", "Y": "all"}, {"X == Y"})` | `{(True, True), (False, False)}` |
+| GEN-07 | MUST | Inequality constraint with exhaustive methods | `generate(Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]], {"X": "all", "Y": "all"}, {"X != Y"})` | `{(True, False), (False, True)}` |
+| GEN-08 | MUST | Address constraints work | `generate(Annotated[Tuple[bool, bool], Name("X")], {"X": "all"}, {"X[0] != X[1]"})` | `{(True, False), (False, True)}` |
+| GEN-09 | MUST | Repeated label domains intersect | `generate(Tuple[Annotated[int, ValueRange(1, 5), Name("X")], Annotated[int, ValueRange(3, 7), Name("X")]], {"X": "all"}, {})` | `{(3, 3), (4, 4), (5, 5)}` |
+| GEN-10 | MUST | Impossible constraints produce empty output | `generate(Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]], {"X": "all", "Y": "all"}, {"X == Y", "X != Y"})` | `{}` |
+| GEN-11 | MUST | `arbitrary` is a singleton subset of the `"all"` result when satisfiable | compare `generate(tree, {"X": "arbitrary"}, constraints)` against `generate(tree, {"X": "all"}, constraints)` | result cardinality is `1`, result is a subset of the `"all"` result |
+| GEN-12 | MUST | `arbitrary` is deterministic | run the same `generate(...)` call with `"arbitrary"` repeatedly | same result every time |
+| GEN-13 | MUST | Witness methods preserve non-emptiness | for any satisfiable input, replace some `"all"` methods with witness methods | output stays non-empty |
+| GEN-14 | MUST | `uniform_random` returns a singleton subset of the `"all"` result when satisfiable | compare `generate(tree, {"X": "uniform_random"}, constraints)` against `generate(tree, {"X": "all"}, constraints)` | result cardinality is `1`, result is a subset of the `"all"` result |
+| GEN-15 | SHOULD | `uniform_random` is statistically close to uniform when all labels use `"uniform_random"` | sample many runs on a problem with several satisfying assignments | frequencies are close to uniform over satisfying outputs |
+| GEN-16 | MUST | `arbitrarish_randomish` returns a singleton subset of the `"all"` result when satisfiable | compare `generate(tree, {"X": "arbitrarish_randomish"}, constraints)` against `generate(tree, {"X": "all"}, constraints)` | result cardinality is `1`, result is a subset of the `"all"` result |
+| GEN-17 | SHOULD | `arbitrarish_randomish` shows some variation when several witnesses exist | sample many runs on a problem with several satisfying assignments | at least two distinct outputs appear |
+| GEN-18 | MUST | Empty label is invalid | any tree containing `Name("")` | validation error |
+| GEN-19 | MUST | Missing label reference in constraints is invalid | `generate(Annotated[bool, Name("X")], {}, {"Y == True"})` | validation error |
+| GEN-20 | MUST | Plain `int` is invalid in core | any tree containing plain `int` without `ValueRange(...)` | validation error |
 
-## Summary of the Architectural Rule
+## Summary
 
-The most important invariant in this spec is simple:
+This core has one observable interface:
 
-- structure controls branching
-- labels control symbolic identity
+```python
+generate(tree, methods, constraints)
+```
 
-`generate_ground(...)` expands structure.
+Its semantics are governed by four ideas:
 
-`collapse(...)` refines one label at a time.
+- unnamed structure expands exhaustively
+- `Name(label)` defines variable identity
+- constraints restrict admissible label assignments
+- methods decide which labels stay exhaustive and which are fixed to one witness
 
-A compliant implementation MUST NOT infer symbolic aliasing from repeated structure alone. Symbolic aliasing exists only when the same `Super(label)` appears more than once.
+The key invariant is the one that motivated this redesign:
+
+- methods may change completeness, determinism, and distribution
+- but they MUST NOT make a satisfiable problem empty
+
+That property is part of compliance.
