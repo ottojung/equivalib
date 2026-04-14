@@ -72,10 +72,10 @@ def concretize(node: IRNode, assignment: Mapping[str, object]) -> frozenset[obje
             )
         return result
     if isinstance(node, UnionNode):
-        union_result: frozenset[object] = frozenset()
+        result = frozenset()
         for opt in node.options:
-            union_result = union_result | concretize(opt, assignment)
-        return union_result
+            result = result | concretize(opt, assignment)
+        return result
     impossible(node)
 
 

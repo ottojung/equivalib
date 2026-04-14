@@ -8,7 +8,7 @@ Three public entry points:
 
 from __future__ import annotations
 
-from typing import Dict, Mapping
+from typing import Dict, Mapping, TypeAlias
 
 from equivalib.core.types import (
     NoneNode,
@@ -46,8 +46,8 @@ from equivalib.core.expression import (
 )
 
 _VALID_METHODS = frozenset({"all", "arbitrary", "uniform_random", "arbitrarish_randomish"})
-LabelShapes = Dict[str, IRNode]
-ExprType = str
+LabelShapes: TypeAlias = Dict[str, IRNode]
+ExprType: TypeAlias = str
 
 
 def validate_tree(node: IRNode) -> None:
