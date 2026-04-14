@@ -22,6 +22,7 @@ from equivalib.core.expression import (
 from equivalib.core.name import Name as CoreName
 from equivalib.core.normalize import normalize
 from equivalib.core.order import canonical_first, canonical_sorted
+from equivalib.core.types import LiteralNode
 
 
 def core_attr(name: str) -> Any:
@@ -661,6 +662,35 @@ def test_generate_rejects_path_when_repeated_label_has_non_tuple_occurrence():
     ]
     with pytest.raises(ValueError):
         generate(tree, Eq(ref("X", (0,)), bool_const(True)), {})
+
+
+def test_generate_address_on_nested_union_of_tuples():
+    """A path into a nested union of tuples (Union[A, Union[B, C]]) is accepted."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    # normalize() will produce UnionNode([TupleNode([BoolNode]), UnionNode([TupleNode([BoolNode])])])
+    # _resolve_shape must handle nested UnionNodes.
+    tree = Annotated[Union[Tuple[bool], Union[Tuple[bool]]], Name("X")]
+    constraint = Eq(ref("X", (0,)), bool_const(True))
+    result = generate(tree, constraint, {"X": "all"})
+    assert result == {(True,)}
+
+
+def test_literal_node_bool_not_equal_to_int():
+    """LiteralNode(True) must not compare equal to LiteralNode(1)."""
+    assert LiteralNode(True) != LiteralNode(1)
+    assert LiteralNode(False) != LiteralNode(0)
+    assert hash(LiteralNode(True)) != hash(LiteralNode(1))
+
+
+def test_generate_literal_true_not_same_as_literal_one():
+    """Literal[True] and Literal[1] must produce different domains."""
+    generate = core_attr("generate")
+    assert generate(Literal[True]) == {True}
+    assert generate(Literal[1]) == {1}
+    # The union of Literal[True, 1] must produce two distinct values, not one.
+    assert generate(Literal[True, 1]) == {True, 1}
 
 
 # --------------------------------------------------------------------------

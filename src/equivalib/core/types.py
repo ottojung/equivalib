@@ -38,12 +38,12 @@ class LiteralNode:
     value: object
 
     def __hash__(self) -> int:
-        return hash(("LiteralNode", self.value))
+        return hash(("LiteralNode", type(self.value), self.value))
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, LiteralNode):
             return NotImplemented
-        return self.value == other.value
+        return type(self.value) is type(other.value) and self.value == other.value
 
 
 @dataclass(frozen=True)

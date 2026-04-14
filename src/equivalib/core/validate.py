@@ -250,20 +250,28 @@ def _resolve_shape(shape: object, path: tuple[int, ...]) -> object:
     remaining = path[1:]
 
     if isinstance(shape, UnionNode):
-        # _validate_address already ensured all options are TupleNodes with
-        # valid indices; navigate each branch and collect sub-shapes.
+        # Navigate each branch and collect sub-shapes.
+        # Recursing into each option handles nested UnionNodes naturally.
         collected: list[object] = []
         for opt in shape.options:
-            if not isinstance(opt, TupleNode):
-                raise ValueError(
-                    f"Cannot index into non-tuple union option {opt!r} at path {path!r}."
-                )
-            collected.append(_resolve_shape(opt.items[idx], remaining))
-        sub_shapes = tuple(collected)
-        # If all branches resolve to the same shape, return it directly.
-        if len(set(sub_shapes)) == 1:
-            return sub_shapes[0]
-        return UnionNode(sub_shapes)
+            sub = _resolve_shape(opt, path)
+            if isinstance(sub, UnionNode):
+                # Flatten the nested union result.
+                collected.extend(sub.options)
+            else:
+                collected.append(sub)
+        # Deduplicate while preserving order.
+        # All IR shape types are frozen dataclasses with well-defined __hash__,
+        # so set operations are safe here.
+        seen: set[object] = set()
+        dedup: list[object] = []
+        for s in collected:
+            if s not in seen:
+                seen.add(s)
+                dedup.append(s)
+        if len(dedup) == 1:
+            return dedup[0]
+        return UnionNode(tuple(dedup))
 
     if isinstance(shape, TupleNode):
         return _resolve_shape(shape.items[idx], remaining)
