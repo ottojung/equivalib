@@ -23,6 +23,7 @@ from equivalib.core.name import Name as CoreName
 from equivalib.core.normalize import normalize
 from equivalib.core.order import canonical_first, canonical_sorted
 from equivalib.core.types import LiteralNode
+from equivalib.core.validate import validate_methods
 
 
 def core_attr(name: str) -> Any:
@@ -988,3 +989,65 @@ def test_generate_non_empty_for_all_super_methods_when_satisfiable():
     for method in ["all", "arbitrary", "uniform_random", "arbitrarish_randomish"]:
         result = generate(tree, true_expr(), {"X": method})
         assert result, f"Expected non-empty result for method={method!r}"
+
+
+# --------------------------------------------------------------------------
+# Normalize: Literal value type restrictions
+# --------------------------------------------------------------------------
+
+def test_normalize_rejects_float_literal():
+    """Literal with a float value must be rejected (not in supported types)."""
+    generate = core_attr("generate")
+    with pytest.raises(ValueError):
+        generate(Literal[1.5])  # type: ignore[arg-type]
+
+
+def test_normalize_rejects_bytes_literal():
+    """Literal with a bytes value must be rejected (not in supported types)."""
+    generate = core_attr("generate")
+    with pytest.raises(ValueError):
+        generate(Literal[b"x"])  # type: ignore[arg-type]
+
+
+def test_normalize_accepts_none_literal():
+    """Literal[None] must be accepted as a singleton domain."""
+    generate = core_attr("generate")
+    assert generate(Literal[None]) == {None}
+
+
+def test_normalize_accepts_all_supported_scalar_literals():
+    """Literal with mixed supported scalar types must be accepted."""
+    generate = core_attr("generate")
+    assert generate(Literal[True, 0, "hi"]) == {True, 0, "hi"}
+
+
+# --------------------------------------------------------------------------
+# Validate: validate_methods type guard
+# --------------------------------------------------------------------------
+
+def test_validate_methods_rejects_non_mapping():
+    """Passing a list (not a Mapping) as methods must raise TypeError."""
+    tree = normalize(bool)
+    with pytest.raises(TypeError):
+        validate_methods(tree, ["all"])  # type: ignore[arg-type]
+
+
+def test_validate_methods_rejects_tuple_as_methods():
+    """Passing a tuple as methods must raise TypeError."""
+    tree = normalize(bool)
+    with pytest.raises(TypeError):
+        validate_methods(tree, ("all",))  # type: ignore[arg-type]
+
+
+# --------------------------------------------------------------------------
+# Search: domain precomputation does not change results
+# --------------------------------------------------------------------------
+
+def test_search_sorted_domain_precomputation_produces_correct_results():
+    """Results from search() must be the same whether domains are pre-sorted or not."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    tree = Annotated[int, ValueRange(0, 4), Name("X")]
+    constraint = Eq(ref("X"), int_const(3))
+    assert generate(tree, constraint, {}) == {3}

@@ -49,12 +49,12 @@ def normalize(t: Any) -> object:
 
     # --- Literal ---
     if origin is typing.Literal:
+        _SUPPORTED_LITERAL_TYPES = (type(None), bool, int, str)
         for v in args:
-            try:
-                hash(v)
-            except TypeError:
+            if not isinstance(v, _SUPPORTED_LITERAL_TYPES):
                 raise ValueError(
-                    f"Unsupported non-hashable Literal value in new core: {v!r}."
+                    f"Literal value {v!r} has unsupported type {type(v).__name__!r}. "
+                    f"Only None, bool, int, and str are supported in Literal[...]."
                 )
         if len(args) == 1:
             return LiteralNode(args[0])

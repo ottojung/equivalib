@@ -82,6 +82,10 @@ def _check_node(node: object) -> None:
 
 def validate_methods(node: object, methods: Mapping[str, str]) -> None:
     """Raise ValueError if any method key or value is invalid."""
+    if not isinstance(methods, Mapping):
+        raise TypeError(
+            f"'methods' must be a Mapping[str, str], got {type(methods).__name__!r}."
+        )
     known_labels = tree_labels(node)
     for key, method in methods.items():
         if key not in known_labels:

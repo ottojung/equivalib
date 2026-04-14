@@ -28,19 +28,26 @@ def search(node: object, constraint: object) -> list[dict[str, Any]]:
     label_list = sorted(tree_labels(node))
     domains = domain_map(node)
 
+    # Precompute canonical-sorted domain lists once to avoid O(n log n) work
+    # on every recursive call inside _backtrack.
+    sorted_domains: dict[str, list[Any]] = {
+        label: canonical_sorted(domains.get(label, frozenset()))
+        for label in label_list
+    }
+
     # Early exit: any empty domain means no satisfying assignments exist.
-    for d in domains.values():
-        if not d:
+    for values in sorted_domains.values():
+        if not values:
             return []
 
     results: list[dict[str, Any]] = []
-    _backtrack(label_list, domains, constraint, {}, results)
+    _backtrack(label_list, sorted_domains, constraint, {}, results)
     return results
 
 
 def _backtrack(
     label_list: list[str],
-    domains: dict[str, frozenset[Any]],
+    sorted_domains: dict[str, list[Any]],
     constraint: object,
     partial: dict[str, Any],
     results: list[dict[str, Any]],
@@ -54,12 +61,11 @@ def _backtrack(
 
     label = label_list[0]
     rest = label_list[1:]
-    domain = domains.get(label, frozenset())
 
-    for value in canonical_sorted(domain):
+    for value in sorted_domains.get(label, []):
         partial[label] = value
         # Partial pruning: if constraint is already False, skip this branch.
         result = eval_expression_partial(constraint, partial)
         if result is not False:
-            _backtrack(rest, domains, constraint, partial, results)
+            _backtrack(rest, sorted_domains, constraint, partial, results)
         del partial[label]
