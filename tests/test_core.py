@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import importlib
-from typing import Annotated, Any, Literal, Tuple, Union
+from typing import Annotated, Any, Literal, Tuple
 
 import pytest
 
 from equivalib import ValueRange
-
 
 pytestmark = pytest.mark.xfail(
     reason="Core API from docs/spec1.md is planned but not implemented yet.",
@@ -91,9 +90,7 @@ def test_generate_named_bool_arbitrary_picks_canonical_first():
 def test_generate_named_tuple_arbitrary_picks_one_tuple_witness():
     generate = core_attr("generate")
     Name = core_attr("Name")
-    assert generate(Annotated[Tuple[bool, bool], Name("X")], true_expr(), {"X": "arbitrary"}) == {
-        (True, False)
-    }
+    assert generate(Annotated[Tuple[bool, bool], Name("X")], true_expr(), {"X": "arbitrary"}) == {(True, False)}
 
 
 def test_generate_same_label_means_same_value():
