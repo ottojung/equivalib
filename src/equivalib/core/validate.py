@@ -246,13 +246,3 @@ def _validate_address(label: str, path: tuple, shape: object) -> None:
     # caught that above. No further checks needed for zero-length paths.
 
 
-def _validate_union_address(label: str, path: tuple, shape: UnionNode) -> None:
-    """All union branches must support the path uniformly."""
-    for opt in shape.options:
-        if isinstance(opt, TupleNode):
-            _validate_address(label, path, opt)
-        else:
-            raise ValueError(
-                f"Address path {path!r} for label {label!r} crosses a "
-                f"union branch that is not a tuple: {opt!r}."
-            )

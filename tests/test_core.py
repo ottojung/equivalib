@@ -113,6 +113,8 @@ def test_generate_named_bool_arbitrary_picks_canonical_first():
 def test_generate_named_tuple_arbitrary_picks_one_tuple_witness():
     generate = core_attr("generate")
     Name = core_attr("Name")
+    # Canonical order: True < False (True sorts first), so (True, True) is the
+    # lexicographically-first tuple under the canonical total order.
     assert generate(Annotated[Tuple[bool, bool], Name("X")], true_expr(), {"X": "arbitrary"}) == {(True, True)}
 
 
