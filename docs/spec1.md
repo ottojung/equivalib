@@ -48,18 +48,22 @@ The words MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY are to be interpreted as n
 Label: TypeAlias = str
 Method: TypeAlias = Literal["all", "arbitrary", "uniform_random", "arbitrarish_randomish"]
 
-generate(tree: TypeTree, methods: Mapping[Label, Method], constraint: Expression) -> Set[object]
+generate(tree: Type[T], constraint: Expression = BooleanExpression(True), methods: Mapping[Label, Method] = {}) -> Set[T]
 ```
+
+Here `T` is the runtime type denoted by `tree`.
 
 Default behavior:
 
 - if a label is not present in `methods`, its method is `"all"`
-- if the constraint is omitted in examples, it defaults to `BooleanConstant(True)`
+- if the constraint is omitted in examples, it defaults to `BooleanExpression(True)`
+
+`BooleanExpression(True)` denotes the always-true boolean expression value. A compliant implementation MAY represent it canonically as `BooleanConstant(True)`.
 
 There is only one constraint parameter because conjunction is already an AST constructor:
 
 - `And(left, right)` combines constraints
-- `BooleanConstant(True)` is the unconstrained case
+- `BooleanExpression(True)` is the unconstrained case
 
 Examples in this document MAY omit trailing default arguments. Therefore:
 
@@ -70,7 +74,7 @@ generate(tree)
 means:
 
 ```python
-generate(tree, {}, BooleanConstant(True))
+generate(tree, BooleanExpression(True), {})
 ```
 
 ## TypeTree
@@ -304,7 +308,7 @@ values(Tuple[t1, t2, ..., tn])
 If a tree is name-free, then:
 
 ```text
-generate(tree, {}, BooleanConstant(True)) == values(tree)
+generate(tree, BooleanExpression(True), {}) == values(tree)
 ```
 
 ## Effective Label Domains
@@ -360,7 +364,7 @@ denote the set of all admissible assignments.
 If `Sat(tree, constraint)` is empty, then:
 
 ```text
-generate(tree, methods, constraint) == {}
+generate(tree, constraint, methods) == {}
 ```
 
 for every method configuration.
@@ -516,7 +520,7 @@ Let `S*` be the assignment set that remains after processing every super label a
 Then:
 
 ```text
-generate(tree, methods, constraint)
+generate(tree, constraint, methods)
   = union(concretize(tree, σ) for every σ in S*)
 ```
 
@@ -628,60 +632,60 @@ The `"all"` examples below are exact.
 The examples using `"arbitrary"`, `"uniform_random"`, or `"arbitrarish_randomish"` show one compliant outcome unless stated otherwise.
 
 ```python
-generate(Literal[True], {}, BooleanConstant(True))
+generate(Literal[True], BooleanExpression(True), {})
 == { True }
 
-generate(Tuple[bool, Literal["N\\A"]], {}, BooleanConstant(True))
+generate(Tuple[bool, Literal["N\\A"]], BooleanExpression(True), {})
 == { (True, "N\\A"), (False, "N\\A") }
 
-generate(Annotated[bool, Name("X")], {"X": "all"}, BooleanConstant(True))
+generate(Annotated[bool, Name("X")], BooleanExpression(True), {"X": "all"})
 == { True, False }
 
-generate(Annotated[bool, Name("X")], {"X": "arbitrary"}, BooleanConstant(True))
+generate(Annotated[bool, Name("X")], BooleanExpression(True), {"X": "arbitrary"})
 == { True }
 
-generate(Annotated[Tuple[bool, bool], Name("X")], {"X": "arbitrary"}, BooleanConstant(True))
+generate(Annotated[Tuple[bool, bool], Name("X")], BooleanExpression(True), {"X": "arbitrary"})
 == { (True, False) }
 
 generate(
     Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
-    {"X": "all", "Y": "all"},
     Eq(Reference("X", ()), Reference("Y", ())),
+  {"X": "all", "Y": "all"},
 )
 == { (True, True), (False, False) }
 
 generate(
     Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
-    {"X": "all", "Y": "all"},
     Ne(Reference("X", ()), Reference("Y", ())),
+  {"X": "all", "Y": "all"},
 )
 == { (True, False), (False, True) }
 
 generate(
     Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
-    {"X": "all", "Y": "arbitrary"},
     Eq(Reference("X", ()), Reference("Y", ())),
+  {"X": "all", "Y": "arbitrary"},
 )
 == { (True, True) }
 
 generate(
     Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
-    {"X": "all", "Y": "arbitrary"},
     Ne(Reference("X", ()), Reference("Y", ())),
+  {"X": "all", "Y": "arbitrary"},
 )
 == { (True, False) }
 
 generate(
     Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
-    {"X": "arbitrary", "Y": "arbitrary"},
     Ne(Reference("X", ()), Reference("Y", ())),
+  {"X": "arbitrary", "Y": "arbitrary"},
 )
 == { (True, False) }
 
 generate(
     Annotated[Tuple[bool, bool], Name("X")],
-    {"X": "all"},
     Ne(Reference("X", (0,)), Reference("X", (1,))),
+  {"X": "all"},
 )
 == { (True, False), (False, True) }
 ```
@@ -697,7 +701,7 @@ A core implementation is compliant with this spec if it:
 - evaluates `Expression` ASTs according to the constructor semantics above
 - implements super-label semantics and the non-emptiness invariant correctly
 - implements the guaranteed-cacheable-subtree rule correctly
-- returns plain runtime values as a set
+- returns plain runtime values as a set of instances of the denoted runtime type
 
 For randomized methods, compliance has two layers:
 
@@ -708,28 +712,28 @@ For randomized methods, compliance has two layers:
 
 | ID | Level | Requirement | Input / Operation | Expected result |
 | --- | --- | --- | --- | --- |
-| GEN-01 | MUST | Literal generation | `generate(Literal[True], {}, BooleanConstant(True))` | `{True}` |
-| GEN-02 | MUST | Unnamed tuple expansion | `generate(Tuple[bool, Literal["N\\A"]], {}, BooleanConstant(True))` | `{(True, "N\\A"), (False, "N\\A")}` |
-| GEN-03 | MUST | Bounded integer expansion | `generate(Annotated[int, ValueRange(3, 4)], {}, BooleanConstant(True))` | `{3, 4}` |
-| GEN-04 | MUST | Default method is `"all"` | `generate(Annotated[bool, Name("X")], {}, BooleanConstant(True))` | `{True, False}` |
-| GEN-05 | MUST | Same label means same value | `generate(Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("X")]], {"X": "all"}, BooleanConstant(True))` | `{(True, True), (False, False)}` |
-| GEN-06 | MUST | Equality constraint with exhaustive methods | `generate(Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]], {"X": "all", "Y": "all"}, Eq(Reference("X", ()), Reference("Y", ())))` | `{(True, True), (False, False)}` |
-| GEN-07 | MUST | Inequality constraint with exhaustive methods | `generate(Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]], {"X": "all", "Y": "all"}, Ne(Reference("X", ()), Reference("Y", ())))` | `{(True, False), (False, True)}` |
-| GEN-08 | MUST | Address constraints work | `generate(Annotated[Tuple[bool, bool], Name("X")], {"X": "all"}, Ne(Reference("X", (0,)), Reference("X", (1,))))` | `{(True, False), (False, True)}` |
-| GEN-09 | MUST | Repeated label domains intersect | `generate(Tuple[Annotated[int, ValueRange(1, 5), Name("X")], Annotated[int, ValueRange(3, 7), Name("X")]], {"X": "all"}, BooleanConstant(True))` | `{(3, 3), (4, 4), (5, 5)}` |
-| GEN-10 | MUST | Impossible constraints produce empty output | `generate(Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]], {"X": "all", "Y": "all"}, And(Eq(Reference("X", ()), Reference("Y", ())), Ne(Reference("X", ()), Reference("Y", ()))))` | `{}` |
-| GEN-11 | MUST | `arbitrary` is a singleton subset of the `"all"` result when satisfiable | compare `generate(tree, {"X": "arbitrary"}, constraint)` against `generate(tree, {"X": "all"}, constraint)` | result cardinality is `1`, result is a subset of the `"all"` result |
+| GEN-01 | MUST | Literal generation | `generate(Literal[True], BooleanExpression(True), {})` | `{True}` |
+| GEN-02 | MUST | Unnamed tuple expansion | `generate(Tuple[bool, Literal["N\\A"]], BooleanExpression(True), {})` | `{(True, "N\\A"), (False, "N\\A")}` |
+| GEN-03 | MUST | Bounded integer expansion | `generate(Annotated[int, ValueRange(3, 4)], BooleanExpression(True), {})` | `{3, 4}` |
+| GEN-04 | MUST | Default method is `"all"` | `generate(Annotated[bool, Name("X")], BooleanExpression(True), {})` | `{True, False}` |
+| GEN-05 | MUST | Same label means same value | `generate(Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("X")]], BooleanExpression(True), {"X": "all"})` | `{(True, True), (False, False)}` |
+| GEN-06 | MUST | Equality constraint with exhaustive methods | `generate(Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]], Eq(Reference("X", ()), Reference("Y", ())), {"X": "all", "Y": "all"})` | `{(True, True), (False, False)}` |
+| GEN-07 | MUST | Inequality constraint with exhaustive methods | `generate(Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]], Ne(Reference("X", ()), Reference("Y", ())), {"X": "all", "Y": "all"})` | `{(True, False), (False, True)}` |
+| GEN-08 | MUST | Address constraints work | `generate(Annotated[Tuple[bool, bool], Name("X")], Ne(Reference("X", (0,)), Reference("X", (1,))), {"X": "all"})` | `{(True, False), (False, True)}` |
+| GEN-09 | MUST | Repeated label domains intersect | `generate(Tuple[Annotated[int, ValueRange(1, 5), Name("X")], Annotated[int, ValueRange(3, 7), Name("X")]], BooleanExpression(True), {"X": "all"})` | `{(3, 3), (4, 4), (5, 5)}` |
+| GEN-10 | MUST | Impossible constraints produce empty output | `generate(Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]], And(Eq(Reference("X", ()), Reference("Y", ())), Ne(Reference("X", ()), Reference("Y", ()))), {"X": "all", "Y": "all"})` | `{}` |
+| GEN-11 | MUST | `arbitrary` is a singleton subset of the `"all"` result when satisfiable | compare `generate(tree, constraint, {"X": "arbitrary"})` against `generate(tree, constraint, {"X": "all"})` | result cardinality is `1`, result is a subset of the `"all"` result |
 | GEN-12 | MUST | `arbitrary` is deterministic | run the same `generate(...)` call with `"arbitrary"` repeatedly | same result every time |
 | GEN-13 | MUST | Super methods preserve non-emptiness | for any satisfiable input, replace some `"all"` methods with super methods | output stays non-empty |
-| GEN-14 | MUST | `uniform_random` returns a singleton subset of the `"all"` result when satisfiable | compare `generate(tree, {"X": "uniform_random"}, constraint)` against `generate(tree, {"X": "all"}, constraint)` | result cardinality is `1`, result is a subset of the `"all"` result |
+| GEN-14 | MUST | `uniform_random` returns a singleton subset of the `"all"` result when satisfiable | compare `generate(tree, constraint, {"X": "uniform_random"})` against `generate(tree, constraint, {"X": "all"})` | result cardinality is `1`, result is a subset of the `"all"` result |
 | GEN-15 | SHOULD | `uniform_random` is statistically close to uniform when all labels are super and use `"uniform_random"` | sample many runs on a problem with several satisfying assignments | frequencies are close to uniform over satisfying outputs |
-| GEN-16 | MUST | `arbitrarish_randomish` returns a singleton subset of the `"all"` result when satisfiable | compare `generate(tree, {"X": "arbitrarish_randomish"}, constraint)` against `generate(tree, {"X": "all"}, constraint)` | result cardinality is `1`, result is a subset of the `"all"` result |
+| GEN-16 | MUST | `arbitrarish_randomish` returns a singleton subset of the `"all"` result when satisfiable | compare `generate(tree, constraint, {"X": "arbitrarish_randomish"})` against `generate(tree, constraint, {"X": "all"})` | result cardinality is `1`, result is a subset of the `"all"` result |
 | GEN-17 | SHOULD | `arbitrarish_randomish` shows some variation when several witnesses exist | sample many runs on a problem with several satisfying assignments | at least two distinct outputs appear |
 | GEN-18 | MUST | Empty label is invalid | any tree containing `Name("")` | validation error |
-| GEN-19 | MUST | Missing label reference in the expression is invalid | `generate(Annotated[bool, Name("X")], {}, Eq(Reference("Y", ()), BooleanConstant(True)))` | validation error |
+| GEN-19 | MUST | Missing label reference in the expression is invalid | `generate(Annotated[bool, Name("X")], Eq(Reference("Y", ()), BooleanConstant(True)), {})` | validation error |
 | GEN-20 | MUST | Plain `int` is invalid in core | any tree containing plain `int` without `ValueRange(...)` | validation error |
 | GEN-21 | MUST | `Expression` is AST-based, not source-text-based | pass a source string instead of an AST | type or validation error |
-| GEN-22 | MUST | Single-constraint conjunction replaces a constraint set | compare `generate(tree, methods, And(c1, c2))` with the conceptual two-constraint case | same result as requiring both `c1` and `c2` |
+| GEN-22 | MUST | Single-constraint conjunction replaces a constraint set | compare `generate(tree, And(c1, c2), methods)` with the conceptual two-constraint case | same result as requiring both `c1` and `c2` |
 | GEN-23 | MUST | Guaranteed-cacheable unnamed subtrees are cacheable | any unnamed subtree reused in many outputs | implementation can demonstrate semantic reuse without changing output |
 | GEN-24 | MUST | Guaranteed-cacheable closed unconstrained named subtrees are cacheable | subtree is label-closed and its labels are disjoint from `mentioned_labels(constraint)` | implementation can demonstrate semantic reuse across enclosing outputs without changing output |
 
@@ -738,7 +742,7 @@ For randomized methods, compliance has two layers:
 This core has one observable interface:
 
 ```python
-generate(tree, methods, constraint)
+generate(tree, constraint, methods)
 ```
 
 Its semantics are governed by five ideas:
