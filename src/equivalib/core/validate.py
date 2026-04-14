@@ -75,6 +75,11 @@ def _check_node(node: object) -> None:
     if isinstance(node, NamedNode):
         if node.label == "":
             raise ValueError("Name label must not be empty.")
+        if isinstance(node.inner, NamedNode):
+            raise ValueError(
+                f"Nested Name annotations are not allowed: "
+                f"Name({node.label!r}) contains another Name({node.inner.label!r})."
+            )
         _check_node(node.inner)
         return
     raise TypeError(f"Unknown IR node type: {type(node)}")

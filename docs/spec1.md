@@ -645,7 +645,7 @@ generate(Annotated[bool, Name("X")], BooleanExpression(True), {"X": "arbitrary"}
 == { True }
 
 generate(Annotated[Tuple[bool, bool], Name("X")], BooleanExpression(True), {"X": "arbitrary"})
-== { (True, False) }
+== { (True, True) }
 
 generate(
     Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
@@ -673,7 +673,7 @@ generate(
     Ne(Reference("X", ()), Reference("Y", ())),
   {"X": "all", "Y": "arbitrary"},
 )
-== { (True, False) }
+== { (False, True) }
 
 generate(
     Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
