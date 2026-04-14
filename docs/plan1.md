@@ -239,7 +239,21 @@ Add a shared `Name` definition at one of these locations:
 
 The cleaner choice is `src/equivalib/core/name.py` and re-export it from `equivalib.core`.
 
-## Phase-by-Phase Implementation Plan
+## TDD Operating Rule
+
+This plan must be executed as strict red-green-refactor.
+
+For every phase in this document:
+
+- Red: add or tighten the smallest failing test slice that captures the target behavior or the relevant `GEN-*` rows.
+- Green: implement only the minimum code needed to make that new slice pass.
+- Refactor: improve names, structure, and internal factoring while keeping the whole previously-green suite green.
+
+No production module work should begin before its failing tests exist. No phase is complete until both the new slice and the full accumulated suite are green.
+
+## TDD Phase-by-Phase Implementation Plan
+
+Each phase below names the production goal, but execution order is always tests first, then code, then refactoring.
 
 ### Phase 1: Create the public shell
 
@@ -485,6 +499,15 @@ Do not rewrite legacy top-level generation APIs in this phase.
 
 The test suite for the new core must be spec-driven, not legacy-driven.
 
+It must also be implementation-driving, not implementation-following.
+
+That means:
+
+- every new behavior starts life as a failing or `xfail` test,
+- when a phase begins, its targeted tests are converted from expected-failure scaffolding into normal red tests,
+- production code is written only after the red tests are in place,
+- refactors are allowed only after that phase is green.
+
 The existing super-related tests in:
 
 - `tests/test_generate_sentences.py`
@@ -607,34 +630,41 @@ The spec compliance matrix in [docs/spec1.md](docs/spec1.md) is the acceptance c
 
 Every `GEN-*` item must correspond to at least one direct automated test.
 
+The suite should maintain an explicit phase-to-test mapping so that each implementation slice has a known red entry point and a known green exit condition.
+
 No implementation phase is complete until the matching compliance rows are green.
 
 ## Implementation Order
 
-The order below is mandatory.
+The order below is mandatory, and each item is a red-green-refactor slice rather than a code-first milestone.
 
-1. Create exports and AST shells.
-2. Implement normalized tree IR.
-3. Implement normalization.
-4. Implement validation.
-5. Implement unnamed denotation.
-6. Implement label-domain intersection.
-7. Implement expression evaluation.
-8. Implement exact satisfying search.
-9. Implement super methods.
-10. Implement concretization.
-11. Implement caching and cache stats.
-12. Implement final public `generate`.
-13. Export stabilization.
+1. Red: expand Group 1 tests for the public import surface and convenience constructors.
+2. Green: create `equivalib.core`, the AST shells, `Name`, `BooleanExpression`, and a stub `generate`.
+3. Refactor: stabilize package exports and import ergonomics.
+4. Red: expand Group 2 tests for normalization and validation, including duplicate metadata, unknown metadata, method validation, and invalid addresses.
+5. Green: implement normalized tree IR, normalization, and validation together so invalid inputs fail before search starts.
+6. Refactor: extract shared tree-shape and validation helpers.
+7. Red: expand Group 3 and Group 4 tests for unnamed denotation, unions, `None`, repeated-label intersections, and atomic named tuples.
+8. Green: implement unnamed denotation and label-domain intersection.
+9. Refactor: separate pure domain logic from API glue and cache-facing helpers.
+10. Red: expand Group 5 and Group 6 tests for arithmetic AST evaluation, address evaluation, contradictions, and partial-pruning cases.
+11. Green: implement expression evaluation and exact satisfying-assignment search.
+12. Refactor: simplify partial evaluation and canonical ordering internals.
+13. Red: expand Group 7 tests for determinism, singleton-subset behavior, and the non-emptiness invariant across all super methods.
+14. Green: implement super-method reduction and concretization.
+15. Refactor: tighten witness-selection and assignment-filtering code paths.
+16. Red: add Group 8 cache instrumentation tests plus any remaining uncovered `GEN-*` rows.
+17. Green: implement guaranteed-cacheable subtree caching, `CacheStats`, and the final public `generate` pipeline.
+18. Refactor: freeze exports, run the full compliance sweep, and document the cache boundary in code.
 
-This order prevents circular design drift and gives a usable red-green TDD progression.
+This order prevents circular design drift and makes every phase start from an observable failing behavior.
 
 ## Definition of Done
 
 The new core is done when all of the following are true.
 
 1. `equivalib.core.generate` exists and matches the spec signature.
-2. The new core passes the complete `tests/test_core.py` suite.
+2. The new core passes the complete `tests/test_core.py` suite without relying on phase-level `xfail` scaffolding.
 3. The compliance behaviors from [docs/spec1.md](docs/spec1.md) are all covered and passing.
 4. Guaranteed-cacheable subtree reuse is demonstrable through instrumentation.
 5. The implementation does not depend on the old `Sentence` / `Super` engine.
@@ -644,6 +674,7 @@ The new core is done when all of the following are true.
 
 The immediate next implementation step is:
 
-1. add `equivalib.core` with the AST constructors, `Name`, `BooleanExpression`, and a stub `generate`,
-2. land the new xfail TDD suite,
-3. then implement the phases in order until the xfails can be removed.
+1. finish mapping the current `tests/test_core.py` coverage to the `GEN-*` matrix, including the remaining cache-specific cases,
+2. turn Group 1 from scaffolding into normal red tests,
+3. implement only the public shell needed to make Group 1 green,
+4. continue phase-by-phase in the red-green-refactor order above.

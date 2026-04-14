@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import importlib
-from typing import Annotated, Any, Literal, Tuple
+from typing import Annotated, Any, Literal, Tuple, Union
 
 import pytest
 
@@ -57,6 +57,10 @@ def test_core_exports_generate_and_ast_surface():
     assert core_attr("Neg")
 
 
+def test_boolean_expression_true_is_boolean_constant_true():
+    assert true_expr() == bool_const(True)
+
+
 def test_generate_literal_true():
     generate = core_attr("generate")
     assert generate(Literal[True], true_expr(), {}) == {True}
@@ -75,10 +79,34 @@ def test_generate_bounded_int_range():
     assert generate(Annotated[int, ValueRange(3, 4)], true_expr(), {}) == {3, 4}
 
 
+def test_generate_none_tree():
+    generate = core_attr("generate")
+    assert generate(None, true_expr(), {}) == {None}
+
+
+def test_generate_union_tree_exhaustively():
+    generate = core_attr("generate")
+    assert generate(Union[Literal["blue"], Literal["red"]], true_expr(), {}) == {"blue", "red"}
+
+
 def test_generate_named_bool_defaults_to_all():
     generate = core_attr("generate")
     Name = core_attr("Name")
     assert generate(Annotated[bool, Name("X")], true_expr(), {}) == {True, False}
+
+
+def test_generate_named_union_defaults_to_all():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    tree = Annotated[Union[Literal["blue"], Literal["red"]], Name("X")]
+    assert generate(tree, true_expr(), {}) == {"blue", "red"}
+
+
+def test_generate_accepts_name_and_value_range_in_either_metadata_order():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    tree = Annotated[int, Name("X"), ValueRange(1, 2)]
+    assert generate(tree, true_expr(), {}) == {1, 2}
 
 
 def test_generate_named_bool_arbitrary_picks_canonical_first():
@@ -93,11 +121,38 @@ def test_generate_named_tuple_arbitrary_picks_one_tuple_witness():
     assert generate(Annotated[Tuple[bool, bool], Name("X")], true_expr(), {"X": "arbitrary"}) == {(True, False)}
 
 
+def test_generate_repeated_named_tuples_share_one_atomic_value():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    tree = Tuple[
+        Annotated[Tuple[bool, bool], Name("X")],
+        Annotated[Tuple[bool, bool], Name("X")],
+    ]
+    assert generate(tree, true_expr(), {"X": "all"}) == {
+        ((True, True), (True, True)),
+        ((True, False), (True, False)),
+        ((False, True), (False, True)),
+        ((False, False), (False, False)),
+    }
+
+
 def test_generate_same_label_means_same_value():
     generate = core_attr("generate")
     Name = core_attr("Name")
     tree = Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("X")]]
     assert generate(tree, true_expr(), {"X": "all"}) == {(True, True), (False, False)}
+
+
+def test_generate_different_labels_with_same_domain_remain_independent():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    tree = Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
+    assert generate(tree, true_expr(), {"X": "all", "Y": "all"}) == {
+        (True, True),
+        (True, False),
+        (False, True),
+        (False, False),
+    }
 
 
 def test_generate_repeated_label_domains_intersect():
@@ -161,6 +216,66 @@ def test_generate_with_arithmetic_and_order_constraint():
     assert generate(tree, constraint, {"X": "all", "Y": "all"}) == {(1, 2), (1, 3), (2, 3)}
 
 
+def test_generate_with_add_constraint():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Add = core_attr("Add")
+    Eq = core_attr("Eq")
+    tree = Annotated[int, ValueRange(0, 4), Name("X")]
+    constraint = Eq(Add(ref("X"), int_const(1)), int_const(3))
+    assert generate(tree, constraint, {"X": "all"}) == {2}
+
+
+def test_generate_with_sub_constraint():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    Sub = core_attr("Sub")
+    tree = Annotated[int, ValueRange(0, 4), Name("X")]
+    constraint = Eq(Sub(ref("X"), int_const(1)), int_const(1))
+    assert generate(tree, constraint, {"X": "all"}) == {2}
+
+
+def test_generate_with_mul_constraint():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    Mul = core_attr("Mul")
+    tree = Annotated[int, ValueRange(0, 4), Name("X")]
+    constraint = Eq(Mul(ref("X"), int_const(2)), int_const(4))
+    assert generate(tree, constraint, {"X": "all"}) == {2}
+
+
+def test_generate_with_floor_div_constraint():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    FloorDiv = core_attr("FloorDiv")
+    tree = Annotated[int, ValueRange(0, 5), Name("X")]
+    constraint = Eq(FloorDiv(ref("X"), int_const(2)), int_const(1))
+    assert generate(tree, constraint, {"X": "all"}) == {2, 3}
+
+
+def test_generate_with_mod_constraint():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    Mod = core_attr("Mod")
+    tree = Annotated[int, ValueRange(0, 5), Name("X")]
+    constraint = Eq(Mod(ref("X"), int_const(2)), int_const(1))
+    assert generate(tree, constraint, {"X": "all"}) == {1, 3, 5}
+
+
+def test_generate_with_neg_constraint():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    Neg = core_attr("Neg")
+    tree = Annotated[int, ValueRange(0, 4), Name("X")]
+    constraint = Eq(Neg(ref("X")), int_const(-2))
+    assert generate(tree, constraint, {"X": "all"}) == {2}
+
+
 def test_generate_with_or_constraint():
     generate = core_attr("generate")
     Name = core_attr("Name")
@@ -222,9 +337,49 @@ def test_generate_arbitrarish_randomish_always_returns_subset_of_all():
     assert randomish_result <= all_results
 
 
+@pytest.mark.parametrize("method", ["arbitrary", "uniform_random", "arbitrarish_randomish"])
+def test_super_methods_preserve_non_empty_singleton_subset_when_satisfiable(method):
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Ne = core_attr("Ne")
+    tree = Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
+    constraint = Ne(ref("X"), ref("Y"))
+    all_results = generate(tree, constraint, {"X": "all", "Y": "all"})
+    witness_result = generate(tree, constraint, {"X": method, "Y": method})
+    assert all_results
+    assert len(witness_result) == 1
+    assert witness_result <= all_results
+
+
+def test_generate_name_free_tree_matches_values():
+    generate = core_attr("generate")
+    values = core_attr("values")
+    tree = Tuple[Union[Literal["blue"], Literal["red"]], Annotated[int, ValueRange(1, 2)]]
+    expected = {
+        ("blue", 1),
+        ("blue", 2),
+        ("red", 1),
+        ("red", 2),
+    }
+    assert values(tree) == expected
+    assert generate(tree) == expected
+
+
 def test_values_exhaust_unnamed_tuple_tree():
     values = core_attr("values")
     assert values(Tuple[bool, Literal["N\\A"]]) == {(True, "N\\A"), (False, "N\\A")}
+
+
+def test_values_support_none_and_union():
+    values = core_attr("values")
+    assert values(Union[Literal["blue"], None]) == {"blue", None}
+
+
+def test_values_reject_named_tree():
+    values = core_attr("values")
+    Name = core_attr("Name")
+    with pytest.raises(ValueError):
+        values(Annotated[bool, Name("X")])
 
 
 def test_mentioned_labels_collects_labels_from_expression():
@@ -236,6 +391,15 @@ def test_mentioned_labels_collects_labels_from_expression():
     assert mentioned_labels(expr) == {"X", "Y"}
 
 
+def test_mentioned_labels_deduplicates_repeated_references():
+    And = core_attr("And")
+    Eq = core_attr("Eq")
+    Or = core_attr("Or")
+    mentioned_labels = core_attr("mentioned_labels")
+    expr = Or(Eq(ref("X"), bool_const(True)), And(Eq(ref("X"), bool_const(False)), Eq(ref("Y"), bool_const(True))))
+    assert mentioned_labels(expr) == {"X", "Y"}
+
+
 def test_generate_rejects_empty_name_label():
     generate = core_attr("generate")
     Name = core_attr("Name")
@@ -243,10 +407,35 @@ def test_generate_rejects_empty_name_label():
         generate(Annotated[bool, Name("")], true_expr(), {})
 
 
+def test_generate_rejects_invalid_value_range_bounds():
+    generate = core_attr("generate")
+    with pytest.raises(ValueError):
+        generate(Annotated[int, ValueRange(4, 3)], true_expr(), {})
+
+
 def test_generate_rejects_plain_int_in_core():
     generate = core_attr("generate")
     with pytest.raises(ValueError):
         generate(int, true_expr(), {})
+
+
+def test_generate_rejects_duplicate_name_metadata():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    with pytest.raises(ValueError):
+        generate(Annotated[bool, Name("X"), Name("Y")], true_expr(), {})
+
+
+def test_generate_rejects_duplicate_value_range_metadata():
+    generate = core_attr("generate")
+    with pytest.raises(ValueError):
+        generate(Annotated[int, ValueRange(0, 1), ValueRange(2, 3)], true_expr(), {})
+
+
+def test_generate_rejects_unknown_annotated_metadata():
+    generate = core_attr("generate")
+    with pytest.raises(ValueError):
+        generate(Annotated[bool, "mystery"], true_expr(), {})
 
 
 def test_generate_rejects_constraint_on_missing_label():
@@ -262,6 +451,54 @@ def test_generate_rejects_unknown_method_label():
     Name = core_attr("Name")
     with pytest.raises(ValueError):
         generate(Annotated[bool, Name("X")], true_expr(), {"Y": "all"})
+
+
+def test_generate_rejects_unknown_method_name():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    with pytest.raises(ValueError):
+        generate(Annotated[bool, Name("X")], true_expr(), {"X": "bogus"})
+
+
+def test_generate_rejects_invalid_address_on_scalar_label():
+    Eq = core_attr("Eq")
+    Name = core_attr("Name")
+    generate = core_attr("generate")
+    with pytest.raises(ValueError):
+        generate(Annotated[bool, Name("X")], Eq(ref("X", (0,)), bool_const(True)), {})
+
+
+def test_generate_rejects_out_of_range_tuple_address():
+    Eq = core_attr("Eq")
+    Name = core_attr("Name")
+    generate = core_attr("generate")
+    with pytest.raises(ValueError):
+        generate(Annotated[Tuple[bool], Name("X")], Eq(ref("X", (1,)), bool_const(True)), {})
+
+
+def test_generate_rejects_address_that_crosses_shape_boundary():
+    Eq = core_attr("Eq")
+    Name = core_attr("Name")
+    generate = core_attr("generate")
+    tree = Annotated[Union[Tuple[bool], bool], Name("X")]
+    with pytest.raises(ValueError):
+        generate(tree, Eq(ref("X", (0,)), bool_const(True)), {})
+
+
+def test_generate_rejects_non_boolean_top_level_constraint():
+    Add = core_attr("Add")
+    Name = core_attr("Name")
+    generate = core_attr("generate")
+    with pytest.raises((TypeError, ValueError)):
+        generate(Annotated[int, ValueRange(0, 2), Name("X")], Add(ref("X"), int_const(1)), {"X": "all"})
+
+
+def test_generate_rejects_invalid_expression_operand_types():
+    Lt = core_attr("Lt")
+    Name = core_attr("Name")
+    generate = core_attr("generate")
+    with pytest.raises((TypeError, ValueError)):
+        generate(Annotated[bool, Name("X")], Lt(ref("X"), bool_const(True)), {"X": "all"})
 
 
 def test_expression_ast_is_required_not_source_string():
