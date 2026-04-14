@@ -127,7 +127,7 @@ def generate(
         satisfied = eval_expression(constraint, {})
         if satisfied is not True:
             return set()
-        return set(_values_node(node))  # type: ignore[arg-type]
+        return set(_values_node(node))
 
     # 6. Exact satisfying-assignment search (S0)
     assignments = search(node, constraint)

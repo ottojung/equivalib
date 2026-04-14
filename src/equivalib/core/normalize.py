@@ -7,6 +7,7 @@ Entry point:
 from __future__ import annotations
 
 import typing
+import types
 
 from equivalib.value_range import ValueRange
 from equivalib.core.name import Name
@@ -66,7 +67,7 @@ def normalize(t: object) -> IRNode:
         return TupleNode(tuple(normalize(a) for a in args))
 
     # --- Union ---
-    if origin is typing.Union:
+    if origin is typing.Union or origin is types.UnionType:
         options: list[IRNode] = []
         for a in args:
             options.append(normalize(a))

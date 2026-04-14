@@ -3,7 +3,7 @@
 Public API:
     values(type_or_node) -> set      -- for use from API (accepts raw types)
     _values_node(node) -> frozenset  -- internal, operates on IR nodes
-    domain_map(node) -> dict[str, frozenset]
+    domain_map(node) -> dict[str, list[object]]
 """
 
 from __future__ import annotations
@@ -92,11 +92,13 @@ def _untag_value(tagged: object) -> object:
     Given a tagged value ``(type_tag, payload)``, returns the original
     Python value. For tuple payloads, recursively untags each element.
     """
-    tagged_pair = tagged  # type: ignore[assignment]
-    t = tagged_pair[0]  # type: ignore[index]
-    v = tagged_pair[1]  # type: ignore[index]
+    if not isinstance(tagged, tuple) or len(tagged) != 2:
+        raise TypeError(f"Expected tagged pair, got {tagged!r}")
+    t, v = tagged
     if t is tuple:
-        return tuple(_untag_value(e) for e in v)  # type: ignore[union-attr]
+        if not isinstance(v, tuple):
+            raise TypeError(f"Expected tuple payload for tuple tag, got {v!r}")
+        return tuple(_untag_value(e) for e in v)
     return v
 
 

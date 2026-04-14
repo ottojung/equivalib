@@ -8,7 +8,8 @@ import pytest
 from equivalib import ValueRange
 from equivalib.core.cache import is_constraint_independent, is_guaranteed_cacheable, is_label_closed
 from equivalib.core.domains import domain_map, _type_aware_intersect
-from equivalib.core.eval import eval_expression, eval_expression_partial, Unknown, _structural_eq  # type: ignore[attr-defined]
+from equivalib.core.eval import eval_expression, eval_expression_partial, Unknown, _structural_eq
+from equivalib.core.methods import apply_methods
 from equivalib.core.expression import (
     Add,
     And,
@@ -604,6 +605,13 @@ def test_normalize_nested_union_values():
     assert generate(tree) == {"a", "b", "c"}
 
 
+def test_normalize_pep604_union_values():
+    """PEP 604 unions (``A | B``) normalize like typing.Union."""
+    generate = core_attr("generate")
+    tree = Literal["a"] | Literal["b"]
+    assert generate(tree) == {"a", "b"}
+
+
 def test_normalize_rejects_non_hashable_literal_value():
     generate = core_attr("generate")
     with pytest.raises(ValueError):
@@ -1132,6 +1140,20 @@ def test_generate_arbitrary_is_stable_across_calls():
     r2 = generate(tree, true_expr(), {"N": "arbitrary"})
     assert r1 == r2
     assert len(r1) == 1
+
+
+def test_apply_methods_arbitrary_uses_type_aware_filtering():
+    assignments = [{"X": True}, {"X": 1}]
+    reduced = apply_methods(assignments, {"X": "arbitrary"})
+    assert reduced == [{"X": True}]
+
+
+def test_apply_methods_arbitrarish_randomish_preserves_bool_int_distinction(monkeypatch: pytest.MonkeyPatch):
+    # Force deterministic witness selection from distinct projected values.
+    monkeypatch.setattr("equivalib.core.methods.random.choice", lambda seq: seq[-1])
+    assignments = [{"X": True}, {"X": 1}]
+    reduced = apply_methods(assignments, {"X": "arbitrarish_randomish"})
+    assert reduced == [{"X": 1}]
 
 
 def test_generate_non_empty_for_all_super_methods_when_satisfiable():

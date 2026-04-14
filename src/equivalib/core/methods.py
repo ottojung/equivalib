@@ -49,7 +49,9 @@ def apply_methods(assignments: list[dict[str, object]], methods: Mapping[Label, 
             return []
 
         witness = _choose_witness(method, label, projection)
-        current = [a for a in current if a.get(label) == witness]
+        current = [
+            a for a in current if label in a and _structural_eq(a[label], witness)
+        ]
 
     return current
 
@@ -61,7 +63,14 @@ def _project(label: str, assignments: list[dict[str, object]]) -> list[object]:
 
 def _choose_witness(method: str, label: str, projection: list[object]) -> object:
     """Choose a single witness value from ``projection`` according to ``method``."""
-    distinct = list(dict.fromkeys(projection))  # preserves order, deduplicates
+    distinct: list[object] = []
+    seen: set[object] = set()
+    for value in projection:
+        tagged = _tag_value(value)
+        if tagged in seen:
+            continue
+        seen.add(tagged)
+        distinct.append(value)
 
     if method == "arbitrary":
         return canonical_first(distinct)
@@ -75,3 +84,19 @@ def _choose_witness(method: str, label: str, projection: list[object]) -> object
         return random.choice(distinct)
 
     raise ValueError(f"Unknown method {method!r} for label {label!r}.")
+
+
+def _tag_value(v: object) -> object:
+    """Return a recursively type-tagged representation for type-aware equality."""
+    if isinstance(v, bool):
+        return (bool, v)
+    if isinstance(v, int):
+        return (int, v)
+    if isinstance(v, tuple):
+        return (tuple, tuple(_tag_value(elem) for elem in v))
+    return (type(v), v)
+
+
+def _structural_eq(lhs: object, rhs: object) -> bool:
+    """Type-aware structural equality (bool/int are distinct, incl. tuples)."""
+    return _tag_value(lhs) == _tag_value(rhs)
