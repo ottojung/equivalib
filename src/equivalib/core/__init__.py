@@ -6,12 +6,16 @@ Public API surface:
     Name             – symbolic identity marker
     BooleanExpression – convenience constructor (returns BooleanConstant)
     mentioned_labels  – collect labels from an expression
+    impossible       – exhaustive-match sentinel (NoReturn)
 
 Expression AST constructors:
     BooleanConstant, IntegerConstant, Reference
     Neg, Add, Sub, Mul, FloorDiv, Mod
     Eq, Ne, Lt, Le, Gt, Ge
     And, Or
+
+Type aliases:
+    Expression       – Union of all expression node types
 """
 
 from equivalib.core.name import Name
@@ -33,7 +37,9 @@ from equivalib.core.expression import (
     Ge,
     And,
     Or,
+    Expression,
     BooleanExpression,
+    impossible,
 )
 from equivalib.core.api import generate
 from equivalib.core.domains import values
@@ -43,6 +49,7 @@ __all__ = [
     "generate",
     "values",
     "Name",
+    "Expression",
     "BooleanExpression",
     "BooleanConstant",
     "IntegerConstant",
@@ -62,4 +69,5 @@ __all__ = [
     "And",
     "Or",
     "mentioned_labels",
+    "impossible",
 ]

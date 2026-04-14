@@ -14,7 +14,9 @@ Kind-rank table (used for canonical total order, documented here):
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Tuple as TypingTuple
+from typing import Tuple as TypingTuple, Union
+
+from equivalib.core.expression import impossible
 
 
 # ---------------------------------------------------------------------------
@@ -76,14 +78,15 @@ class NamedNode:
     inner: "IRNode"
 
 
-IRNode = object  # Union of all IR node types (kept as ``object`` for compat)
+IRNode = Union[NoneNode, BoolNode, LiteralNode, IntRangeNode, TupleNode, UnionNode, NamedNode]
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def labels(node: object) -> frozenset[str]:
+
+def labels(node: IRNode) -> frozenset[str]:
     """Return all labels used within ``node``."""
     if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode)):
         return frozenset()
@@ -99,15 +102,15 @@ def labels(node: object) -> frozenset[str]:
         return result
     if isinstance(node, NamedNode):
         return frozenset({node.label}) | labels(node.inner)
-    raise TypeError(f"Unknown IR node: {type(node)}")
+    impossible(node)
 
 
-def contains_name(node: object) -> bool:
+def contains_name(node: IRNode) -> bool:
     """Return True iff ``node`` contains at least one ``NamedNode``."""
     return bool(labels(node))
 
 
-def tree_shape(node: object) -> object:
+def tree_shape(node: IRNode) -> IRNode:
     """Return a structural descriptor of the node for address validation.
 
     The shape of a ``NamedNode`` is the shape of its inner node (not of the
@@ -121,4 +124,4 @@ def tree_shape(node: object) -> object:
         return UnionNode(tuple(tree_shape(o) for o in node.options))
     if isinstance(node, NamedNode):
         return tree_shape(node.inner)
-    raise TypeError(f"Unknown IR node: {type(node)}")
+    impossible(node)

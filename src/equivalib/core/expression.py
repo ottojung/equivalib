@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Union
+from typing import NoReturn, Union
 
 
 # ---------------------------------------------------------------------------
@@ -172,3 +172,21 @@ def BooleanExpression(value: bool) -> BooleanConstant:
     ``BooleanExpression(True)`` is the canonical unconstrained expression.
     """
     return BooleanConstant(value)
+
+
+def impossible(x: NoReturn) -> NoReturn:
+    """Assert that a code branch is unreachable.
+
+    Pass the narrowed value as ``x``; mypy will flag an error if any case
+    in an exhaustive isinstance chain is missing.
+
+    Usage::
+
+        if isinstance(expr, BooleanConstant):
+            ...
+        elif isinstance(expr, IntegerConstant):
+            ...
+        else:
+            impossible(expr)  # mypy: x has type Never here
+    """
+    raise TypeError(f"Unreachable branch reached with value: {x!r}")

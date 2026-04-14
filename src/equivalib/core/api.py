@@ -1,7 +1,7 @@
 """Public API for the new core: ``generate``.
 
 Public entry point:
-    generate(tree: Type[T], constraint=BooleanExpression(True), methods=None) -> set[T]
+    generate(tree: Type[T], constraint: Expression = BooleanExpression(True), methods: Mapping[Label, Method] = {}) -> Set[T]
 """
 
 from __future__ import annotations
@@ -10,23 +10,8 @@ from typing import Mapping, Optional, Type, TypeVar
 
 from equivalib.core.expression import (
     BooleanExpression,
-    BooleanConstant,
-    IntegerConstant,
-    Reference,
-    Neg,
-    Add,
-    Sub,
-    Mul,
-    FloorDiv,
-    Mod,
-    Eq,
-    Ne,
-    Lt,
-    Le,
-    Gt,
-    Ge,
-    And,
-    Or,
+    Expression,
+    impossible,
 )
 from equivalib.core.normalize import normalize
 from equivalib.core.validate import validate_tree, validate_methods, validate_expression
@@ -38,20 +23,24 @@ from equivalib.core.types import (
     TupleNode,
     UnionNode,
     NamedNode,
+    IRNode,
     contains_name,
 )
 from equivalib.core.domains import _values_node
+from equivalib.core.eval import eval_expression
 from equivalib.core.search import search
 from equivalib.core.methods import apply_methods
 
 GenerateT = TypeVar("GenerateT")
+
+_DEFAULT_CONSTRAINT: Expression = BooleanExpression(True)
 
 
 # ---------------------------------------------------------------------------
 # Concretize
 # ---------------------------------------------------------------------------
 
-def concretize(node: object, assignment: Mapping[str, object]) -> frozenset[object]:
+def concretize(node: IRNode, assignment: Mapping[str, object]) -> frozenset[object]:
     """Return the set of all runtime values that ``node`` can produce under ``assignment``.
 
     Rules:
@@ -83,11 +72,11 @@ def concretize(node: object, assignment: Mapping[str, object]) -> frozenset[obje
             )
         return result
     if isinstance(node, UnionNode):
-        result = frozenset()
+        union_result: frozenset[object] = frozenset()
         for opt in node.options:
-            result = result | concretize(opt, assignment)
-        return result
-    raise TypeError(f"Unknown IR node: {type(node)}")
+            union_result = union_result | concretize(opt, assignment)
+        return union_result
+    impossible(node)
 
 
 # ---------------------------------------------------------------------------
@@ -96,7 +85,7 @@ def concretize(node: object, assignment: Mapping[str, object]) -> frozenset[obje
 
 def generate(
     tree: Type[GenerateT],
-    constraint: object = None,
+    constraint: Expression = _DEFAULT_CONSTRAINT,
     methods: Optional[Mapping[str, str]] = None,
 ) -> set[GenerateT]:
     """Generate all runtime values of type ``tree`` satisfying ``constraint``.
@@ -114,16 +103,8 @@ def generate(
         ValueError: on invalid tree, methods, or expression.
         TypeError:  if ``constraint`` is not an Expression AST node.
     """
-    if constraint is None:
-        constraint = BooleanExpression(True)
     if methods is None:
         methods = {}
-
-    # Reject non-AST constraints (e.g. strings)
-    if not _is_expression(constraint):
-        raise TypeError(
-            f"Constraint must be an Expression AST node, got {type(constraint).__name__!r}."
-        )
 
     # 1. Normalize
     node = normalize(tree)
@@ -137,8 +118,14 @@ def generate(
     # 4. Validate expression
     validate_expression(constraint, node)
 
-    # 5. Fast path: no named nodes → just return the full denotation
+    # 5. Fast path: no named nodes → evaluate the (constant) constraint first,
+    #    then return the full denotation if satisfied.
     if not contains_name(node):
+        # For unnamed trees there are no labels, so the constraint must be
+        # a constant boolean expression.  Evaluate it with an empty assignment.
+        satisfied = eval_expression(constraint, {})
+        if satisfied is not True:
+            return set()
         return set(_values_node(node))  # type: ignore[arg-type]
 
     # 6. Exact satisfying-assignment search (S0)
@@ -161,12 +148,3 @@ def generate(
         result.update(concretize(node, asgn))
 
     return result  # type: ignore[return-value]
-
-
-def _is_expression(obj: object) -> bool:
-    """Return True iff ``obj`` is a known Expression AST node."""
-    return isinstance(obj, (
-        BooleanConstant, IntegerConstant, Reference,
-        Neg, Add, Sub, Mul, FloorDiv, Mod,
-        Eq, Ne, Lt, Le, Gt, Ge, And, Or,
-    ))

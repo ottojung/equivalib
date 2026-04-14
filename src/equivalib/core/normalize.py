@@ -18,10 +18,11 @@ from equivalib.core.types import (
     TupleNode,
     UnionNode,
     NamedNode,
+    IRNode,
 )
 
 
-def normalize(t: object) -> object:
+def normalize(t: object) -> IRNode:
     """Normalize a type annotation ``t`` into an IR node.
 
     Raises ``ValueError`` for unsupported or malformed type expressions.
@@ -66,7 +67,7 @@ def normalize(t: object) -> object:
 
     # --- Union ---
     if origin is typing.Union:
-        options = []
+        options: list[IRNode] = []
         for a in args:
             options.append(normalize(a))
         return UnionNode(tuple(options))
@@ -74,7 +75,7 @@ def normalize(t: object) -> object:
     raise ValueError(f"Unsupported type expression: {t!r}")
 
 
-def _normalize_annotated(base: object, metadata: list[object]) -> object:
+def _normalize_annotated(base: object, metadata: list[object]) -> IRNode:
     """Normalize an ``Annotated[base, *metadata]`` expression."""
     value_ranges = [m for m in metadata if isinstance(m, ValueRange)]
     names = [m for m in metadata if isinstance(m, Name)]
@@ -113,7 +114,7 @@ def _normalize_annotated(base: object, metadata: list[object]) -> object:
             raise ValueError(
                 f"ValueRange has invalid bounds: min={vr.min} > max={vr.max}."
             )
-        inner: object = IntRangeNode(vr.min, vr.max)
+        inner: IRNode = IntRangeNode(vr.min, vr.max)
     else:
         inner = normalize(base)
 

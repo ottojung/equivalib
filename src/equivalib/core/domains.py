@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import Type, TypeVar
 
+from equivalib.core.expression import impossible
 from equivalib.core.types import (
     NoneNode,
     BoolNode,
@@ -18,6 +19,7 @@ from equivalib.core.types import (
     TupleNode,
     UnionNode,
     NamedNode,
+    IRNode,
     contains_name,
 )
 from equivalib.core.normalize import normalize
@@ -40,7 +42,7 @@ def values(t: Type[ValuesT]) -> set[ValuesT]:
     return set(_values_node(node))  # type: ignore[arg-type]
 
 
-def _values_node(node: object) -> frozenset[object]:
+def _values_node(node: IRNode) -> frozenset[object]:
     """Return the finite denotation of ``node`` (IR-level, internal)."""
     if isinstance(node, NoneNode):
         return frozenset({None})
@@ -67,14 +69,30 @@ def _values_node(node: object) -> frozenset[object]:
         # For domain computation purposes, return the denotation of the inner
         # node (ignoring the name).
         return _values_node(node.inner)
-    raise TypeError(f"Unknown IR node: {type(node)}")
+    impossible(node)
 
 
-def domain_map(node: object) -> dict[str, frozenset[object]]:
+def _type_aware_intersect(
+    a: frozenset[object],
+    b: frozenset[object],
+) -> frozenset[object]:
+    """Return the intersection of ``a`` and ``b`` with type-awareness.
+
+    Python's built-in ``==`` conflates ``bool`` and ``int``
+    (``True == 1``, ``False == 0``), so a naïve ``a & b`` can produce
+    spurious non-empty results when intersecting boolean and integer domains.
+    This function uses ``(type(v), v)`` tags to enforce strict type equality.
+    """
+    tagged_a = frozenset((type(v), v) for v in a)
+    tagged_b = frozenset((type(v), v) for v in b)
+    return frozenset(v for _, v in tagged_a & tagged_b)
+
+
+def domain_map(node: IRNode) -> dict[str, frozenset[object]]:
     """Return a mapping {label: frozenset} of domains for all named nodes.
 
-    The domain of a label is the intersection of all individual occurrences of
-    that label within the tree.
+    The domain of a label is the type-aware intersection of all individual
+    occurrences of that label within the tree.
 
     If any label has an empty domain, the returned dict still contains it with
     an empty frozenset value.  The caller is responsible for checking emptiness.
@@ -86,13 +104,13 @@ def domain_map(node: object) -> dict[str, frozenset[object]]:
     for label, occ_list in occurrences.items():
         domain: frozenset[object] = occ_list[0]
         for occ in occ_list[1:]:
-            domain = domain & occ
+            domain = _type_aware_intersect(domain, occ)
         result[label] = domain
 
     return result
 
 
-def _collect_occurrences(node: object, out: dict[str, list[frozenset[object]]]) -> None:
+def _collect_occurrences(node: IRNode, out: dict[str, list[frozenset[object]]]) -> None:
     """Populate ``out`` with per-label occurrence lists."""
     if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode)):
         return
@@ -110,4 +128,4 @@ def _collect_occurrences(node: object, out: dict[str, list[frozenset[object]]]) 
         out[label].append(inner_vals)
         _collect_occurrences(node.inner, out)
     else:
-        raise TypeError(f"Unknown IR node: {type(node)}")
+        impossible(node)

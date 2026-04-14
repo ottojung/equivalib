@@ -874,6 +874,42 @@ def test_domain_map_repeated_label_empty_intersection():
     assert dm["X"] == frozenset()
 
 
+def test_domain_map_repeated_label_bool_int_type_aware():
+    """Intersecting bool and int domains must be type-aware (True != 1 semantically).
+
+    Without type-awareness, ``frozenset({True, False}) & frozenset({1, 2})``
+    returns ``frozenset({True})`` because Python considers ``True == 1``.
+    The corrected intersection must return an empty domain.
+    """
+    Name = core_attr("Name")
+    # Bool label vs ValueRange(1, 2): True == 1 in Python but they are
+    # different types, so the intersection must be empty.
+    tree = Tuple[Annotated[bool, Name("X")], Annotated[int, ValueRange(1, 2), Name("X")]]
+    node = normalize(tree)
+    dm = domain_map(node)
+    assert dm["X"] == frozenset(), f"Expected empty domain but got {dm['X']!r}"
+
+
+def test_generate_unnamed_false_constraint_returns_empty():
+    """generate(Literal[True], BooleanExpression(False), {}) must return set().
+
+    Without the unnamed-tree constraint check, the fast path returns {True}
+    instead of set().
+    """
+    generate = core_attr("generate")
+    BooleanExpression = core_attr("BooleanExpression")
+    result = generate(Literal[True], BooleanExpression(False), {})
+    assert result == set(), f"Expected set() but got {result!r}"
+
+
+def test_generate_unnamed_true_constraint_returns_full_denotation():
+    """generate(bool, BooleanExpression(True), {}) must return {True, False}."""
+    generate = core_attr("generate")
+    BooleanExpression = core_attr("BooleanExpression")
+    result = generate(bool, BooleanExpression(True), {})
+    assert result == {True, False}, f"Expected {{True, False}} but got {result!r}"
+
+
 def test_values_bool_gives_two_values():
     values = core_attr("values")
     assert values(bool) == {True, False}

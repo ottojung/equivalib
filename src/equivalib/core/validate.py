@@ -8,7 +8,7 @@ Three public entry points:
 
 from __future__ import annotations
 
-from typing import Mapping, TypeAlias
+from typing import Dict, Mapping
 
 from equivalib.core.types import (
     NoneNode,
@@ -18,6 +18,7 @@ from equivalib.core.types import (
     TupleNode,
     UnionNode,
     NamedNode,
+    IRNode,
     labels as tree_labels,
     contains_name,
     tree_shape,
@@ -40,19 +41,21 @@ from equivalib.core.expression import (
     Ge,
     And,
     Or,
+    Expression,
+    impossible,
 )
 
 _VALID_METHODS = frozenset({"all", "arbitrary", "uniform_random", "arbitrarish_randomish"})
-LabelShapes: TypeAlias = dict[str, object]
-ExprType: TypeAlias = str
+LabelShapes = Dict[str, IRNode]
+ExprType = str
 
 
-def validate_tree(node: object) -> None:
+def validate_tree(node: IRNode) -> None:
     """Raise ValueError if the IR node tree contains structural problems."""
     _check_node(node)
 
 
-def _check_node(node: object) -> None:
+def _check_node(node: IRNode) -> None:
     if isinstance(node, NoneNode):
         return
     if isinstance(node, BoolNode):
@@ -83,10 +86,10 @@ def _check_node(node: object) -> None:
             )
         _check_node(node.inner)
         return
-    raise TypeError(f"Unknown IR node type: {type(node)}")
+    impossible(node)
 
 
-def validate_methods(node: object, methods: Mapping[str, str]) -> None:
+def validate_methods(node: IRNode, methods: Mapping[str, str]) -> None:
     """Raise ValueError if any method key or value is invalid."""
     if not isinstance(methods, Mapping):
         raise TypeError(
@@ -106,7 +109,7 @@ def validate_methods(node: object, methods: Mapping[str, str]) -> None:
             )
 
 
-def validate_expression(expr: object, node: object) -> None:
+def validate_expression(expr: Expression, node: IRNode) -> None:
     """Raise ValueError/TypeError if the expression is invalid against the tree.
 
     Checks:
@@ -129,14 +132,14 @@ def validate_expression(expr: object, node: object) -> None:
         )
 
 
-def _collect_label_shapes(node: object) -> LabelShapes:
+def _collect_label_shapes(node: IRNode) -> LabelShapes:
     """Return a mapping {label: shape_node} for all named nodes in the tree."""
     result: LabelShapes = {}
     _walk_for_shapes(node, result)
     return result
 
 
-def _walk_for_shapes(node: object, result: LabelShapes) -> None:
+def _walk_for_shapes(node: IRNode, result: LabelShapes) -> None:
     if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode)):
         return
     if isinstance(node, TupleNode):
@@ -154,11 +157,11 @@ def _walk_for_shapes(node: object, result: LabelShapes) -> None:
         _walk_for_shapes(node.inner, result)
 
 
-def _merge_shapes(left: object, right: object) -> object:
+def _merge_shapes(left: IRNode, right: IRNode) -> IRNode:
     """Combine two shapes for repeated-label occurrences."""
     if left == right:
         return left
-    options: list[object] = []
+    options: list[IRNode] = []
     if isinstance(left, UnionNode):
         options.extend(left.options)
     else:
@@ -168,8 +171,8 @@ def _merge_shapes(left: object, right: object) -> object:
     else:
         options.append(right)
     # De-duplicate while preserving order.
-    dedup: list[object] = []
-    seen: set[object] = set()
+    dedup: list[IRNode] = []
+    seen: set[IRNode] = set()
     for opt in options:
         if opt not in seen:
             seen.add(opt)
@@ -177,7 +180,7 @@ def _merge_shapes(left: object, right: object) -> object:
     return UnionNode(tuple(dedup))
 
 
-def _check_expr_type(expr: object, known_labels: frozenset[str], label_shapes: LabelShapes) -> ExprType:
+def _check_expr_type(expr: Expression, known_labels: frozenset[str], label_shapes: LabelShapes) -> ExprType:
     """Return 'bool', 'numeric', or 'any' (or raise if invalid).
 
     'any' is returned only for references to labels with opaque shapes
@@ -240,13 +243,10 @@ def _check_expr_type(expr: object, known_labels: frozenset[str], label_shapes: L
             raise TypeError(f"{type(expr).__name__} right operand must be boolean, got {rt!r}: {expr!r}")
         return "bool"
 
-    # Anything that is not an Expression node is a type error.
-    raise TypeError(
-        f"Expression must be an AST node, got {type(expr).__name__!r}: {expr!r}"
-    )
+    impossible(expr)
 
 
-def _resolve_shape(shape: object, path: tuple[int, ...]) -> object:
+def _resolve_shape(shape: IRNode, path: tuple[int, ...]) -> IRNode:
     """Navigate ``shape`` by following ``path`` and return the resulting sub-shape.
 
     When traversing through a ``UnionNode``, all branches are visited and the
@@ -262,7 +262,7 @@ def _resolve_shape(shape: object, path: tuple[int, ...]) -> object:
     if isinstance(shape, UnionNode):
         # Navigate each branch and collect sub-shapes.
         # Recursing into each option handles nested UnionNodes naturally.
-        collected: list[object] = []
+        collected: list[IRNode] = []
         for opt in shape.options:
             sub = _resolve_shape(opt, path)
             if isinstance(sub, UnionNode):
@@ -273,8 +273,8 @@ def _resolve_shape(shape: object, path: tuple[int, ...]) -> object:
         # Deduplicate while preserving order.
         # All IR shape types are frozen dataclasses with well-defined __hash__,
         # so set operations are safe here.
-        seen: set[object] = set()
-        dedup: list[object] = []
+        seen: set[IRNode] = set()
+        dedup: list[IRNode] = []
         for s in collected:
             if s not in seen:
                 seen.add(s)
@@ -289,7 +289,7 @@ def _resolve_shape(shape: object, path: tuple[int, ...]) -> object:
     raise ValueError(f"Cannot index into shape {shape!r} at path {path!r}.")
 
 
-def _shape_type(shape: object) -> str:
+def _shape_type(shape: IRNode) -> str:
     """Return the expression type ('bool', 'numeric', or 'any') for a given shape."""
     if isinstance(shape, BoolNode):
         return "bool"

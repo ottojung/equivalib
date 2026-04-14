@@ -9,13 +9,14 @@ representing one satisfying assignment.
 
 from __future__ import annotations
 
-from equivalib.core.types import labels as tree_labels
+from equivalib.core.expression import Expression
+from equivalib.core.types import IRNode, labels as tree_labels
 from equivalib.core.domains import domain_map
 from equivalib.core.order import canonical_sorted
 from equivalib.core.eval import eval_expression_partial
 
 
-def search(node: object, constraint: object) -> list[dict[str, object]]:
+def search(node: IRNode, constraint: Expression) -> list[dict[str, object]]:
     """Return a list of satisfying assignments.
 
     Each assignment is a dict mapping label -> value.
@@ -46,7 +47,7 @@ def search(node: object, constraint: object) -> list[dict[str, object]]:
 def _backtrack(
     label_list: list[str],
     sorted_domains: dict[str, list[object]],
-    constraint: object,
+    constraint: Expression,
     partial: dict[str, object],
     results: list[dict[str, object]],
 ) -> None:

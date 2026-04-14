@@ -47,6 +47,12 @@ The words MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY are to be interpreted as n
 ```python
 Label: TypeAlias = str
 Method: TypeAlias = Literal["all", "arbitrary", "uniform_random", "arbitrarish_randomish"]
+Expression: TypeAlias = Union[
+    BooleanConstant, IntegerConstant, Reference,
+    Neg, Add, Sub, Mul, FloorDiv, Mod,
+    Eq, Ne, Lt, Le, Gt, Ge,
+    And, Or,
+]
 
 generate(tree: Type[T], constraint: Expression = BooleanExpression(True), methods: Mapping[Label, Method] = {}) -> Set[T]
 ```

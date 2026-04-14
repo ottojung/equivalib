@@ -33,6 +33,8 @@ from equivalib.core.expression import (
     Ge,
     And,
     Or,
+    Expression,
+    impossible,
 )
 
 
@@ -61,7 +63,7 @@ Unknown = _UnknownType()
 # Full evaluation (all labels must be assigned)
 # ---------------------------------------------------------------------------
 
-def eval_expression(expr: object, assignment: dict[str, object]) -> object:
+def eval_expression(expr: Expression, assignment: dict[str, object]) -> object:
     """Evaluate ``expr`` against a complete assignment mapping.
 
     ``assignment`` maps label strings to runtime values.
@@ -70,7 +72,7 @@ def eval_expression(expr: object, assignment: dict[str, object]) -> object:
     return _eval(expr, assignment)
 
 
-def _eval(expr: object, assignment: dict[str, object]) -> object:
+def _eval(expr: Expression, assignment: dict[str, object]) -> object:
     if isinstance(expr, BooleanConstant):
         return expr.value
     if isinstance(expr, IntegerConstant):
@@ -108,14 +110,14 @@ def _eval(expr: object, assignment: dict[str, object]) -> object:
         return _eval(expr.left, assignment) and _eval(expr.right, assignment)
     if isinstance(expr, Or):
         return _eval(expr.left, assignment) or _eval(expr.right, assignment)
-    raise TypeError(f"Unknown expression node: {type(expr)}")
+    impossible(expr)
 
 
 # ---------------------------------------------------------------------------
 # Partial evaluation (some labels may be unresolved)
 # ---------------------------------------------------------------------------
 
-def eval_expression_partial(expr: object, partial_assignment: dict[str, object]) -> object:
+def eval_expression_partial(expr: Expression, partial_assignment: dict[str, object]) -> object:
     """Evaluate ``expr`` against a partial assignment.
 
     Returns a concrete value if it can be determined, or ``Unknown`` if the
@@ -124,7 +126,7 @@ def eval_expression_partial(expr: object, partial_assignment: dict[str, object])
     return _eval_partial(expr, partial_assignment)
 
 
-def _eval_partial(expr: object, pa: dict[str, object]) -> object:
+def _eval_partial(expr: Expression, pa: dict[str, object]) -> object:
     if isinstance(expr, BooleanConstant):
         return expr.value
     if isinstance(expr, IntegerConstant):
@@ -193,4 +195,4 @@ def _eval_partial(expr: object, pa: dict[str, object]) -> object:
         if isinstance(lv, _UnknownType) or isinstance(rv, _UnknownType):
             return Unknown
         return lv or rv
-    raise TypeError(f"Unknown expression node: {type(expr)}")
+    impossible(expr)

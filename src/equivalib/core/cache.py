@@ -27,6 +27,7 @@ from equivalib.core.types import (
     TupleNode,
     UnionNode,
     NamedNode,
+    IRNode,
     labels as tree_labels,
     contains_name,
 )
@@ -48,6 +49,8 @@ from equivalib.core.expression import (
     Ge,
     And,
     Or,
+    Expression,
+    impossible,
 )
 
 
@@ -55,14 +58,14 @@ from equivalib.core.expression import (
 # mentioned_labels
 # ---------------------------------------------------------------------------
 
-def mentioned_labels(expr: object) -> set[str]:
+def mentioned_labels(expr: Expression) -> set[str]:
     """Return the set of label strings referenced in ``expr``."""
     result: set[str] = set()
     _collect_labels(expr, result)
     return result
 
 
-def _collect_labels(expr: object, out: set[str]) -> None:
+def _collect_labels(expr: Expression, out: set[str]) -> None:
     if isinstance(expr, (BooleanConstant, IntegerConstant)):
         return
     if isinstance(expr, Reference):
@@ -75,14 +78,14 @@ def _collect_labels(expr: object, out: set[str]) -> None:
         _collect_labels(expr.left, out)
         _collect_labels(expr.right, out)
         return
-    raise TypeError(f"Unknown expression node: {type(expr)}")
+    impossible(expr)
 
 
 # ---------------------------------------------------------------------------
 # Cache helpers
 # ---------------------------------------------------------------------------
 
-def is_label_closed(subtree: object, whole_tree: object) -> bool:
+def is_label_closed(subtree: IRNode, whole_tree: IRNode) -> bool:
     """True iff every label in ``subtree`` is not used outside ``subtree``.
 
     That is, no label in ``subtree`` also appears anywhere else in
@@ -97,7 +100,7 @@ def is_label_closed(subtree: object, whole_tree: object) -> bool:
     return not (subtree_labels & rest_labels)
 
 
-def _labels_outside(subtree: object, node: object) -> frozenset[str]:
+def _labels_outside(subtree: IRNode, node: IRNode) -> frozenset[str]:
     """Return labels in ``node`` that are NOT in ``subtree`` (using object identity)."""
     if node is subtree:
         return frozenset()
@@ -115,10 +118,10 @@ def _labels_outside(subtree: object, node: object) -> frozenset[str]:
         return result
     if isinstance(node, NamedNode):
         return frozenset({node.label}) | _labels_outside(subtree, node.inner)
-    raise TypeError(f"Unknown IR node: {type(node)}")
+    impossible(node)
 
 
-def is_constraint_independent(subtree: object, constraint: object) -> bool:
+def is_constraint_independent(subtree: IRNode, constraint: Expression) -> bool:
     """True iff no label in ``subtree`` is referenced in ``constraint``."""
     sub_labels = tree_labels(subtree)
     if not sub_labels:
@@ -127,7 +130,7 @@ def is_constraint_independent(subtree: object, constraint: object) -> bool:
     return not (sub_labels & expr_labels)
 
 
-def is_guaranteed_cacheable(subtree: object, whole_tree: object, constraint: object) -> bool:
+def is_guaranteed_cacheable(subtree: IRNode, whole_tree: IRNode, constraint: Expression) -> bool:
     """True iff ``subtree`` is safe to cache independently.
 
     Guaranteed-cacheable cases (from the spec):
@@ -139,7 +142,7 @@ def is_guaranteed_cacheable(subtree: object, whole_tree: object, constraint: obj
     return is_label_closed(subtree, whole_tree) and is_constraint_independent(subtree, constraint)
 
 
-def _cache_key(subtree: object, methods: Mapping[str, str]) -> tuple[object, tuple[tuple[str, str], ...]]:
+def _cache_key(subtree: IRNode, methods: Mapping[str, str]) -> tuple[object, tuple[tuple[str, str], ...]]:
     """Return a hashable cache key for a guaranteed-cacheable subtree."""
     sub_labels = tree_labels(subtree)
     restricted = tuple(sorted((k, v) for k, v in methods.items() if k in sub_labels))
@@ -174,10 +177,10 @@ class UnnamedCache:
     """Cache for unnamed (name-free) subtree denotations."""
 
     def __init__(self, stats: CacheStats) -> None:
-        self._store: dict[object, object] = {}
+        self._store: dict[IRNode, object] = {}
         self._stats = stats
 
-    def get(self, node: object) -> object:
+    def get(self, node: IRNode) -> object:
         key = node
         if key in self._store:
             self._stats.unnamed_hits += 1
@@ -185,7 +188,7 @@ class UnnamedCache:
         self._stats.unnamed_misses += 1
         return None
 
-    def set(self, node: object, value: object) -> None:
+    def set(self, node: IRNode, value: object) -> None:
         self._store[node] = value
 
 
@@ -196,7 +199,7 @@ class GenerationCache:
         self._store: dict[tuple[object, tuple[tuple[str, str], ...]], object] = {}
         self._stats = stats
 
-    def get(self, subtree: object, methods: Mapping[str, str]) -> object:
+    def get(self, subtree: IRNode, methods: Mapping[str, str]) -> object:
         key = _cache_key(subtree, methods)
         if key in self._store:
             self._stats.named_hits += 1
@@ -204,6 +207,6 @@ class GenerationCache:
         self._stats.named_misses += 1
         return None
 
-    def set(self, subtree: object, methods: Mapping[str, str], value: object) -> None:
+    def set(self, subtree: IRNode, methods: Mapping[str, str], value: object) -> None:
         key = _cache_key(subtree, methods)
         self._store[key] = value
