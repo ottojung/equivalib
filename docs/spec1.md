@@ -48,7 +48,7 @@ The words MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY are to be interpreted as n
 Label: TypeAlias = str
 Method: TypeAlias = Literal["all", "arbitrary", "uniform_random", "arbitrarish_randomish"]
 
-generate(tree: Type[T], constraint: Expression = BooleanExpression(True), methods: Mapping[Label, Method] = {}) -> Set[T]
+generate(tree: Type[T], constraint: Expression = BooleanExpression(True), methods: Optional[Mapping[Label, Method]] = None) -> Set[T]
 ```
 
 Here `T` is the runtime type denoted by `tree`.
