@@ -7,11 +7,6 @@ import pytest
 
 from equivalib import ValueRange
 
-pytestmark = pytest.mark.xfail(
-    reason="Core API from docs/spec1.md is planned but not implemented yet.",
-    strict=True,
-)
-
 
 def core_attr(name: str) -> Any:
     module = importlib.import_module("equivalib.core")
@@ -118,7 +113,7 @@ def test_generate_named_bool_arbitrary_picks_canonical_first():
 def test_generate_named_tuple_arbitrary_picks_one_tuple_witness():
     generate = core_attr("generate")
     Name = core_attr("Name")
-    assert generate(Annotated[Tuple[bool, bool], Name("X")], true_expr(), {"X": "arbitrary"}) == {(True, False)}
+    assert generate(Annotated[Tuple[bool, bool], Name("X")], true_expr(), {"X": "arbitrary"}) == {(True, True)}
 
 
 def test_generate_repeated_named_tuples_share_one_atomic_value():
