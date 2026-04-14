@@ -25,12 +25,12 @@ def search(node: IRNode, constraint: Expression) -> list[dict[str, object]]:
     Partial-evaluation pruning eliminates dead branches early.
     """
     label_list = sorted(tree_labels(node))
-    domains = domain_map(node)
+    domains: dict[str, list[object]] = domain_map(node)
 
     # Precompute canonical-sorted domain lists once to avoid O(n log n) work
     # on every recursive call inside _backtrack.
     sorted_domains: dict[str, list[object]] = {
-        label: canonical_sorted(domains.get(label, frozenset()))
+        label: canonical_sorted(domains.get(label, []))
         for label in label_list
     }
 

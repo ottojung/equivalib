@@ -60,6 +60,27 @@ Unknown = _UnknownType()
 
 
 # ---------------------------------------------------------------------------
+# Structural equality helper
+# ---------------------------------------------------------------------------
+
+def _structural_eq(lv: object, rv: object) -> bool:
+    """Type-aware structural equality.
+
+    Python's ``True == 1`` (and ``(True,) == (1,)``) conflates bool and int.
+    This helper first checks that ``type(lv) is type(rv)``, then recurses
+    element-wise for tuples, so that values of different types are always
+    considered distinct.
+    """
+    if type(lv) is not type(rv):
+        return False
+    if isinstance(lv, tuple) and isinstance(rv, tuple):
+        if len(lv) != len(rv):
+            return False
+        return all(_structural_eq(a, b) for a, b in zip(lv, rv))
+    return lv == rv
+
+
+# ---------------------------------------------------------------------------
 # Full evaluation (all labels must be assigned)
 # ---------------------------------------------------------------------------
 
@@ -95,9 +116,9 @@ def _eval(expr: Expression, assignment: dict[str, object]) -> object:
     if isinstance(expr, Mod):
         return _eval(expr.left, assignment) % _eval(expr.right, assignment)  # type: ignore[operator]
     if isinstance(expr, Eq):
-        return _eval(expr.left, assignment) == _eval(expr.right, assignment)
+        return _structural_eq(_eval(expr.left, assignment), _eval(expr.right, assignment))
     if isinstance(expr, Ne):
-        return _eval(expr.left, assignment) != _eval(expr.right, assignment)
+        return not _structural_eq(_eval(expr.left, assignment), _eval(expr.right, assignment))
     if isinstance(expr, Lt):
         return _eval(expr.left, assignment) < _eval(expr.right, assignment)  # type: ignore[operator]
     if isinstance(expr, Le):
@@ -165,9 +186,9 @@ def _eval_partial(expr: Expression, pa: dict[str, object]) -> object:
         if isinstance(lv, _UnknownType) or isinstance(rv, _UnknownType):
             return Unknown
         if isinstance(expr, Eq):
-            return lv == rv
+            return _structural_eq(lv, rv)
         if isinstance(expr, Ne):
-            return lv != rv
+            return not _structural_eq(lv, rv)
         if isinstance(expr, Lt):
             return lv < rv  # type: ignore[operator]
         if isinstance(expr, Le):

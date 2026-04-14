@@ -7,14 +7,16 @@ import pytest
 
 from equivalib import ValueRange
 from equivalib.core.cache import is_constraint_independent, is_guaranteed_cacheable, is_label_closed
-from equivalib.core.domains import domain_map
-from equivalib.core.eval import eval_expression, eval_expression_partial, Unknown
+from equivalib.core.domains import domain_map, _type_aware_intersect
+from equivalib.core.eval import eval_expression, eval_expression_partial, Unknown, _structural_eq  # type: ignore[attr-defined]
 from equivalib.core.expression import (
     Add,
     And,
     BooleanConstant,
+    Eq,
     IntegerConstant,
     Mul,
+    Ne,
     Neg,
     Or,
     Reference,
@@ -22,7 +24,7 @@ from equivalib.core.expression import (
 from equivalib.core.name import Name as CoreName
 from equivalib.core.normalize import normalize
 from equivalib.core.order import canonical_first, canonical_sorted
-from equivalib.core.types import LiteralNode, NamedNode, BoolNode, TupleNode
+from equivalib.core.types import LiteralNode, NamedNode, BoolNode, TupleNode, UnionNode
 from equivalib.core.validate import validate_methods, validate_tree, validate_expression
 
 
@@ -855,7 +857,7 @@ def test_canonical_first_selects_minimum():
 def test_domain_map_single_named_label():
     node = normalize(Annotated[bool, CoreName("X")])
     dm = domain_map(node)
-    assert dm == {"X": frozenset({True, False})}
+    assert set(dm["X"]) == {True, False}
 
 
 def test_domain_map_repeated_label_intersection():
@@ -863,7 +865,7 @@ def test_domain_map_repeated_label_intersection():
     tree = Tuple[Annotated[int, ValueRange(1, 5), Name("X")], Annotated[int, ValueRange(3, 7), Name("X")]]
     node = normalize(tree)
     dm = domain_map(node)
-    assert dm["X"] == frozenset({3, 4, 5})
+    assert set(dm["X"]) == {3, 4, 5}
 
 
 def test_domain_map_repeated_label_empty_intersection():
@@ -871,7 +873,7 @@ def test_domain_map_repeated_label_empty_intersection():
     tree = Tuple[Annotated[int, ValueRange(1, 2), Name("X")], Annotated[int, ValueRange(5, 6), Name("X")]]
     node = normalize(tree)
     dm = domain_map(node)
-    assert dm["X"] == frozenset()
+    assert dm["X"] == [], f"Expected empty domain but got {dm['X']!r}"
 
 
 def test_domain_map_repeated_label_bool_int_type_aware():
@@ -887,7 +889,7 @@ def test_domain_map_repeated_label_bool_int_type_aware():
     tree = Tuple[Annotated[bool, Name("X")], Annotated[int, ValueRange(1, 2), Name("X")]]
     node = normalize(tree)
     dm = domain_map(node)
-    assert dm["X"] == frozenset(), f"Expected empty domain but got {dm['X']!r}"
+    assert dm["X"] == [], f"Expected empty domain but got {dm['X']!r}"
 
 
 def test_domain_map_repeated_label_tuple_bool_int_type_aware():
@@ -897,7 +899,6 @@ def test_domain_map_repeated_label_tuple_bool_int_type_aware():
     equality, which conflates bool and int.  _type_aware_intersect must handle
     this correctly via recursive tagging.
     """
-    from equivalib.core.domains import _type_aware_intersect
     # Simulating intersection of tuple domains where one occurrence contains
     # bool tuples and another contains int tuples of the same value.
     bool_tuples = frozenset({(True,), (False,)})
@@ -909,7 +910,75 @@ def test_domain_map_repeated_label_tuple_bool_int_type_aware():
     )
 
 
-def test_generate_unnamed_false_constraint_returns_empty():
+def test_domain_map_union_literal_bool_int_preserves_distinct_types():
+    """domain_map must preserve both True (bool) and 1 (int) as distinct alternatives.
+
+    Python's raw set union collapses ``True`` and ``1`` into a single element
+    because ``True == 1``.  When a label's occurrence is
+    ``Union[Literal[True], Literal[1]]``, the domain must preserve both typed
+    alternatives so that a later type-aware intersection with ``Literal[1]``
+    yields ``[1]`` (the int) rather than ``[]`` (empty).
+    """
+    # Occurrence 1: Union[Literal[True], Literal[1]] — should preserve both types.
+    # Occurrence 2: Literal[1]  (int) — domain is {1}.
+    # Expected type-aware intersection: {1 (int)} only.
+    occ1_node = NamedNode("X", UnionNode([LiteralNode(True), LiteralNode(1)]))
+    occ2_node = NamedNode("X", LiteralNode(1))
+    tree_node = TupleNode([occ1_node, occ2_node])
+    dm = domain_map(tree_node)
+    assert len(dm["X"]) == 1, f"Expected [1] but got {dm['X']!r}"
+    assert dm["X"][0] == 1, f"Expected 1 (int) but got {dm['X'][0]!r}"
+    assert type(dm["X"][0]) is int, (
+        f"Expected type int but got {type(dm['X'][0])!r}"
+    )
+
+
+def test_generate_union_literal_bool_int_respects_type_identity():
+    """domain_map must correctly handle union of bool/int-equal literals for a repeated label.
+
+    This tests the integration through domain_map to verify X=1 is the only
+    admissible value when one occurrence is Union[Literal[True], Literal[1]]
+    and the other is Literal[1].
+    """
+    occ1 = NamedNode("X", UnionNode([LiteralNode(True), LiteralNode(1)]))
+    occ2 = NamedNode("X", LiteralNode(1))
+    node = TupleNode([occ1, occ2])
+    dm = domain_map(node)
+    assert len(dm["X"]) == 1 and type(dm["X"][0]) is int and dm["X"][0] == 1, (
+        f"Expected X domain = [1 (int)], got {dm['X']!r}"
+    )
+
+
+def test_structural_eq_distinguishes_bool_from_int():
+    """Eq/Ne must treat True and 1 as distinct values.
+
+    Python's ``True == 1`` would make ``Eq(Reference("X"), IntegerConstant(1))``
+    hold for ``X=True``, but structural equality must reject that.
+    """
+    assert _structural_eq(True, True) is True
+    assert _structural_eq(1, 1) is True
+    assert _structural_eq(True, 1) is False
+    assert _structural_eq(1, True) is False
+    assert _structural_eq((True,), (1,)) is False
+    assert _structural_eq((True,), (True,)) is True
+    assert _structural_eq((1,), (1,)) is True
+
+
+def test_eval_eq_type_aware():
+    """eval_expression(Eq(...)) must use structural equality."""
+    expr = Eq(Reference("X"), IntegerConstant(1))
+    assert eval_expression(expr, {"X": 1}) is True
+    assert eval_expression(expr, {"X": True}) is False  # True == 1 in Python, but Eq is structural
+
+
+def test_eval_ne_type_aware():
+    """eval_expression(Ne(...)) must use structural equality."""
+    expr = Ne(Reference("X"), IntegerConstant(1))
+    assert eval_expression(expr, {"X": 1}) is False
+    assert eval_expression(expr, {"X": True}) is True  # True != 1 structurally
+
+
+
     """generate(Literal[True], BooleanExpression(False), {}) must return set().
 
     Without the unnamed-tree constraint check, the fast path returns {True}
