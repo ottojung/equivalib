@@ -8,7 +8,7 @@ Three public entry points:
 
 from __future__ import annotations
 
-from typing import Dict, Mapping, TypeAlias
+from typing import Mapping, TypeAlias
 
 from equivalib.core.types import (
     NoneNode,
@@ -44,9 +44,10 @@ from equivalib.core.expression import (
     Expression,
     impossible,
 )
+from equivalib.core.methods import Label, Method
 
 _VALID_METHODS = frozenset({"all", "arbitrary", "uniform_random", "arbitrarish_randomish"})
-LabelShapes: TypeAlias = Dict[str, IRNode]
+LabelShapes: TypeAlias = dict[str, IRNode]
 ExprType: TypeAlias = str
 
 
@@ -89,7 +90,7 @@ def _check_node(node: IRNode) -> None:
     impossible(node)
 
 
-def validate_methods(node: IRNode, methods: Mapping[str, str]) -> None:
+def validate_methods(node: IRNode, methods: Mapping[Label, Method]) -> None:
     """Raise ValueError if any method key or value is invalid."""
     if not isinstance(methods, Mapping):
         raise TypeError(

@@ -890,6 +890,25 @@ def test_domain_map_repeated_label_bool_int_type_aware():
     assert dm["X"] == frozenset(), f"Expected empty domain but got {dm['X']!r}"
 
 
+def test_domain_map_repeated_label_tuple_bool_int_type_aware():
+    """Domain intersection must be recursively type-aware for nested tuples.
+
+    Python's ``(True,) == (1,)`` because tuple equality delegates to element
+    equality, which conflates bool and int.  _type_aware_intersect must handle
+    this correctly via recursive tagging.
+    """
+    from equivalib.core.domains import _type_aware_intersect
+    # Simulating intersection of tuple domains where one occurrence contains
+    # bool tuples and another contains int tuples of the same value.
+    bool_tuples = frozenset({(True,), (False,)})
+    int_tuples = frozenset({(1,), (2,)})
+    result = _type_aware_intersect(bool_tuples, int_tuples)
+    assert result == frozenset(), (
+        f"Expected empty domain for bool-tuple vs int-tuple intersection, "
+        f"but got {result!r}. Python's naive & would return {{(1,)}}."
+    )
+
+
 def test_generate_unnamed_false_constraint_returns_empty():
     """generate(Literal[True], BooleanExpression(False), {}) must return set().
 

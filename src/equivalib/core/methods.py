@@ -9,12 +9,15 @@ Processes labels in ascending lexicographic order.
 from __future__ import annotations
 
 import random
-from typing import Mapping
+from typing import Literal, Mapping, TypeAlias
 
 from equivalib.core.order import canonical_first
 
+Label: TypeAlias = str
+Method: TypeAlias = Literal["all", "arbitrary", "uniform_random", "arbitrarish_randomish"]
 
-def apply_methods(assignments: list[dict[str, object]], methods: Mapping[str, str]) -> list[dict[str, object]]:
+
+def apply_methods(assignments: list[dict[str, object]], methods: Mapping[Label, Method]) -> list[dict[str, object]]:
     """Reduce the satisfying-assignment set ``assignments`` using ``methods``.
 
     Labels without an explicit method default to ``"all"``.

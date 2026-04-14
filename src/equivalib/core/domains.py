@@ -72,20 +72,38 @@ def _values_node(node: IRNode) -> frozenset[object]:
     impossible(node)
 
 
+def _tag_value(v: object) -> object:
+    """Return a recursively type-tagged version of ``v`` for type-aware comparison.
+
+    Python's ``True == 1`` and ``False == 0`` propagate into tuples, so
+    ``(True,) == (1,)`` in plain Python.  This function embeds ``type(v)``
+    into the representation so that values of different types always compare
+    as distinct, even when nested inside tuples.
+    """
+    if isinstance(v, bool):
+        # bool is a subclass of int; check it first.
+        return (bool, v)
+    if isinstance(v, int):
+        return (int, v)
+    if isinstance(v, tuple):
+        return (tuple, tuple(_tag_value(elem) for elem in v))
+    return (type(v), v)
+
+
 def _type_aware_intersect(
     a: frozenset[object],
     b: frozenset[object],
 ) -> frozenset[object]:
-    """Return the intersection of ``a`` and ``b`` with type-awareness.
+    """Return the intersection of ``a`` and ``b`` with recursive type-awareness.
 
     Python's built-in ``==`` conflates ``bool`` and ``int``
-    (``True == 1``, ``False == 0``), so a naïve ``a & b`` can produce
-    spurious non-empty results when intersecting boolean and integer domains.
-    This function uses ``(type(v), v)`` tags to enforce strict type equality.
+    (``True == 1``, ``False == 0``), and this propagates into tuples
+    (``(True,) == (1,)``).  This function uses ``_tag_value`` to enforce
+    strict recursive type equality at every nesting level.
     """
-    tagged_a = frozenset((type(v), v) for v in a)
-    tagged_b = frozenset((type(v), v) for v in b)
-    return frozenset(v for _, v in tagged_a & tagged_b)
+    tag_to_val = {_tag_value(v): v for v in a}
+    b_tags = frozenset(_tag_value(v) for v in b)
+    return frozenset(tag_to_val[t] for t in tag_to_val if t in b_tags)
 
 
 def domain_map(node: IRNode) -> dict[str, frozenset[object]]:

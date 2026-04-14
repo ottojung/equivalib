@@ -1,7 +1,7 @@
 """Public API for the new core: ``generate``.
 
 Public entry point:
-    generate(tree: Type[T], constraint: Expression = BooleanExpression(True), methods: Mapping[Label, Method] = {}) -> Set[T]
+    generate(tree: Type[T], constraint: Expression = BooleanExpression(True), methods: Optional[Mapping[Label, Method]] = None) -> Set[T]
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ from equivalib.core.types import (
 from equivalib.core.domains import _values_node
 from equivalib.core.eval import eval_expression
 from equivalib.core.search import search
-from equivalib.core.methods import apply_methods
+from equivalib.core.methods import apply_methods, Label, Method
 
 GenerateT = TypeVar("GenerateT")
 
@@ -86,15 +86,16 @@ def concretize(node: IRNode, assignment: Mapping[str, object]) -> frozenset[obje
 def generate(
     tree: Type[GenerateT],
     constraint: Expression = _DEFAULT_CONSTRAINT,
-    methods: Optional[Mapping[str, str]] = None,
+    methods: Optional[Mapping[Label, Method]] = None,
 ) -> set[GenerateT]:
     """Generate all runtime values of type ``tree`` satisfying ``constraint``.
 
     Args:
         tree:       A Python type expression (TypeTree).
         constraint: An Expression AST.  Defaults to BooleanExpression(True).
-        methods:    Mapping from label string to method string.
-                    Absent labels default to ``"all"``.
+        methods:    Optional mapping from label string to method string.
+                    Absent labels default to ``"all"``.  ``None`` is treated
+                    the same as an empty mapping.
 
     Returns:
         A set of runtime values.

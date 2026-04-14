@@ -54,14 +54,14 @@ Expression: TypeAlias = Union[
     And, Or,
 ]
 
-generate(tree: Type[T], constraint: Expression = BooleanExpression(True), methods: Mapping[Label, Method] = {}) -> Set[T]
+generate(tree: Type[T], constraint: Expression = BooleanExpression(True), methods: Optional[Mapping[Label, Method]] = None) -> Set[T]
 ```
 
 Here `T` is the runtime type denoted by `tree`.
 
 Default behavior:
 
-- if a label is not present in `methods`, its method is `"all"`
+- if `methods` is `None` or a label is not present in `methods`, its method is `"all"`
 - if the constraint is omitted in examples, it defaults to `BooleanExpression(True)`
 
 `BooleanExpression(True)` denotes the always-true boolean expression value. A compliant implementation MAY represent it canonically as `BooleanConstant(True)`.
@@ -80,7 +80,7 @@ generate(tree)
 means:
 
 ```python
-generate(tree, BooleanExpression(True), {})
+generate(tree, BooleanExpression(True), None)
 ```
 
 ## TypeTree
