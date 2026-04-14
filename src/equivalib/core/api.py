@@ -1,7 +1,7 @@
 """Public API for the new core: ``generate`` and ``concretize``.
 
 Public entry point:
-    generate(tree, constraint=BooleanExpression(True), methods={}) -> set
+    generate(tree, constraint=BooleanExpression(True), methods=None) -> set
 """
 
 from __future__ import annotations
@@ -63,7 +63,7 @@ def concretize(node: object, assignment: dict) -> Any:
 def generate(
     tree: Any,
     constraint: Any = None,
-    methods: Mapping[str, str] = {},
+    methods: Mapping[str, str] | None = None,
 ) -> set:
     """Generate all runtime values of type ``tree`` satisfying ``constraint``.
 
@@ -81,6 +81,8 @@ def generate(
     """
     if constraint is None:
         constraint = BooleanExpression(True)
+    if methods is None:
+        methods = {}
 
     # Reject non-AST constraints (e.g. strings)
     if not _is_expression(constraint):
