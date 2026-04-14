@@ -23,7 +23,7 @@ from equivalib.core.types import (
 from equivalib.core.normalize import normalize
 
 
-def values(t: Any) -> set:
+def values(t: Any) -> set[Any]:
     """Return the finite denotation of type ``t``.
 
     Raises ``ValueError`` if the type contains any named nodes.
@@ -38,7 +38,7 @@ def values(t: Any) -> set:
     return set(_values_node(node))
 
 
-def _values_node(node: object) -> frozenset:
+def _values_node(node: object) -> frozenset[Any]:
     """Return the finite denotation of ``node`` (IR-level, internal)."""
     if isinstance(node, NoneNode):
         return frozenset({None})
@@ -49,7 +49,7 @@ def _values_node(node: object) -> frozenset:
     if isinstance(node, IntRangeNode):
         return frozenset(range(node.min_value, node.max_value + 1))
     if isinstance(node, TupleNode):
-        result: frozenset = frozenset({()})
+        result: frozenset[Any] = frozenset({()})
         for item in node.items:
             item_vals = _values_node(item)
             result = frozenset(
@@ -68,7 +68,7 @@ def _values_node(node: object) -> frozenset:
     raise TypeError(f"Unknown IR node: {type(node)}")
 
 
-def domain_map(node: object) -> dict:
+def domain_map(node: object) -> dict[str, frozenset[Any]]:
     """Return a mapping {label: frozenset} of domains for all named nodes.
 
     The domain of a label is the intersection of all individual occurrences of
@@ -77,12 +77,12 @@ def domain_map(node: object) -> dict:
     If any label has an empty domain, the returned dict still contains it with
     an empty frozenset value.  The caller is responsible for checking emptiness.
     """
-    occurrences: dict = {}  # label -> list of frozensets
+    occurrences: dict[str, list[frozenset[Any]]] = {}
     _collect_occurrences(node, occurrences)
 
-    result = {}
+    result: dict[str, frozenset[Any]] = {}
     for label, occ_list in occurrences.items():
-        domain: frozenset = occ_list[0]
+        domain: frozenset[Any] = occ_list[0]
         for occ in occ_list[1:]:
             domain = domain & occ
         result[label] = domain
@@ -90,7 +90,7 @@ def domain_map(node: object) -> dict:
     return result
 
 
-def _collect_occurrences(node: object, out: dict) -> None:
+def _collect_occurrences(node: object, out: dict[str, list[frozenset[Any]]]) -> None:
     """Populate ``out`` with per-label occurrence lists."""
     if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode)):
         return

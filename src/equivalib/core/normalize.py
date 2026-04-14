@@ -49,6 +49,13 @@ def normalize(t: Any) -> object:
 
     # --- Literal ---
     if origin is typing.Literal:
+        for v in args:
+            try:
+                hash(v)
+            except TypeError:
+                raise ValueError(
+                    f"Unsupported non-hashable Literal value in new core: {v!r}."
+                )
         if len(args) == 1:
             return LiteralNode(args[0])
         # Multi-value Literal: expand into UnionNode
@@ -68,7 +75,7 @@ def normalize(t: Any) -> object:
     raise ValueError(f"Unsupported type expression: {t!r}")
 
 
-def _normalize_annotated(base: Any, metadata: list) -> object:
+def _normalize_annotated(base: Any, metadata: list[Any]) -> object:
     """Normalize an ``Annotated[base, *metadata]`` expression."""
     value_ranges = [m for m in metadata if isinstance(m, ValueRange)]
     names = [m for m in metadata if isinstance(m, Name)]

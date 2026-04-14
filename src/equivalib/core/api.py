@@ -49,7 +49,7 @@ from equivalib.core.methods import apply_methods
 # Concretize
 # ---------------------------------------------------------------------------
 
-def concretize(node: object, assignment: dict) -> frozenset:
+def concretize(node: object, assignment: Mapping[str, Any]) -> frozenset[Any]:
     """Return the set of all runtime values that ``node`` can produce under ``assignment``.
 
     Rules:
@@ -73,7 +73,7 @@ def concretize(node: object, assignment: dict) -> frozenset:
         return frozenset(range(node.min_value, node.max_value + 1))
     if isinstance(node, TupleNode):
         # Cartesian product of all children's expansions.
-        result: frozenset = frozenset({()})
+        result: frozenset[Any] = frozenset({()})
         for item in node.items:
             item_vals = concretize(item, assignment)
             result = frozenset(
@@ -96,7 +96,7 @@ def generate(
     tree: Any,
     constraint: Any = None,
     methods: Optional[Mapping[str, str]] = None,
-) -> set:
+) -> set[Any]:
     """Generate all runtime values of type ``tree`` satisfying ``constraint``.
 
     Args:
@@ -154,7 +154,7 @@ def generate(
     # 8. Concretize each assignment into runtime values.
     # ``concretize`` returns a frozenset (possibly multi-valued for unnamed
     # leaves in mixed trees), so we union the results together.
-    result: set = set()
+    result: set[Any] = set()
     for asgn in reduced:
         result.update(concretize(node, asgn))
 
@@ -168,4 +168,3 @@ def _is_expression(obj: Any) -> bool:
         Neg, Add, Sub, Mul, FloorDiv, Mod,
         Eq, Ne, Lt, Le, Gt, Ge, And, Or,
     ))
-

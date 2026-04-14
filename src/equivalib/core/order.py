@@ -33,7 +33,7 @@ def _kind_rank(v: Any) -> int:
     return 99
 
 
-def _sort_key(v: Any) -> tuple:
+def _sort_key(v: Any) -> tuple[Any, ...]:
     """Return a sort key for ``v`` compatible with the canonical total order."""
     rank = _kind_rank(v)
     if v is None:
@@ -50,7 +50,7 @@ def _sort_key(v: Any) -> tuple:
     return (rank, repr(v))
 
 
-def canonical_sorted(values: Any) -> list:
+def canonical_sorted(values: Any) -> list[Any]:
     """Return a list of ``values`` sorted in canonical order."""
     return sorted(values, key=_sort_key)
 

@@ -55,14 +55,14 @@ from equivalib.core.expression import (
 # mentioned_labels
 # ---------------------------------------------------------------------------
 
-def mentioned_labels(expr: object) -> set:
+def mentioned_labels(expr: object) -> set[str]:
     """Return the set of label strings referenced in ``expr``."""
-    result: set = set()
+    result: set[str] = set()
     _collect_labels(expr, result)
     return result
 
 
-def _collect_labels(expr: object, out: set) -> None:
+def _collect_labels(expr: object, out: set[str]) -> None:
     if isinstance(expr, (BooleanConstant, IntegerConstant)):
         return
     if isinstance(expr, Reference):
@@ -97,14 +97,14 @@ def is_label_closed(subtree: object, whole_tree: object) -> bool:
     return not (subtree_labels & rest_labels)
 
 
-def _labels_outside(subtree: object, node: object) -> frozenset:
+def _labels_outside(subtree: object, node: object) -> frozenset[str]:
     """Return labels in ``node`` that are NOT in ``subtree`` (using object identity)."""
     if node is subtree:
         return frozenset()
     if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode)):
         return frozenset()
     if isinstance(node, TupleNode):
-        result: frozenset = frozenset()
+        result: frozenset[str] = frozenset()
         for item in node.items:
             result = result | _labels_outside(subtree, item)
         return result
@@ -139,7 +139,7 @@ def is_guaranteed_cacheable(subtree: object, whole_tree: object, constraint: obj
     return is_label_closed(subtree, whole_tree) and is_constraint_independent(subtree, constraint)
 
 
-def _cache_key(subtree: object, methods: Mapping[str, str]) -> tuple:
+def _cache_key(subtree: object, methods: Mapping[str, str]) -> tuple[object, tuple[tuple[str, str], ...]]:
     """Return a hashable cache key for a guaranteed-cacheable subtree."""
     sub_labels = tree_labels(subtree)
     restricted = tuple(sorted((k, v) for k, v in methods.items() if k in sub_labels))
@@ -174,7 +174,7 @@ class UnnamedCache:
     """Cache for unnamed (name-free) subtree denotations."""
 
     def __init__(self, stats: CacheStats) -> None:
-        self._store: dict = {}
+        self._store: dict[object, Any] = {}
         self._stats = stats
 
     def get(self, node: object) -> Any:
@@ -193,7 +193,7 @@ class GenerationCache:
     """Cache for guaranteed-cacheable subtree generation results."""
 
     def __init__(self, stats: CacheStats) -> None:
-        self._store: dict = {}
+        self._store: dict[tuple[object, tuple[tuple[str, str], ...]], Any] = {}
         self._stats = stats
 
     def get(self, subtree: object, methods: Mapping[str, str]) -> Any:

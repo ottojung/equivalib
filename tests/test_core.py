@@ -600,6 +600,12 @@ def test_normalize_nested_union_values():
     assert generate(tree) == {"a", "b", "c"}
 
 
+def test_normalize_rejects_non_hashable_literal_value():
+    generate = core_attr("generate")
+    with pytest.raises(ValueError):
+        generate(Literal[[]])
+
+
 def test_normalize_annotated_name_before_value_range():
     """Name metadata before ValueRange (reverse order) should work."""
     generate = core_attr("generate")
@@ -634,6 +640,29 @@ def test_generate_rejects_address_out_of_range_on_all_union_branches():
         generate(tree, Eq(ref("X", (1,)), bool_const(True)), {})
 
 
+def test_generate_rejects_address_valid_only_in_first_union_branch():
+    """A path must be valid in every union branch, not just the first."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    tree = Annotated[Union[Tuple[Tuple[bool]], Tuple[bool]], Name("X")]
+    with pytest.raises(ValueError):
+        generate(tree, Eq(ref("X", (0, 0)), bool_const(True)), {})
+
+
+def test_generate_rejects_path_when_repeated_label_has_non_tuple_occurrence():
+    """Repeated labels with mixed shapes should reject tuple-path references."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    tree = Tuple[
+        Annotated[Tuple[bool], Name("X")],
+        Annotated[bool, Name("X")],
+    ]
+    with pytest.raises(ValueError):
+        generate(tree, Eq(ref("X", (0,)), bool_const(True)), {})
+
+
 # --------------------------------------------------------------------------
 # Validate: arithmetic on bool references must be rejected
 # --------------------------------------------------------------------------
@@ -659,6 +688,40 @@ def test_generate_rejects_ordering_on_bool_reference():
     Name = core_attr("Name")
     with pytest.raises((TypeError, ValueError)):
         generate(Annotated[bool, Name("X")], Lt(ref("X"), int_const(1)), {})
+
+
+def test_generate_rejects_neg_on_any_typed_reference():
+    generate = core_attr("generate")
+    Eq = core_attr("Eq")
+    Neg = core_attr("Neg")
+    Name = core_attr("Name")
+    with pytest.raises((TypeError, ValueError)):
+        generate(
+            Annotated[Tuple[bool], Name("X")],
+            Eq(Neg(ref("X")), int_const(0)),
+            {},
+        )
+
+
+def test_generate_rejects_arithmetic_on_any_typed_reference():
+    generate = core_attr("generate")
+    Add = core_attr("Add")
+    Eq = core_attr("Eq")
+    Name = core_attr("Name")
+    with pytest.raises((TypeError, ValueError)):
+        generate(
+            Annotated[Tuple[bool], Name("X")],
+            Eq(Add(ref("X"), int_const(1)), int_const(2)),
+            {},
+        )
+
+
+def test_generate_rejects_ordering_on_any_typed_reference():
+    generate = core_attr("generate")
+    Lt = core_attr("Lt")
+    Name = core_attr("Name")
+    with pytest.raises((TypeError, ValueError)):
+        generate(Annotated[Tuple[bool], Name("X")], Lt(ref("X"), int_const(1)), {})
 
 
 # --------------------------------------------------------------------------

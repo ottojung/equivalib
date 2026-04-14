@@ -63,7 +63,7 @@ Unknown = _UnknownType()
 # Full evaluation (all labels must be assigned)
 # ---------------------------------------------------------------------------
 
-def eval_expression(expr: object, assignment: dict) -> Any:
+def eval_expression(expr: object, assignment: dict[str, Any]) -> Any:
     """Evaluate ``expr`` against a complete assignment mapping.
 
     ``assignment`` maps label strings to runtime values.
@@ -72,7 +72,7 @@ def eval_expression(expr: object, assignment: dict) -> Any:
     return _eval(expr, assignment)
 
 
-def _eval(expr: object, assignment: dict) -> Any:
+def _eval(expr: object, assignment: dict[str, Any]) -> Any:
     if isinstance(expr, BooleanConstant):
         return expr.value
     if isinstance(expr, IntegerConstant):
@@ -117,7 +117,7 @@ def _eval(expr: object, assignment: dict) -> Any:
 # Partial evaluation (some labels may be unresolved)
 # ---------------------------------------------------------------------------
 
-def eval_expression_partial(expr: object, partial_assignment: dict) -> Any:
+def eval_expression_partial(expr: object, partial_assignment: dict[str, Any]) -> Any:
     """Evaluate ``expr`` against a partial assignment.
 
     Returns a concrete value if it can be determined, or ``Unknown`` if the
@@ -126,7 +126,7 @@ def eval_expression_partial(expr: object, partial_assignment: dict) -> Any:
     return _eval_partial(expr, partial_assignment)
 
 
-def _eval_partial(expr: object, pa: dict) -> Any:
+def _eval_partial(expr: object, pa: dict[str, Any]) -> Any:
     if isinstance(expr, BooleanConstant):
         return expr.value
     if isinstance(expr, IntegerConstant):

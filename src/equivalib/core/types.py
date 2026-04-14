@@ -38,15 +38,12 @@ class LiteralNode:
     value: object
 
     def __hash__(self) -> int:
-        try:
-            return hash(("LiteralNode", self.value))
-        except TypeError:
-            return hash(("LiteralNode", id(self.value)))
+        return hash(("LiteralNode", self.value))
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, LiteralNode):
             return NotImplemented
-        return self.value == other.value  # type: ignore[no-any-return]
+        return self.value == other.value
 
 
 @dataclass(frozen=True)
@@ -86,12 +83,12 @@ IRNode = object  # Union of all IR node types (kept as ``object`` for compat)
 # Helpers
 # ---------------------------------------------------------------------------
 
-def labels(node: object) -> frozenset:
+def labels(node: object) -> frozenset[str]:
     """Return all labels used within ``node``."""
     if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode)):
         return frozenset()
     if isinstance(node, TupleNode):
-        result: frozenset = frozenset()
+        result: frozenset[str] = frozenset()
         for item in node.items:
             result = result | labels(item)
         return result

@@ -8,7 +8,7 @@ Three public entry points:
 
 from __future__ import annotations
 
-from typing import Mapping
+from typing import Mapping, TypeAlias
 
 from equivalib.core.types import (
     NoneNode,
@@ -42,6 +42,8 @@ from equivalib.core.expression import (
 )
 
 _VALID_METHODS = frozenset({"all", "arbitrary", "uniform_random", "arbitrarish_randomish"})
+LabelShapes: TypeAlias = dict[str, object]
+ExprType: TypeAlias = str
 
 
 def validate_tree(node: object) -> None:
@@ -117,14 +119,14 @@ def validate_expression(expr: object, node: object) -> None:
         )
 
 
-def _collect_label_shapes(node: object) -> dict:
+def _collect_label_shapes(node: object) -> LabelShapes:
     """Return a mapping {label: shape_node} for all named nodes in the tree."""
-    result: dict = {}
+    result: LabelShapes = {}
     _walk_for_shapes(node, result)
     return result
 
 
-def _walk_for_shapes(node: object, result: dict) -> None:
+def _walk_for_shapes(node: object, result: LabelShapes) -> None:
     if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode)):
         return
     if isinstance(node, TupleNode):
@@ -134,11 +136,38 @@ def _walk_for_shapes(node: object, result: dict) -> None:
         for opt in node.options:
             _walk_for_shapes(opt, result)
     elif isinstance(node, NamedNode):
-        result[node.label] = tree_shape(node.inner)
+        shape = tree_shape(node.inner)
+        if node.label in result:
+            result[node.label] = _merge_shapes(result[node.label], shape)
+        else:
+            result[node.label] = shape
         _walk_for_shapes(node.inner, result)
 
 
-def _check_expr_type(expr: object, known_labels: frozenset, label_shapes: dict) -> str:
+def _merge_shapes(left: object, right: object) -> object:
+    """Combine two shapes for repeated-label occurrences."""
+    if left == right:
+        return left
+    options: list[object] = []
+    if isinstance(left, UnionNode):
+        options.extend(left.options)
+    else:
+        options.append(left)
+    if isinstance(right, UnionNode):
+        options.extend(right.options)
+    else:
+        options.append(right)
+    # De-duplicate while preserving order.
+    dedup: list[object] = []
+    seen: set[object] = set()
+    for opt in options:
+        if opt not in seen:
+            seen.add(opt)
+            dedup.append(opt)
+    return UnionNode(tuple(dedup))
+
+
+def _check_expr_type(expr: object, known_labels: frozenset[str], label_shapes: LabelShapes) -> ExprType:
     """Return 'bool', 'numeric', or 'any' (or raise if invalid).
 
     'any' is returned only for references to labels with opaque shapes
@@ -169,15 +198,15 @@ def _check_expr_type(expr: object, known_labels: frozenset, label_shapes: dict) 
 
     if isinstance(expr, Neg):
         t = _check_expr_type(expr.operand, known_labels, label_shapes)
-        if t == "bool":
-            raise TypeError(f"Neg operand must not be boolean: {expr!r}")
+        if t != "numeric":
+            raise TypeError(f"Neg operand must be numeric, got {t!r}: {expr!r}")
         return "numeric"
 
     if isinstance(expr, (Add, Sub, Mul, FloorDiv, Mod)):
         lt = _check_expr_type(expr.left, known_labels, label_shapes)
         rt = _check_expr_type(expr.right, known_labels, label_shapes)
-        if lt == "bool" or rt == "bool":
-            raise TypeError(f"Arithmetic operands must not be boolean: {expr!r}")
+        if lt != "numeric" or rt != "numeric":
+            raise TypeError(f"Arithmetic operands must be numeric, got ({lt!r}, {rt!r}): {expr!r}")
         return "numeric"
 
     if isinstance(expr, (Eq, Ne)):
@@ -188,8 +217,8 @@ def _check_expr_type(expr: object, known_labels: frozenset, label_shapes: dict) 
     if isinstance(expr, (Lt, Le, Gt, Ge)):
         lt = _check_expr_type(expr.left, known_labels, label_shapes)
         rt = _check_expr_type(expr.right, known_labels, label_shapes)
-        if lt == "bool" or rt == "bool":
-            raise TypeError(f"Ordering operands must not be boolean: {expr!r}")
+        if lt != "numeric" or rt != "numeric":
+            raise TypeError(f"Ordering operands must be numeric, got ({lt!r}, {rt!r}): {expr!r}")
         return "bool"
 
     if isinstance(expr, (And, Or)):
@@ -207,7 +236,7 @@ def _check_expr_type(expr: object, known_labels: frozenset, label_shapes: dict) 
     )
 
 
-def _resolve_shape(shape: object, path: tuple) -> object:
+def _resolve_shape(shape: object, path: tuple[int, ...]) -> object:
     """Navigate ``shape`` by following ``path`` and return the resulting sub-shape.
 
     When traversing through a ``UnionNode``, all branches are visited and the
@@ -223,10 +252,14 @@ def _resolve_shape(shape: object, path: tuple) -> object:
     if isinstance(shape, UnionNode):
         # _validate_address already ensured all options are TupleNodes with
         # valid indices; navigate each branch and collect sub-shapes.
-        sub_shapes = tuple(
-            _resolve_shape(opt.items[idx], remaining)  # type: ignore[union-attr]
-            for opt in shape.options
-        )
+        collected: list[object] = []
+        for opt in shape.options:
+            if not isinstance(opt, TupleNode):
+                raise ValueError(
+                    f"Cannot index into non-tuple union option {opt!r} at path {path!r}."
+                )
+            collected.append(_resolve_shape(opt.items[idx], remaining))
+        sub_shapes = tuple(collected)
         # If all branches resolve to the same shape, return it directly.
         if len(set(sub_shapes)) == 1:
             return sub_shapes[0]
@@ -260,38 +293,30 @@ def _shape_type(shape: object) -> str:
     return "any"
 
 
-def _validate_address(label: str, path: tuple, shape: object) -> None:
+def _validate_address(label: str, path: tuple[int, ...], shape: object) -> None:
     """Raise ValueError if ``path`` is not a valid address into ``shape``."""
-    current = shape
-    for i, idx in enumerate(path):
-        # Handle union shapes: all branches must be tuples and all must
-        # support the index.
-        if isinstance(current, UnionNode):
-            for opt in current.options:
-                if not isinstance(opt, TupleNode):
-                    raise ValueError(
-                        f"Address path {path!r} for label {label!r} crosses a "
-                        f"union that contains a non-tuple option at position {i}: {opt!r}."
-                    )
-                if idx >= len(opt.items) or idx < 0:
-                    raise ValueError(
-                        f"Address index {idx} is out of range for union branch of "
-                        f"length {len(opt.items)} (label {label!r}, path {path!r})."
-                    )
-            # All options are valid tuples; use the first as the representative
-            # for further shape descent.
-            current = current.options[0]
-
-        if not isinstance(current, TupleNode):
-            raise ValueError(
-                f"Address path {path!r} for label {label!r} descends into a "
-                f"non-tuple at position {i}: shape is {current!r}."
-            )
-        if idx >= len(current.items) or idx < 0:
-            raise ValueError(
-                f"Address index {idx} is out of range for tuple of length "
-                f"{len(current.items)} (label {label!r}, path {path!r})."
-            )
-        current = current.items[idx]
+    _validate_address_from(label, path, shape, 0)
 
 
+def _validate_address_from(label: str, path: tuple[int, ...], current: object, position: int) -> None:
+    if position >= len(path):
+        return
+
+    idx = path[position]
+
+    if isinstance(current, UnionNode):
+        for opt in current.options:
+            _validate_address_from(label, path, opt, position)
+        return
+
+    if not isinstance(current, TupleNode):
+        raise ValueError(
+            f"Address path {path!r} for label {label!r} descends into a "
+            f"non-tuple at position {position}: shape is {current!r}."
+        )
+    if idx >= len(current.items) or idx < 0:
+        raise ValueError(
+            f"Address index {idx} is out of range for tuple of length "
+            f"{len(current.items)} (label {label!r}, path {path!r})."
+        )
+    _validate_address_from(label, path, current.items[idx], position + 1)

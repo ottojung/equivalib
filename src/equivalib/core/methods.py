@@ -14,7 +14,7 @@ from typing import Any, Mapping
 from equivalib.core.order import canonical_first
 
 
-def apply_methods(assignments: list, methods: Mapping[str, str]) -> list:
+def apply_methods(assignments: list[dict[str, Any]], methods: Mapping[str, str]) -> list[dict[str, Any]]:
     """Reduce the satisfying-assignment set ``assignments`` using ``methods``.
 
     Labels without an explicit method default to ``"all"``.
@@ -51,12 +51,12 @@ def apply_methods(assignments: list, methods: Mapping[str, str]) -> list:
     return current
 
 
-def _project(label: str, assignments: list) -> list:
+def _project(label: str, assignments: list[dict[str, Any]]) -> list[Any]:
     """Return the list of values taken by ``label`` across ``assignments`` (with multiplicity)."""
     return [a[label] for a in assignments if label in a]
 
 
-def _choose_witness(method: str, label: str, projection: list) -> Any:
+def _choose_witness(method: str, label: str, projection: list[Any]) -> Any:
     """Choose a single witness value from ``projection`` according to ``method``."""
     distinct = list(dict.fromkeys(projection))  # preserves order, deduplicates
 
