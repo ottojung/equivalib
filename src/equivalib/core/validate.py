@@ -8,7 +8,7 @@ Three public entry points:
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from typing import Mapping
 
 from equivalib.core.types import (
     NoneNode,
@@ -42,11 +42,6 @@ from equivalib.core.expression import (
 )
 
 _VALID_METHODS = frozenset({"all", "arbitrary", "uniform_random", "arbitrarish_randomish"})
-
-# Expression type categories used for type-checking operands
-_NUMERIC_NODES = (IntegerConstant, Reference, Neg, Add, Sub, Mul, FloorDiv, Mod)
-_BOOL_NODES = (BooleanConstant, Eq, Ne, Lt, Le, Gt, Ge, And, Or)
-_ANY_EXPR_NODES = _NUMERIC_NODES + _BOOL_NODES
 
 
 def validate_tree(node: object) -> None:
@@ -114,7 +109,7 @@ def validate_expression(expr: object, node: object) -> None:
     label_shapes = _collect_label_shapes(node)
 
     # Type-check the top-level expression: must be boolean-typed
-    result_type = _check_expr_type(expr, known_labels, label_shapes, require_bool=False)
+    result_type = _check_expr_type(expr, known_labels, label_shapes)
     if result_type != "bool":
         raise TypeError(
             f"Top-level constraint must be a boolean expression, "
@@ -143,12 +138,12 @@ def _walk_for_shapes(node: object, result: dict) -> None:
         _walk_for_shapes(node.inner, result)
 
 
-def _check_expr_type(expr: object, known_labels: frozenset, label_shapes: dict, require_bool: bool) -> str:
+def _check_expr_type(expr: object, known_labels: frozenset, label_shapes: dict) -> str:
     """Return 'bool', 'numeric', or 'any' (or raise if invalid).
 
-    'any' is returned only for references to labels with non-scalar shapes
-    (e.g. tuples or heterogeneous unions).  The top-level caller is responsible
-    for rejecting 'any' at the constraint root.
+    'any' is returned only for references to labels with opaque shapes
+    (e.g. tuples or heterogeneous unions).  The top-level caller rejects 'any'
+    at the constraint root; And/Or also reject operands typed as 'any'.
     """
     if isinstance(expr, BooleanConstant):
         return "bool"
@@ -173,37 +168,37 @@ def _check_expr_type(expr: object, known_labels: frozenset, label_shapes: dict, 
         return "any"
 
     if isinstance(expr, Neg):
-        t = _check_expr_type(expr.operand, known_labels, label_shapes, require_bool=False)
+        t = _check_expr_type(expr.operand, known_labels, label_shapes)
         if t == "bool":
             raise TypeError(f"Neg operand must not be boolean: {expr!r}")
         return "numeric"
 
     if isinstance(expr, (Add, Sub, Mul, FloorDiv, Mod)):
-        lt = _check_expr_type(expr.left, known_labels, label_shapes, require_bool=False)
-        rt = _check_expr_type(expr.right, known_labels, label_shapes, require_bool=False)
+        lt = _check_expr_type(expr.left, known_labels, label_shapes)
+        rt = _check_expr_type(expr.right, known_labels, label_shapes)
         if lt == "bool" or rt == "bool":
             raise TypeError(f"Arithmetic operands must not be boolean: {expr!r}")
         return "numeric"
 
     if isinstance(expr, (Eq, Ne)):
-        _check_expr_type(expr.left, known_labels, label_shapes, require_bool=False)
-        _check_expr_type(expr.right, known_labels, label_shapes, require_bool=False)
+        _check_expr_type(expr.left, known_labels, label_shapes)
+        _check_expr_type(expr.right, known_labels, label_shapes)
         return "bool"
 
     if isinstance(expr, (Lt, Le, Gt, Ge)):
-        lt = _check_expr_type(expr.left, known_labels, label_shapes, require_bool=False)
-        rt = _check_expr_type(expr.right, known_labels, label_shapes, require_bool=False)
+        lt = _check_expr_type(expr.left, known_labels, label_shapes)
+        rt = _check_expr_type(expr.right, known_labels, label_shapes)
         if lt == "bool" or rt == "bool":
             raise TypeError(f"Ordering operands must not be boolean: {expr!r}")
         return "bool"
 
     if isinstance(expr, (And, Or)):
-        lt = _check_expr_type(expr.left, known_labels, label_shapes, require_bool=True)
-        rt = _check_expr_type(expr.right, known_labels, label_shapes, require_bool=True)
-        if lt not in ("bool", "any"):
-            raise TypeError(f"{type(expr).__name__} left operand must be boolean: {expr!r}")
-        if rt not in ("bool", "any"):
-            raise TypeError(f"{type(expr).__name__} right operand must be boolean: {expr!r}")
+        lt = _check_expr_type(expr.left, known_labels, label_shapes)
+        rt = _check_expr_type(expr.right, known_labels, label_shapes)
+        if lt != "bool":
+            raise TypeError(f"{type(expr).__name__} left operand must be boolean, got {lt!r}: {expr!r}")
+        if rt != "bool":
+            raise TypeError(f"{type(expr).__name__} right operand must be boolean, got {rt!r}: {expr!r}")
         return "bool"
 
     # Anything that is not an Expression node is a type error.
@@ -213,18 +208,34 @@ def _check_expr_type(expr: object, known_labels: frozenset, label_shapes: dict, 
 
 
 def _resolve_shape(shape: object, path: tuple) -> object:
-    """Navigate ``shape`` by following ``path`` and return the resulting sub-shape."""
-    current = shape
-    for idx in path:
-        if isinstance(current, UnionNode):
-            # _validate_address already verified all options are TupleNodes;
-            # use the first option as a representative for structure descent.
-            current = current.options[0]
-        if isinstance(current, TupleNode):
-            current = current.items[idx]
-        else:
-            raise ValueError(f"Cannot index into shape {current!r} at path {path!r}.")
-    return current
+    """Navigate ``shape`` by following ``path`` and return the resulting sub-shape.
+
+    When traversing through a ``UnionNode``, all branches are visited and the
+    results are combined: if all branches yield the same shape, that shape is
+    returned directly; otherwise a new ``UnionNode`` of the resolved sub-shapes
+    is returned so that ``_shape_type`` can unify the types.
+    """
+    if not path:
+        return shape
+    idx = path[0]
+    remaining = path[1:]
+
+    if isinstance(shape, UnionNode):
+        # _validate_address already ensured all options are TupleNodes with
+        # valid indices; navigate each branch and collect sub-shapes.
+        sub_shapes = tuple(
+            _resolve_shape(opt.items[idx], remaining)  # type: ignore[union-attr]
+            for opt in shape.options
+        )
+        # If all branches resolve to the same shape, return it directly.
+        if len(set(sub_shapes)) == 1:
+            return sub_shapes[0]
+        return UnionNode(sub_shapes)
+
+    if isinstance(shape, TupleNode):
+        return _resolve_shape(shape.items[idx], remaining)
+
+    raise ValueError(f"Cannot index into shape {shape!r} at path {path!r}.")
 
 
 def _shape_type(shape: object) -> str:

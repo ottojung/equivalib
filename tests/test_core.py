@@ -6,6 +6,22 @@ from typing import Annotated, Any, Literal, Tuple, Union
 import pytest
 
 from equivalib import ValueRange
+from equivalib.core.cache import is_constraint_independent, is_guaranteed_cacheable, is_label_closed
+from equivalib.core.domains import domain_map
+from equivalib.core.eval import eval_expression, eval_expression_partial, Unknown
+from equivalib.core.expression import (
+    Add,
+    And,
+    BooleanConstant,
+    IntegerConstant,
+    Mul,
+    Neg,
+    Or,
+    Reference,
+)
+from equivalib.core.name import Name as CoreName
+from equivalib.core.normalize import normalize
+from equivalib.core.order import canonical_first, canonical_sorted
 
 
 def core_attr(name: str) -> Any:
@@ -650,43 +666,31 @@ def test_generate_rejects_ordering_on_bool_reference():
 # --------------------------------------------------------------------------
 
 def test_eval_full_expression_basic_arithmetic():
-    from equivalib.core.eval import eval_expression
-    from equivalib.core.expression import Add, Mul, IntegerConstant, Reference
     expr = Add(Mul(Reference("x"), IntegerConstant(3)), IntegerConstant(1))
     assert eval_expression(expr, {"x": 4}) == 13
 
 
 def test_eval_partial_and_short_circuits_on_false():
-    from equivalib.core.eval import eval_expression_partial, Unknown
-    from equivalib.core.expression import And, BooleanConstant, Reference
     expr = And(BooleanConstant(False), Reference("y"))
     assert eval_expression_partial(expr, {}) is False
 
 
 def test_eval_partial_or_short_circuits_on_true():
-    from equivalib.core.eval import eval_expression_partial, Unknown
-    from equivalib.core.expression import Or, BooleanConstant, Reference
     expr = Or(BooleanConstant(True), Reference("y"))
     assert eval_expression_partial(expr, {}) is True
 
 
 def test_eval_partial_unknown_propagates_through_arithmetic():
-    from equivalib.core.eval import eval_expression_partial, Unknown
-    from equivalib.core.expression import Add, Reference, IntegerConstant
     expr = Add(Reference("x"), IntegerConstant(1))
     assert eval_expression_partial(expr, {}) is Unknown
 
 
 def test_eval_partial_and_both_unknown():
-    from equivalib.core.eval import eval_expression_partial, Unknown
-    from equivalib.core.expression import And, Reference
     expr = And(Reference("x"), Reference("y"))
     assert eval_expression_partial(expr, {}) is Unknown
 
 
 def test_eval_partial_neg_of_unknown():
-    from equivalib.core.eval import eval_expression_partial, Unknown
-    from equivalib.core.expression import Neg, Reference
     expr = Neg(Reference("x"))
     assert eval_expression_partial(expr, {}) is Unknown
 
@@ -696,34 +700,28 @@ def test_eval_partial_neg_of_unknown():
 # --------------------------------------------------------------------------
 
 def test_canonical_order_bools_true_before_false():
-    from equivalib.core.order import canonical_sorted
     assert canonical_sorted([False, True]) == [True, False]
 
 
 def test_canonical_order_ints_ascending():
-    from equivalib.core.order import canonical_sorted
     assert canonical_sorted([3, 1, 2]) == [1, 2, 3]
 
 
 def test_canonical_order_strings_lexicographic():
-    from equivalib.core.order import canonical_sorted
     assert canonical_sorted(["b", "a", "c"]) == ["a", "b", "c"]
 
 
 def test_canonical_order_none_before_tuples():
-    from equivalib.core.order import canonical_sorted
     result = canonical_sorted([("x",), None])
     assert result[0] is None
 
 
 def test_canonical_order_tuples_lexicographic():
-    from equivalib.core.order import canonical_sorted
     data = [(True, False), (True, True), (False, True), (False, False)]
     assert canonical_sorted(data) == [(True, True), (True, False), (False, True), (False, False)]
 
 
 def test_canonical_first_selects_minimum():
-    from equivalib.core.order import canonical_first
     assert canonical_first([False, True]) is True
 
 
@@ -732,17 +730,12 @@ def test_canonical_first_selects_minimum():
 # --------------------------------------------------------------------------
 
 def test_domain_map_single_named_label():
-    from equivalib.core.domains import domain_map
-    from equivalib.core.normalize import normalize
-    from equivalib.core.name import Name as CoreName
     node = normalize(Annotated[bool, CoreName("X")])
     dm = domain_map(node)
     assert dm == {"X": frozenset({True, False})}
 
 
 def test_domain_map_repeated_label_intersection():
-    from equivalib.core.domains import domain_map
-    from equivalib.core.normalize import normalize
     Name = core_attr("Name")
     tree = Tuple[Annotated[int, ValueRange(1, 5), Name("X")], Annotated[int, ValueRange(3, 7), Name("X")]]
     node = normalize(tree)
@@ -751,8 +744,6 @@ def test_domain_map_repeated_label_intersection():
 
 
 def test_domain_map_repeated_label_empty_intersection():
-    from equivalib.core.domains import domain_map
-    from equivalib.core.normalize import normalize
     Name = core_attr("Name")
     tree = Tuple[Annotated[int, ValueRange(1, 2), Name("X")], Annotated[int, ValueRange(5, 6), Name("X")]]
     node = normalize(tree)
@@ -798,46 +789,28 @@ def test_mentioned_labels_constant_has_no_labels():
 
 
 def test_is_label_closed_single_label():
-    from equivalib.core.cache import is_label_closed
-    from equivalib.core.normalize import normalize
-    from equivalib.core.name import Name as CoreName
     node = normalize(Annotated[bool, CoreName("X")])
     assert is_label_closed(node, node) is True
 
 
 def test_is_constraint_independent_disjoint_labels():
-    from equivalib.core.cache import is_constraint_independent
-    from equivalib.core.normalize import normalize
-    from equivalib.core.expression import Reference
-    from equivalib.core.name import Name as CoreName
     subtree = normalize(Annotated[bool, CoreName("X")])
     constraint = Reference("Y")
     assert is_constraint_independent(subtree, constraint) is True
 
 
 def test_is_constraint_independent_overlapping_labels():
-    from equivalib.core.cache import is_constraint_independent
-    from equivalib.core.normalize import normalize
-    from equivalib.core.expression import Reference
-    from equivalib.core.name import Name as CoreName
     subtree = normalize(Annotated[bool, CoreName("X")])
     constraint = Reference("X")
     assert is_constraint_independent(subtree, constraint) is False
 
 
 def test_is_guaranteed_cacheable_unnamed():
-    from equivalib.core.cache import is_guaranteed_cacheable
-    from equivalib.core.normalize import normalize
-    from equivalib.core.expression import BooleanConstant
     node = normalize(bool)
     assert is_guaranteed_cacheable(node, node, BooleanConstant(True)) is True
 
 
 def test_is_guaranteed_cacheable_label_closed_and_independent():
-    from equivalib.core.cache import is_guaranteed_cacheable
-    from equivalib.core.normalize import normalize
-    from equivalib.core.expression import Reference
-    from equivalib.core.name import Name as CoreName
     node = normalize(Annotated[bool, CoreName("X")])
     constraint = Reference("Y")
     assert is_guaranteed_cacheable(node, node, constraint) is True

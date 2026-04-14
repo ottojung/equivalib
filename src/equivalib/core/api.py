@@ -6,9 +6,28 @@ Public entry point:
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from typing import Any, Mapping, Optional
 
-from equivalib.core.expression import BooleanConstant, BooleanExpression
+from equivalib.core.expression import (
+    BooleanExpression,
+    BooleanConstant,
+    IntegerConstant,
+    Reference,
+    Neg,
+    Add,
+    Sub,
+    Mul,
+    FloorDiv,
+    Mod,
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    And,
+    Or,
+)
 from equivalib.core.normalize import normalize
 from equivalib.core.validate import validate_tree, validate_methods, validate_expression
 from equivalib.core.types import (
@@ -76,7 +95,7 @@ def concretize(node: object, assignment: dict) -> frozenset:
 def generate(
     tree: Any,
     constraint: Any = None,
-    methods: Mapping[str, str] | None = None,
+    methods: Optional[Mapping[str, str]] = None,
 ) -> set:
     """Generate all runtime values of type ``tree`` satisfying ``constraint``.
 
@@ -144,11 +163,6 @@ def generate(
 
 def _is_expression(obj: Any) -> bool:
     """Return True iff ``obj`` is a known Expression AST node."""
-    from equivalib.core.expression import (
-        BooleanConstant, IntegerConstant, Reference,
-        Neg, Add, Sub, Mul, FloorDiv, Mod,
-        Eq, Ne, Lt, Le, Gt, Ge, And, Or,
-    )
     return isinstance(obj, (
         BooleanConstant, IntegerConstant, Reference,
         Neg, Add, Sub, Mul, FloorDiv, Mod,

@@ -45,7 +45,7 @@ def apply_methods(assignments: list, methods: Mapping[str, str]) -> list:
             # No values: can't select a witness, return empty.
             return []
 
-        witness = _choose_witness(method, label, projection, current)
+        witness = _choose_witness(method, label, projection)
         current = [a for a in current if a.get(label) == witness]
 
     return current
@@ -56,7 +56,7 @@ def _project(label: str, assignments: list) -> list:
     return [a[label] for a in assignments if label in a]
 
 
-def _choose_witness(method: str, label: str, projection: list, assignments: list) -> Any:
+def _choose_witness(method: str, label: str, projection: list) -> Any:
     """Choose a single witness value from ``projection`` according to ``method``."""
     distinct = list(dict.fromkeys(projection))  # preserves order, deduplicates
 
