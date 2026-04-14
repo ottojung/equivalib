@@ -244,7 +244,10 @@ def _check_expr_type(expr: Expression, known_labels: frozenset[str], label_shape
             raise TypeError(f"{type(expr).__name__} right operand must be boolean, got {rt!r}: {expr!r}")
         return "bool"
 
-    impossible(expr)
+    raise TypeError(
+        f"constraint must be an Expression AST node, got {type(expr).__name__!r}: {expr!r}"
+    )
+
 
 
 def _resolve_shape(shape: IRNode, path: tuple[int, ...]) -> IRNode:

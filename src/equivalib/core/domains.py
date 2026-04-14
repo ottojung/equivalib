@@ -8,8 +8,6 @@ Public API:
 
 from __future__ import annotations
 
-from typing import Type, TypeVar
-
 from equivalib.core.expression import impossible
 from equivalib.core.types import (
     NoneNode,
@@ -24,10 +22,8 @@ from equivalib.core.types import (
 )
 from equivalib.core.normalize import normalize
 
-ValuesT = TypeVar("ValuesT")
 
-
-def values(t: Type[ValuesT]) -> set[ValuesT]:
+def values(t: object) -> set[object]:
     """Return the finite denotation of type ``t``.
 
     Raises ``ValueError`` if the type contains any named nodes.
@@ -39,7 +35,7 @@ def values(t: Type[ValuesT]) -> set[ValuesT]:
             "values() does not accept named trees. "
             "Use generate() for trees that contain Name annotations."
         )
-    return set(_values_node(node))  # type: ignore[arg-type]
+    return set(_values_node(node))
 
 
 def _values_node(node: IRNode) -> frozenset[object]:

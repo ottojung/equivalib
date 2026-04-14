@@ -922,9 +922,9 @@ def test_domain_map_union_literal_bool_int_preserves_distinct_types():
     # Occurrence 1: Union[Literal[True], Literal[1]] — should preserve both types.
     # Occurrence 2: Literal[1]  (int) — domain is {1}.
     # Expected type-aware intersection: {1 (int)} only.
-    occ1_node = NamedNode("X", UnionNode([LiteralNode(True), LiteralNode(1)]))
+    occ1_node = NamedNode("X", UnionNode((LiteralNode(True), LiteralNode(1))))
     occ2_node = NamedNode("X", LiteralNode(1))
-    tree_node = TupleNode([occ1_node, occ2_node])
+    tree_node = TupleNode((occ1_node, occ2_node))
     dm = domain_map(tree_node)
     assert len(dm["X"]) == 1, f"Expected [1] but got {dm['X']!r}"
     assert dm["X"][0] == 1, f"Expected 1 (int) but got {dm['X'][0]!r}"
@@ -940,9 +940,9 @@ def test_generate_union_literal_bool_int_respects_type_identity():
     admissible value when one occurrence is Union[Literal[True], Literal[1]]
     and the other is Literal[1].
     """
-    occ1 = NamedNode("X", UnionNode([LiteralNode(True), LiteralNode(1)]))
+    occ1 = NamedNode("X", UnionNode((LiteralNode(True), LiteralNode(1))))
     occ2 = NamedNode("X", LiteralNode(1))
-    node = TupleNode([occ1, occ2])
+    node = TupleNode((occ1, occ2))
     dm = domain_map(node)
     assert len(dm["X"]) == 1 and type(dm["X"][0]) is int and dm["X"][0] == 1, (
         f"Expected X domain = [1 (int)], got {dm['X']!r}"
@@ -978,7 +978,7 @@ def test_eval_ne_type_aware():
     assert eval_expression(expr, {"X": True}) is True  # True != 1 structurally
 
 
-
+def test_generate_unnamed_false_constraint_returns_empty_denotation():
     """generate(Literal[True], BooleanExpression(False), {}) must return set().
 
     Without the unnamed-tree constraint check, the fast path returns {True}
