@@ -22,8 +22,8 @@ from equivalib.core.expression import (
 from equivalib.core.name import Name as CoreName
 from equivalib.core.normalize import normalize
 from equivalib.core.order import canonical_first, canonical_sorted
-from equivalib.core.types import LiteralNode, NamedNode, BoolNode
-from equivalib.core.validate import validate_methods, validate_tree
+from equivalib.core.types import LiteralNode, NamedNode, BoolNode, TupleNode
+from equivalib.core.validate import validate_methods, validate_tree, validate_expression
 
 
 def core_attr(name: str) -> Any:
@@ -652,6 +652,23 @@ def test_generate_rejects_address_valid_only_in_first_union_branch():
         generate(tree, Eq(ref("X", (0, 0)), bool_const(True)), {})
 
 
+def test_validate_rejects_non_int_path_element():
+    """A Reference with a non-int path element (e.g. str) must be rejected."""
+    tree_node = NamedNode("X", TupleNode((BoolNode(),)))
+    # Python does not enforce type annotations at runtime, so this constructs fine
+    expr = Reference("X", ("0",))  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="plain int"):
+        validate_expression(expr, tree_node)
+
+
+def test_validate_rejects_bool_path_element():
+    """A Reference with a bool path element must be rejected (bool is not a plain int index)."""
+    tree_node = NamedNode("X", TupleNode((BoolNode(),)))
+    expr = Reference("X", (True,))  # bool is a subclass of int, so this type-checks
+    with pytest.raises(ValueError, match="plain int"):
+        validate_expression(expr, tree_node)
+
+
 def test_generate_rejects_path_when_repeated_label_has_non_tuple_occurrence():
     """Repeated labels with mixed shapes should reject tuple-path references."""
     generate = core_attr("generate")
@@ -1011,14 +1028,14 @@ def test_normalize_rejects_float_literal():
     """Literal with a float value must be rejected (not in supported types)."""
     generate = core_attr("generate")
     with pytest.raises(ValueError):
-        generate(Literal[1.5])  # type: ignore[arg-type]
+        generate(Literal[1.5])
 
 
 def test_normalize_rejects_bytes_literal():
     """Literal with a bytes value must be rejected (not in supported types)."""
     generate = core_attr("generate")
     with pytest.raises(ValueError):
-        generate(Literal[b"x"])  # type: ignore[arg-type]
+        generate(Literal[b"x"])
 
 
 def test_normalize_accepts_none_literal():
@@ -1079,9 +1096,16 @@ def test_generate_rejects_nested_name_annotations():
     """Annotated[Annotated[bool, Name("inner")], Name("outer")] must be rejected."""
     generate = core_attr("generate")
     Name = core_attr("Name")
-    # normalize() raises ValueError for multiple Name annotations before even
-    # reaching validate_tree, so we expect ValueError specifically.
+    # normalize() builds NamedNode("outer", NamedNode("inner", BoolNode())).
+    # validate_tree() then raises ValueError because the inner subtree contains a Name.
     inner = Annotated[bool, Name("inner")]
     outer = Annotated[inner, Name("outer")]
     with pytest.raises(ValueError):
         generate(outer, true_expr(), {})
+
+
+def test_validate_rejects_deeply_nested_named_node():
+    """A NamedNode whose inner subtree contains a NamedNode at any depth must be rejected."""
+    # NamedNode("outer", TupleNode([NamedNode("inner", BoolNode())])) — Name inside a Tuple inside a Name
+    with pytest.raises(ValueError, match="[Nn]ested"):
+        validate_tree(NamedNode("outer", TupleNode((NamedNode("inner", BoolNode()),))))

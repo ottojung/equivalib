@@ -9,15 +9,13 @@ representing one satisfying assignment.
 
 from __future__ import annotations
 
-from typing import Any
-
 from equivalib.core.types import labels as tree_labels
 from equivalib.core.domains import domain_map
 from equivalib.core.order import canonical_sorted
 from equivalib.core.eval import eval_expression_partial
 
 
-def search(node: object, constraint: object) -> list[dict[str, Any]]:
+def search(node: object, constraint: object) -> list[dict[str, object]]:
     """Return a list of satisfying assignments.
 
     Each assignment is a dict mapping label -> value.
@@ -30,7 +28,7 @@ def search(node: object, constraint: object) -> list[dict[str, Any]]:
 
     # Precompute canonical-sorted domain lists once to avoid O(n log n) work
     # on every recursive call inside _backtrack.
-    sorted_domains: dict[str, list[Any]] = {
+    sorted_domains: dict[str, list[object]] = {
         label: canonical_sorted(domains.get(label, frozenset()))
         for label in label_list
     }
@@ -40,17 +38,17 @@ def search(node: object, constraint: object) -> list[dict[str, Any]]:
         if not values:
             return []
 
-    results: list[dict[str, Any]] = []
+    results: list[dict[str, object]] = []
     _backtrack(label_list, sorted_domains, constraint, {}, results)
     return results
 
 
 def _backtrack(
     label_list: list[str],
-    sorted_domains: dict[str, list[Any]],
+    sorted_domains: dict[str, list[object]],
     constraint: object,
-    partial: dict[str, Any],
-    results: list[dict[str, Any]],
+    partial: dict[str, object],
+    results: list[dict[str, object]],
 ) -> None:
     if not label_list:
         # All labels assigned; the constraint must evaluate to exactly True.

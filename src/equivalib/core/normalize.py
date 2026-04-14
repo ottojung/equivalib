@@ -7,7 +7,6 @@ Entry point:
 from __future__ import annotations
 
 import typing
-from typing import Any
 
 from equivalib.value_range import ValueRange
 from equivalib.core.name import Name
@@ -22,7 +21,7 @@ from equivalib.core.types import (
 )
 
 
-def normalize(t: Any) -> object:
+def normalize(t: object) -> object:
     """Normalize a type annotation ``t`` into an IR node.
 
     Raises ``ValueError`` for unsupported or malformed type expressions.
@@ -75,7 +74,7 @@ def normalize(t: Any) -> object:
     raise ValueError(f"Unsupported type expression: {t!r}")
 
 
-def _normalize_annotated(base: Any, metadata: list[Any]) -> object:
+def _normalize_annotated(base: object, metadata: list[object]) -> object:
     """Normalize an ``Annotated[base, *metadata]`` expression."""
     value_ranges = [m for m in metadata if isinstance(m, ValueRange)]
     names = [m for m in metadata if isinstance(m, Name)]

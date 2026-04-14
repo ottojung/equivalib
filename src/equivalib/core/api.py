@@ -1,12 +1,12 @@
 """Public API for the new core: ``generate``.
 
 Public entry point:
-    generate(tree, constraint=BooleanExpression(True), methods=None) -> set
+    generate(tree: Type[T], constraint=BooleanExpression(True), methods=None) -> set[T]
 """
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Optional
+from typing import Mapping, Optional, Type, TypeVar
 
 from equivalib.core.expression import (
     BooleanExpression,
@@ -44,12 +44,14 @@ from equivalib.core.domains import _values_node
 from equivalib.core.search import search
 from equivalib.core.methods import apply_methods
 
+GenerateT = TypeVar("GenerateT")
+
 
 # ---------------------------------------------------------------------------
 # Concretize
 # ---------------------------------------------------------------------------
 
-def concretize(node: object, assignment: Mapping[str, Any]) -> frozenset[Any]:
+def concretize(node: object, assignment: Mapping[str, object]) -> frozenset[object]:
     """Return the set of all runtime values that ``node`` can produce under ``assignment``.
 
     Rules:
@@ -73,11 +75,11 @@ def concretize(node: object, assignment: Mapping[str, Any]) -> frozenset[Any]:
         return frozenset(range(node.min_value, node.max_value + 1))
     if isinstance(node, TupleNode):
         # Cartesian product of all children's expansions.
-        result: frozenset[Any] = frozenset({()})
+        result: frozenset[object] = frozenset({()})
         for item in node.items:
             item_vals = concretize(item, assignment)
             result = frozenset(
-                existing + (v,) for existing in result for v in item_vals
+                existing + (v,) for existing in result for v in item_vals  # type: ignore[operator]
             )
         return result
     if isinstance(node, UnionNode):
@@ -93,10 +95,10 @@ def concretize(node: object, assignment: Mapping[str, Any]) -> frozenset[Any]:
 # ---------------------------------------------------------------------------
 
 def generate(
-    tree: Any,
-    constraint: Any = None,
+    tree: Type[GenerateT],
+    constraint: object = None,
     methods: Optional[Mapping[str, str]] = None,
-) -> set[Any]:
+) -> set[GenerateT]:
     """Generate all runtime values of type ``tree`` satisfying ``constraint``.
 
     Args:
@@ -137,7 +139,7 @@ def generate(
 
     # 5. Fast path: no named nodes → just return the full denotation
     if not contains_name(node):
-        return set(_values_node(node))
+        return set(_values_node(node))  # type: ignore[arg-type]
 
     # 6. Exact satisfying-assignment search (S0)
     assignments = search(node, constraint)
@@ -154,14 +156,14 @@ def generate(
     # 8. Concretize each assignment into runtime values.
     # ``concretize`` returns a frozenset (possibly multi-valued for unnamed
     # leaves in mixed trees), so we union the results together.
-    result: set[Any] = set()
+    out: set[object] = set()
     for asgn in reduced:
-        result.update(concretize(node, asgn))
+        out.update(concretize(node, asgn))
 
-    return result
+    return out  # type: ignore[return-value]
 
 
-def _is_expression(obj: Any) -> bool:
+def _is_expression(obj: object) -> bool:
     """Return True iff ``obj`` is a known Expression AST node."""
     return isinstance(obj, (
         BooleanConstant, IntegerConstant, Reference,

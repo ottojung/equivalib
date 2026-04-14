@@ -8,7 +8,7 @@ Public API:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Type, TypeVar
 
 from equivalib.core.types import (
     NoneNode,
@@ -22,8 +22,10 @@ from equivalib.core.types import (
 )
 from equivalib.core.normalize import normalize
 
+ValuesT = TypeVar("ValuesT")
 
-def values(t: Any) -> set[Any]:
+
+def values(t: Type[ValuesT]) -> set[ValuesT]:
     """Return the finite denotation of type ``t``.
 
     Raises ``ValueError`` if the type contains any named nodes.
@@ -35,10 +37,10 @@ def values(t: Any) -> set[Any]:
             "values() does not accept named trees. "
             "Use generate() for trees that contain Name annotations."
         )
-    return set(_values_node(node))
+    return set(_values_node(node))  # type: ignore[arg-type]
 
 
-def _values_node(node: object) -> frozenset[Any]:
+def _values_node(node: object) -> frozenset[object]:
     """Return the finite denotation of ``node`` (IR-level, internal)."""
     if isinstance(node, NoneNode):
         return frozenset({None})
@@ -49,11 +51,11 @@ def _values_node(node: object) -> frozenset[Any]:
     if isinstance(node, IntRangeNode):
         return frozenset(range(node.min_value, node.max_value + 1))
     if isinstance(node, TupleNode):
-        result: frozenset[Any] = frozenset({()})
+        result: frozenset[object] = frozenset({()})
         for item in node.items:
             item_vals = _values_node(item)
             result = frozenset(
-                existing + (v,) for existing in result for v in item_vals
+                existing + (v,) for existing in result for v in item_vals  # type: ignore[operator]
             )
         return result
     if isinstance(node, UnionNode):
@@ -68,7 +70,7 @@ def _values_node(node: object) -> frozenset[Any]:
     raise TypeError(f"Unknown IR node: {type(node)}")
 
 
-def domain_map(node: object) -> dict[str, frozenset[Any]]:
+def domain_map(node: object) -> dict[str, frozenset[object]]:
     """Return a mapping {label: frozenset} of domains for all named nodes.
 
     The domain of a label is the intersection of all individual occurrences of
@@ -77,12 +79,12 @@ def domain_map(node: object) -> dict[str, frozenset[Any]]:
     If any label has an empty domain, the returned dict still contains it with
     an empty frozenset value.  The caller is responsible for checking emptiness.
     """
-    occurrences: dict[str, list[frozenset[Any]]] = {}
+    occurrences: dict[str, list[frozenset[object]]] = {}
     _collect_occurrences(node, occurrences)
 
-    result: dict[str, frozenset[Any]] = {}
+    result: dict[str, frozenset[object]] = {}
     for label, occ_list in occurrences.items():
-        domain: frozenset[Any] = occ_list[0]
+        domain: frozenset[object] = occ_list[0]
         for occ in occ_list[1:]:
             domain = domain & occ
         result[label] = domain
@@ -90,7 +92,7 @@ def domain_map(node: object) -> dict[str, frozenset[Any]]:
     return result
 
 
-def _collect_occurrences(node: object, out: dict[str, list[frozenset[Any]]]) -> None:
+def _collect_occurrences(node: object, out: dict[str, list[frozenset[object]]]) -> None:
     """Populate ``out`` with per-label occurrence lists."""
     if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode)):
         return

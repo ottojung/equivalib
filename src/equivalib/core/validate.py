@@ -19,6 +19,7 @@ from equivalib.core.types import (
     UnionNode,
     NamedNode,
     labels as tree_labels,
+    contains_name,
     tree_shape,
 )
 from equivalib.core.expression import (
@@ -75,10 +76,10 @@ def _check_node(node: object) -> None:
     if isinstance(node, NamedNode):
         if node.label == "":
             raise ValueError("Name label must not be empty.")
-        if isinstance(node.inner, NamedNode):
+        if contains_name(node.inner):
             raise ValueError(
-                f"Nested Name annotations are not allowed: "
-                f"Name({node.label!r}) contains another Name({node.inner.label!r})."
+                f"Nested Name annotations are not allowed inside Name({node.label!r}). "
+                "A named subtree must be name-free."
             )
         _check_node(node.inner)
         return
@@ -320,6 +321,12 @@ def _validate_address_from(label: str, path: tuple[int, ...], current: object, p
         return
 
     idx = path[position]
+
+    if not isinstance(idx, int) or isinstance(idx, bool):
+        raise ValueError(
+            f"Address path element at position {position} for label {label!r} "
+            f"must be a plain int, got {type(idx).__name__!r}: {idx!r}."
+        )
 
     if isinstance(current, UnionNode):
         for opt in current.options:

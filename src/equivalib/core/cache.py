@@ -17,7 +17,7 @@ Public API:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Mapping
 
 from equivalib.core.types import (
     NoneNode,
@@ -174,10 +174,10 @@ class UnnamedCache:
     """Cache for unnamed (name-free) subtree denotations."""
 
     def __init__(self, stats: CacheStats) -> None:
-        self._store: dict[object, Any] = {}
+        self._store: dict[object, object] = {}
         self._stats = stats
 
-    def get(self, node: object) -> Any:
+    def get(self, node: object) -> object:
         key = node
         if key in self._store:
             self._stats.unnamed_hits += 1
@@ -185,7 +185,7 @@ class UnnamedCache:
         self._stats.unnamed_misses += 1
         return None
 
-    def set(self, node: object, value: Any) -> None:
+    def set(self, node: object, value: object) -> None:
         self._store[node] = value
 
 
@@ -193,10 +193,10 @@ class GenerationCache:
     """Cache for guaranteed-cacheable subtree generation results."""
 
     def __init__(self, stats: CacheStats) -> None:
-        self._store: dict[tuple[object, tuple[tuple[str, str], ...]], Any] = {}
+        self._store: dict[tuple[object, tuple[tuple[str, str], ...]], object] = {}
         self._stats = stats
 
-    def get(self, subtree: object, methods: Mapping[str, str]) -> Any:
+    def get(self, subtree: object, methods: Mapping[str, str]) -> object:
         key = _cache_key(subtree, methods)
         if key in self._store:
             self._stats.named_hits += 1
@@ -204,6 +204,6 @@ class GenerationCache:
         self._stats.named_misses += 1
         return None
 
-    def set(self, subtree: object, methods: Mapping[str, str], value: Any) -> None:
+    def set(self, subtree: object, methods: Mapping[str, str], value: object) -> None:
         key = _cache_key(subtree, methods)
         self._store[key] = value

@@ -9,12 +9,12 @@ Processes labels in ascending lexicographic order.
 from __future__ import annotations
 
 import random
-from typing import Any, Mapping
+from typing import Mapping
 
 from equivalib.core.order import canonical_first
 
 
-def apply_methods(assignments: list[dict[str, Any]], methods: Mapping[str, str]) -> list[dict[str, Any]]:
+def apply_methods(assignments: list[dict[str, object]], methods: Mapping[str, str]) -> list[dict[str, object]]:
     """Reduce the satisfying-assignment set ``assignments`` using ``methods``.
 
     Labels without an explicit method default to ``"all"``.
@@ -51,12 +51,12 @@ def apply_methods(assignments: list[dict[str, Any]], methods: Mapping[str, str])
     return current
 
 
-def _project(label: str, assignments: list[dict[str, Any]]) -> list[Any]:
+def _project(label: str, assignments: list[dict[str, object]]) -> list[object]:
     """Return the list of values taken by ``label`` across ``assignments`` (with multiplicity)."""
     return [a[label] for a in assignments if label in a]
 
 
-def _choose_witness(method: str, label: str, projection: list[Any]) -> Any:
+def _choose_witness(method: str, label: str, projection: list[object]) -> object:
     """Choose a single witness value from ``projection`` according to ``method``."""
     distinct = list(dict.fromkeys(projection))  # preserves order, deduplicates
 

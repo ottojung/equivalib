@@ -15,8 +15,6 @@ Partial evaluation rules support short-circuit pruning:
 
 from __future__ import annotations
 
-from typing import Any
-
 from equivalib.core.expression import (
     BooleanConstant,
     IntegerConstant,
@@ -63,7 +61,7 @@ Unknown = _UnknownType()
 # Full evaluation (all labels must be assigned)
 # ---------------------------------------------------------------------------
 
-def eval_expression(expr: object, assignment: dict[str, Any]) -> Any:
+def eval_expression(expr: object, assignment: dict[str, object]) -> object:
     """Evaluate ``expr`` against a complete assignment mapping.
 
     ``assignment`` maps label strings to runtime values.
@@ -72,40 +70,40 @@ def eval_expression(expr: object, assignment: dict[str, Any]) -> Any:
     return _eval(expr, assignment)
 
 
-def _eval(expr: object, assignment: dict[str, Any]) -> Any:
+def _eval(expr: object, assignment: dict[str, object]) -> object:
     if isinstance(expr, BooleanConstant):
         return expr.value
     if isinstance(expr, IntegerConstant):
         return expr.value
     if isinstance(expr, Reference):
-        value = assignment[expr.label]
+        value: object = assignment[expr.label]
         for idx in expr.path:
-            value = value[idx]
+            value = value[idx]  # type: ignore[index]
         return value
     if isinstance(expr, Neg):
-        return -_eval(expr.operand, assignment)
+        return -_eval(expr.operand, assignment)  # type: ignore[operator]
     if isinstance(expr, Add):
-        return _eval(expr.left, assignment) + _eval(expr.right, assignment)
+        return _eval(expr.left, assignment) + _eval(expr.right, assignment)  # type: ignore[operator]
     if isinstance(expr, Sub):
-        return _eval(expr.left, assignment) - _eval(expr.right, assignment)
+        return _eval(expr.left, assignment) - _eval(expr.right, assignment)  # type: ignore[operator]
     if isinstance(expr, Mul):
-        return _eval(expr.left, assignment) * _eval(expr.right, assignment)
+        return _eval(expr.left, assignment) * _eval(expr.right, assignment)  # type: ignore[operator]
     if isinstance(expr, FloorDiv):
-        return _eval(expr.left, assignment) // _eval(expr.right, assignment)
+        return _eval(expr.left, assignment) // _eval(expr.right, assignment)  # type: ignore[operator]
     if isinstance(expr, Mod):
-        return _eval(expr.left, assignment) % _eval(expr.right, assignment)
+        return _eval(expr.left, assignment) % _eval(expr.right, assignment)  # type: ignore[operator]
     if isinstance(expr, Eq):
         return _eval(expr.left, assignment) == _eval(expr.right, assignment)
     if isinstance(expr, Ne):
         return _eval(expr.left, assignment) != _eval(expr.right, assignment)
     if isinstance(expr, Lt):
-        return _eval(expr.left, assignment) < _eval(expr.right, assignment)
+        return _eval(expr.left, assignment) < _eval(expr.right, assignment)  # type: ignore[operator]
     if isinstance(expr, Le):
-        return _eval(expr.left, assignment) <= _eval(expr.right, assignment)
+        return _eval(expr.left, assignment) <= _eval(expr.right, assignment)  # type: ignore[operator]
     if isinstance(expr, Gt):
-        return _eval(expr.left, assignment) > _eval(expr.right, assignment)
+        return _eval(expr.left, assignment) > _eval(expr.right, assignment)  # type: ignore[operator]
     if isinstance(expr, Ge):
-        return _eval(expr.left, assignment) >= _eval(expr.right, assignment)
+        return _eval(expr.left, assignment) >= _eval(expr.right, assignment)  # type: ignore[operator]
     if isinstance(expr, And):
         return _eval(expr.left, assignment) and _eval(expr.right, assignment)
     if isinstance(expr, Or):
@@ -117,7 +115,7 @@ def _eval(expr: object, assignment: dict[str, Any]) -> Any:
 # Partial evaluation (some labels may be unresolved)
 # ---------------------------------------------------------------------------
 
-def eval_expression_partial(expr: object, partial_assignment: dict[str, Any]) -> Any:
+def eval_expression_partial(expr: object, partial_assignment: dict[str, object]) -> object:
     """Evaluate ``expr`` against a partial assignment.
 
     Returns a concrete value if it can be determined, or ``Unknown`` if the
@@ -126,7 +124,7 @@ def eval_expression_partial(expr: object, partial_assignment: dict[str, Any]) ->
     return _eval_partial(expr, partial_assignment)
 
 
-def _eval_partial(expr: object, pa: dict[str, Any]) -> Any:
+def _eval_partial(expr: object, pa: dict[str, object]) -> object:
     if isinstance(expr, BooleanConstant):
         return expr.value
     if isinstance(expr, IntegerConstant):
@@ -134,31 +132,31 @@ def _eval_partial(expr: object, pa: dict[str, Any]) -> Any:
     if isinstance(expr, Reference):
         if expr.label not in pa:
             return Unknown
-        value = pa[expr.label]
+        value: object = pa[expr.label]
         for idx in expr.path:
             if isinstance(value, _UnknownType):
                 return Unknown
-            value = value[idx]
+            value = value[idx]  # type: ignore[index]
         return value
     if isinstance(expr, Neg):
         v = _eval_partial(expr.operand, pa)
         if isinstance(v, _UnknownType):
             return Unknown
-        return -v
+        return -v  # type: ignore[operator]
     if isinstance(expr, (Add, Sub, Mul, FloorDiv, Mod)):
         lv = _eval_partial(expr.left, pa)
         rv = _eval_partial(expr.right, pa)
         if isinstance(lv, _UnknownType) or isinstance(rv, _UnknownType):
             return Unknown
         if isinstance(expr, Add):
-            return lv + rv
+            return lv + rv  # type: ignore[operator]
         if isinstance(expr, Sub):
-            return lv - rv
+            return lv - rv  # type: ignore[operator]
         if isinstance(expr, Mul):
-            return lv * rv
+            return lv * rv  # type: ignore[operator]
         if isinstance(expr, FloorDiv):
-            return lv // rv
-        return lv % rv
+            return lv // rv  # type: ignore[operator]
+        return lv % rv  # type: ignore[operator]
     if isinstance(expr, (Eq, Ne, Lt, Le, Gt, Ge)):
         lv = _eval_partial(expr.left, pa)
         rv = _eval_partial(expr.right, pa)
@@ -169,12 +167,12 @@ def _eval_partial(expr: object, pa: dict[str, Any]) -> Any:
         if isinstance(expr, Ne):
             return lv != rv
         if isinstance(expr, Lt):
-            return lv < rv
+            return lv < rv  # type: ignore[operator]
         if isinstance(expr, Le):
-            return lv <= rv
+            return lv <= rv  # type: ignore[operator]
         if isinstance(expr, Gt):
-            return lv > rv
-        return lv >= rv
+            return lv > rv  # type: ignore[operator]
+        return lv >= rv  # type: ignore[operator]
     if isinstance(expr, And):
         lv = _eval_partial(expr.left, pa)
         if lv is False:

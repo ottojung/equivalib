@@ -13,7 +13,7 @@ For all others: natural ascending order within each kind.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Iterable
 
 
 _KIND_RANK = {
@@ -25,7 +25,7 @@ _KIND_RANK = {
 }
 
 
-def _kind_rank(v: Any) -> int:
+def _kind_rank(v: object) -> int:
     t = type(v)
     if t in _KIND_RANK:
         return _KIND_RANK[t]
@@ -33,7 +33,7 @@ def _kind_rank(v: Any) -> int:
     return 99
 
 
-def _sort_key(v: Any) -> tuple[Any, ...]:
+def _sort_key(v: object) -> tuple[object, ...]:
     """Return a sort key for ``v`` compatible with the canonical total order."""
     rank = _kind_rank(v)
     if v is None:
@@ -50,11 +50,11 @@ def _sort_key(v: Any) -> tuple[Any, ...]:
     return (rank, repr(v))
 
 
-def canonical_sorted(values: Any) -> list[Any]:
+def canonical_sorted(values: Iterable[object]) -> list[object]:
     """Return a list of ``values`` sorted in canonical order."""
     return sorted(values, key=_sort_key)
 
 
-def canonical_first(values: Any) -> Any:
+def canonical_first(values: Iterable[object]) -> object:
     """Return the canonical-first element from ``values``."""
     return min(values, key=_sort_key)
