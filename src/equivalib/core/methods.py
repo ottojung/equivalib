@@ -88,6 +88,7 @@ def _choose_witness(method: str, label: str, projection: list[object]) -> object
 
 def _tag_value(v: object) -> object:
     """Return a recursively type-tagged representation for type-aware equality."""
+    # bool is a subclass of int, so this check must come first.
     if isinstance(v, bool):
         return (bool, v)
     if isinstance(v, int):
