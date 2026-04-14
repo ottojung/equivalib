@@ -156,11 +156,11 @@ def generate(
     # 8. Concretize each assignment into runtime values.
     # ``concretize`` returns a frozenset (possibly multi-valued for unnamed
     # leaves in mixed trees), so we union the results together.
-    out: set[object] = set()
+    result: set[object] = set()
     for asgn in reduced:
-        out.update(concretize(node, asgn))
+        result.update(concretize(node, asgn))
 
-    return out  # type: ignore[return-value]
+    return result  # type: ignore[return-value]
 
 
 def _is_expression(obj: object) -> bool:
