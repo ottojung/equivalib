@@ -1,4 +1,4 @@
-"""Public API for the new core: ``generate`` and ``concretize``.
+"""Public API for the new core: ``generate``.
 
 Public entry point:
     generate(tree, constraint=BooleanExpression(True), methods=None) -> set
@@ -30,29 +30,42 @@ from equivalib.core.methods import apply_methods
 # Concretize
 # ---------------------------------------------------------------------------
 
-def concretize(node: object, assignment: dict) -> Any:
-    """Turn an IR node into a runtime value given a label assignment.
+def concretize(node: object, assignment: dict) -> frozenset:
+    """Return the set of all runtime values that ``node`` can produce under ``assignment``.
 
     Rules:
-        - unnamed nodes expand fully (using the assignment for inner names)
-        - NamedNode(label, inner) collapses atomically to assignment[label]
+        - ``NamedNode(label, inner)`` collapses atomically to ``{assignment[label]}``.
+        - Unnamed leaves (``BoolNode``, ``IntRangeNode``, ``LiteralNode``, ``NoneNode``)
+          expand to their full denotation, just as ``_values_node`` would.
+        - ``TupleNode`` produces the cartesian product of its children's expansions.
+        - ``UnionNode`` produces the set union of its children's expansions.
+
+    Returns a ``frozenset`` of hashable runtime values.
     """
-    if isinstance(node, NoneNode):
-        return None
-    if isinstance(node, BoolNode):
-        # Unnamed bool should not appear in concretize for named trees;
-        # this case handles trees without any names at all.
-        raise TypeError("BoolNode must be reached through a NamedNode or _values_node path.")
-    if isinstance(node, LiteralNode):
-        return node.value
-    if isinstance(node, IntRangeNode):
-        raise TypeError("IntRangeNode must be reached through a NamedNode or _values_node path.")
-    if isinstance(node, TupleNode):
-        return tuple(concretize(item, assignment) for item in node.items)
-    if isinstance(node, UnionNode):
-        raise TypeError("UnionNode cannot be directly concretized without an assignment.")
     if isinstance(node, NamedNode):
-        return assignment[node.label]
+        return frozenset({assignment[node.label]})
+    if isinstance(node, NoneNode):
+        return frozenset({None})
+    if isinstance(node, LiteralNode):
+        return frozenset({node.value})
+    if isinstance(node, BoolNode):
+        return frozenset({True, False})
+    if isinstance(node, IntRangeNode):
+        return frozenset(range(node.min_value, node.max_value + 1))
+    if isinstance(node, TupleNode):
+        # Cartesian product of all children's expansions.
+        result: frozenset = frozenset({()})
+        for item in node.items:
+            item_vals = concretize(item, assignment)
+            result = frozenset(
+                existing + (v,) for existing in result for v in item_vals
+            )
+        return result
+    if isinstance(node, UnionNode):
+        result = frozenset()
+        for opt in node.options:
+            result = result | concretize(opt, assignment)
+        return result
     raise TypeError(f"Unknown IR node: {type(node)}")
 
 
@@ -71,6 +84,7 @@ def generate(
         tree:       A Python type expression (TypeTree).
         constraint: An Expression AST.  Defaults to BooleanExpression(True).
         methods:    Mapping from label string to method string.
+                    Absent labels default to ``"all"``.
 
     Returns:
         A set of runtime values.
@@ -112,16 +126,18 @@ def generate(
     if not assignments:
         return set()
 
-    # 7. Apply super-method reductions (S* )
+    # 7. Apply super-method reductions (S*)
     reduced = apply_methods(assignments, methods)
 
     if not reduced:
         return set()
 
-    # 8. Concretize each assignment into runtime values
-    result = set()
+    # 8. Concretize each assignment into runtime values.
+    # ``concretize`` returns a frozenset (possibly multi-valued for unnamed
+    # leaves in mixed trees), so we union the results together.
+    result: set = set()
     for asgn in reduced:
-        result.add(_concretize_tree(node, asgn))
+        result.update(concretize(node, asgn))
 
     return result
 
@@ -139,29 +155,3 @@ def _is_expression(obj: Any) -> bool:
         Eq, Ne, Lt, Le, Gt, Ge, And, Or,
     ))
 
-
-def _concretize_tree(node: object, assignment: dict) -> Any:
-    """Concretize a tree node given a complete label assignment.
-
-    This function is aware of the tree structure and handles all node types
-    without raising on BoolNode / IntRangeNode / UnionNode in the unnamed
-    case (it uses _values_node for those).
-    """
-    if isinstance(node, NamedNode):
-        return assignment[node.label]
-    if isinstance(node, NoneNode):
-        return None
-    if isinstance(node, (BoolNode, LiteralNode, IntRangeNode)):
-        # Unnamed leaf: if we got here, there is no assignment for this node
-        # (it should be reached through a NamedNode).  This can only happen in
-        # a mixed tree.  Raise clearly.
-        raise TypeError(
-            f"Unnamed leaf {node!r} reached during concretization; "
-            "check that all free leaves are wrapped in NamedNode."
-        )
-    if isinstance(node, TupleNode):
-        return tuple(_concretize_tree(item, assignment) for item in node.items)
-    if isinstance(node, UnionNode):
-        # Find the first option whose concretized form is reachable.
-        raise TypeError("UnionNode reached during concretization without a NamedNode wrapper.")
-    raise TypeError(f"Unknown IR node: {type(node)}")

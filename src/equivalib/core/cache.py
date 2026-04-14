@@ -17,7 +17,7 @@ Public API:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, FrozenSet, Mapping
+from typing import Any, Mapping
 
 from equivalib.core.types import (
     NoneNode,
@@ -91,9 +91,8 @@ def is_label_closed(subtree: object, whole_tree: object) -> bool:
     subtree_labels = tree_labels(subtree)
     if not subtree_labels:
         return True  # unnamed subtrees are trivially label-closed
-    whole_labels = tree_labels(whole_tree)
-    # A subtree is label-closed when its own labels are a subset of whole
-    # labels **and** there is no sharing with the "rest" of the tree.
+    # A subtree is label-closed when none of its labels appear in the rest of
+    # the tree (i.e., outside of the subtree itself).
     rest_labels = _labels_outside(subtree, whole_tree)
     return not (subtree_labels & rest_labels)
 

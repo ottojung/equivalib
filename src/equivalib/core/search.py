@@ -1,9 +1,9 @@
 """Exact backtracking satisfying-assignment search.
 
 Public API:
-    search(node, constraint) -> frozenset[frozenset]
+    search(node, constraint) -> list[dict]
 
-Each element in the returned set is a frozenset of (label, value) pairs
+Each element in the returned list is a dict mapping label -> value,
 representing one satisfying assignment.
 """
 
@@ -12,7 +12,7 @@ from __future__ import annotations
 from equivalib.core.types import labels as tree_labels
 from equivalib.core.domains import domain_map
 from equivalib.core.order import canonical_sorted
-from equivalib.core.eval import eval_expression_partial, Unknown
+from equivalib.core.eval import eval_expression_partial
 
 
 def search(node: object, constraint: object) -> list:
@@ -44,9 +44,9 @@ def _backtrack(
     results: list,
 ) -> None:
     if not label_list:
-        # All labels assigned; check the constraint.
+        # All labels assigned; the constraint must evaluate to exactly True.
         result = eval_expression_partial(constraint, partial)
-        if result is True or result is not False and result:
+        if result is True:
             results.append(dict(partial))
         return
 

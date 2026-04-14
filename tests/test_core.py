@@ -508,3 +508,417 @@ def test_expression_ast_is_required_not_source_string():
 def test_generate_supports_default_arguments():
     generate = core_attr("generate")
     assert generate(Literal[True]) == {True}
+
+
+# ==========================================================================
+# Additional edge-case tests
+# ==========================================================================
+
+# --------------------------------------------------------------------------
+# Mixed named/unnamed trees
+# --------------------------------------------------------------------------
+
+def test_generate_mixed_unnamed_literal_and_named_bool():
+    """Unnamed Literal[3] expands to {3}; named bool expands per assignment."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    tree = Tuple[Literal[3], Annotated[bool, Name("X")]]
+    assert generate(tree, true_expr(), {}) == {(3, True), (3, False)}
+
+
+def test_generate_mixed_unnamed_bool_and_named_bool():
+    """An unnamed bool expands fully for every named assignment."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    tree = Tuple[bool, Annotated[bool, Name("X")]]
+    assert generate(tree, true_expr(), {}) == {
+        (True, True), (True, False),
+        (False, True), (False, False),
+    }
+
+
+def test_generate_mixed_unnamed_int_range_and_named_bool():
+    """Unnamed IntRange expands fully for every named assignment."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    tree = Tuple[Annotated[int, ValueRange(0, 1)], Annotated[bool, Name("X")]]
+    assert generate(tree, true_expr(), {}) == {
+        (0, True), (0, False),
+        (1, True), (1, False),
+    }
+
+
+def test_generate_mixed_unnamed_union_and_named_bool():
+    """Unnamed union in mixed tree expands to all its values."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    tree = Tuple[Union[Literal["a"], Literal["b"]], Annotated[bool, Name("X")]]
+    assert generate(tree, true_expr(), {}) == {
+        ("a", True), ("a", False),
+        ("b", True), ("b", False),
+    }
+
+
+def test_generate_mixed_unnamed_none_and_named_bool():
+    """Unnamed None in mixed tree expands to {None}."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    tree = Tuple[None, Annotated[bool, Name("X")]]
+    assert generate(tree, true_expr(), {}) == {(None, True), (None, False)}
+
+
+# --------------------------------------------------------------------------
+# Normalize edge cases
+# --------------------------------------------------------------------------
+
+def test_normalize_multi_value_literal_expands_to_union():
+    """Literal[True, False] normalizes to a union of two singletons."""
+    generate = core_attr("generate")
+    assert generate(Literal[True, False]) == {True, False}
+
+
+def test_normalize_nested_union_values():
+    """Nested unions produce the union of all their values."""
+    generate = core_attr("generate")
+    tree = Union[Literal["a"], Union[Literal["b"], Literal["c"]]]
+    assert generate(tree) == {"a", "b", "c"}
+
+
+def test_normalize_annotated_name_before_value_range():
+    """Name metadata before ValueRange (reverse order) should work."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    tree = Annotated[int, Name("X"), ValueRange(5, 7)]
+    assert generate(tree, true_expr(), {}) == {5, 6, 7}
+
+
+# --------------------------------------------------------------------------
+# Validate: address on union-typed labels
+# --------------------------------------------------------------------------
+
+def test_generate_address_on_union_of_same_arity_tuples():
+    """A path into a union where every branch is a tuple of the same arity is valid."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    # Both branches have arity 1; address (0,) is valid.
+    tree = Annotated[Union[Tuple[bool], Tuple[bool]], Name("X")]
+    constraint = Eq(ref("X", (0,)), bool_const(True))
+    result = generate(tree, constraint, {"X": "all"})
+    assert result == {(True,)}
+
+
+def test_generate_rejects_address_out_of_range_on_all_union_branches():
+    """Address out of range on all union branches must be rejected."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    tree = Annotated[Union[Tuple[bool], Tuple[bool]], Name("X")]
+    with pytest.raises(ValueError):
+        generate(tree, Eq(ref("X", (1,)), bool_const(True)), {})
+
+
+# --------------------------------------------------------------------------
+# Validate: arithmetic on bool references must be rejected
+# --------------------------------------------------------------------------
+
+def test_generate_rejects_arithmetic_on_bool_reference():
+    """Add with a bool-typed reference must fail validation."""
+    generate = core_attr("generate")
+    Add = core_attr("Add")
+    Eq = core_attr("Eq")
+    Name = core_attr("Name")
+    with pytest.raises((TypeError, ValueError)):
+        generate(
+            Annotated[bool, Name("X")],
+            Eq(Add(ref("X"), int_const(1)), int_const(2)),
+            {},
+        )
+
+
+def test_generate_rejects_ordering_on_bool_reference():
+    """Lt with a bool-typed reference must fail validation."""
+    generate = core_attr("generate")
+    Lt = core_attr("Lt")
+    Name = core_attr("Name")
+    with pytest.raises((TypeError, ValueError)):
+        generate(Annotated[bool, Name("X")], Lt(ref("X"), int_const(1)), {})
+
+
+# --------------------------------------------------------------------------
+# Expression evaluation (direct tests on eval module)
+# --------------------------------------------------------------------------
+
+def test_eval_full_expression_basic_arithmetic():
+    from equivalib.core.eval import eval_expression
+    from equivalib.core.expression import Add, Mul, IntegerConstant, Reference
+    expr = Add(Mul(Reference("x"), IntegerConstant(3)), IntegerConstant(1))
+    assert eval_expression(expr, {"x": 4}) == 13
+
+
+def test_eval_partial_and_short_circuits_on_false():
+    from equivalib.core.eval import eval_expression_partial, Unknown
+    from equivalib.core.expression import And, BooleanConstant, Reference
+    expr = And(BooleanConstant(False), Reference("y"))
+    assert eval_expression_partial(expr, {}) is False
+
+
+def test_eval_partial_or_short_circuits_on_true():
+    from equivalib.core.eval import eval_expression_partial, Unknown
+    from equivalib.core.expression import Or, BooleanConstant, Reference
+    expr = Or(BooleanConstant(True), Reference("y"))
+    assert eval_expression_partial(expr, {}) is True
+
+
+def test_eval_partial_unknown_propagates_through_arithmetic():
+    from equivalib.core.eval import eval_expression_partial, Unknown
+    from equivalib.core.expression import Add, Reference, IntegerConstant
+    expr = Add(Reference("x"), IntegerConstant(1))
+    assert eval_expression_partial(expr, {}) is Unknown
+
+
+def test_eval_partial_and_both_unknown():
+    from equivalib.core.eval import eval_expression_partial, Unknown
+    from equivalib.core.expression import And, Reference
+    expr = And(Reference("x"), Reference("y"))
+    assert eval_expression_partial(expr, {}) is Unknown
+
+
+def test_eval_partial_neg_of_unknown():
+    from equivalib.core.eval import eval_expression_partial, Unknown
+    from equivalib.core.expression import Neg, Reference
+    expr = Neg(Reference("x"))
+    assert eval_expression_partial(expr, {}) is Unknown
+
+
+# --------------------------------------------------------------------------
+# Canonical ordering
+# --------------------------------------------------------------------------
+
+def test_canonical_order_bools_true_before_false():
+    from equivalib.core.order import canonical_sorted
+    assert canonical_sorted([False, True]) == [True, False]
+
+
+def test_canonical_order_ints_ascending():
+    from equivalib.core.order import canonical_sorted
+    assert canonical_sorted([3, 1, 2]) == [1, 2, 3]
+
+
+def test_canonical_order_strings_lexicographic():
+    from equivalib.core.order import canonical_sorted
+    assert canonical_sorted(["b", "a", "c"]) == ["a", "b", "c"]
+
+
+def test_canonical_order_none_before_tuples():
+    from equivalib.core.order import canonical_sorted
+    result = canonical_sorted([("x",), None])
+    assert result[0] is None
+
+
+def test_canonical_order_tuples_lexicographic():
+    from equivalib.core.order import canonical_sorted
+    data = [(True, False), (True, True), (False, True), (False, False)]
+    assert canonical_sorted(data) == [(True, True), (True, False), (False, True), (False, False)]
+
+
+def test_canonical_first_selects_minimum():
+    from equivalib.core.order import canonical_first
+    assert canonical_first([False, True]) is True
+
+
+# --------------------------------------------------------------------------
+# Domain computation
+# --------------------------------------------------------------------------
+
+def test_domain_map_single_named_label():
+    from equivalib.core.domains import domain_map
+    from equivalib.core.normalize import normalize
+    from equivalib.core.name import Name as CoreName
+    node = normalize(Annotated[bool, CoreName("X")])
+    dm = domain_map(node)
+    assert dm == {"X": frozenset({True, False})}
+
+
+def test_domain_map_repeated_label_intersection():
+    from equivalib.core.domains import domain_map
+    from equivalib.core.normalize import normalize
+    Name = core_attr("Name")
+    tree = Tuple[Annotated[int, ValueRange(1, 5), Name("X")], Annotated[int, ValueRange(3, 7), Name("X")]]
+    node = normalize(tree)
+    dm = domain_map(node)
+    assert dm["X"] == frozenset({3, 4, 5})
+
+
+def test_domain_map_repeated_label_empty_intersection():
+    from equivalib.core.domains import domain_map
+    from equivalib.core.normalize import normalize
+    Name = core_attr("Name")
+    tree = Tuple[Annotated[int, ValueRange(1, 2), Name("X")], Annotated[int, ValueRange(5, 6), Name("X")]]
+    node = normalize(tree)
+    dm = domain_map(node)
+    assert dm["X"] == frozenset()
+
+
+def test_values_bool_gives_two_values():
+    values = core_attr("values")
+    assert values(bool) == {True, False}
+
+
+def test_values_int_range_gives_range():
+    values = core_attr("values")
+    assert values(Annotated[int, ValueRange(10, 12)]) == {10, 11, 12}
+
+
+def test_values_none_gives_singleton():
+    values = core_attr("values")
+    assert values(None) == {None}
+
+
+def test_values_nested_tuple():
+    values = core_attr("values")
+    tree = Tuple[bool, Literal["ok"]]
+    assert values(tree) == {(True, "ok"), (False, "ok")}
+
+
+# --------------------------------------------------------------------------
+# Cache helpers
+# --------------------------------------------------------------------------
+
+def test_mentioned_labels_arithmetic_expression():
+    mentioned_labels = core_attr("mentioned_labels")
+    Add = core_attr("Add")
+    expr = Add(ref("A"), ref("B"))
+    assert mentioned_labels(expr) == {"A", "B"}
+
+
+def test_mentioned_labels_constant_has_no_labels():
+    mentioned_labels = core_attr("mentioned_labels")
+    assert mentioned_labels(int_const(42)) == set()
+
+
+def test_is_label_closed_single_label():
+    from equivalib.core.cache import is_label_closed
+    from equivalib.core.normalize import normalize
+    from equivalib.core.name import Name as CoreName
+    node = normalize(Annotated[bool, CoreName("X")])
+    assert is_label_closed(node, node) is True
+
+
+def test_is_constraint_independent_disjoint_labels():
+    from equivalib.core.cache import is_constraint_independent
+    from equivalib.core.normalize import normalize
+    from equivalib.core.expression import Reference
+    from equivalib.core.name import Name as CoreName
+    subtree = normalize(Annotated[bool, CoreName("X")])
+    constraint = Reference("Y")
+    assert is_constraint_independent(subtree, constraint) is True
+
+
+def test_is_constraint_independent_overlapping_labels():
+    from equivalib.core.cache import is_constraint_independent
+    from equivalib.core.normalize import normalize
+    from equivalib.core.expression import Reference
+    from equivalib.core.name import Name as CoreName
+    subtree = normalize(Annotated[bool, CoreName("X")])
+    constraint = Reference("X")
+    assert is_constraint_independent(subtree, constraint) is False
+
+
+def test_is_guaranteed_cacheable_unnamed():
+    from equivalib.core.cache import is_guaranteed_cacheable
+    from equivalib.core.normalize import normalize
+    from equivalib.core.expression import BooleanConstant
+    node = normalize(bool)
+    assert is_guaranteed_cacheable(node, node, BooleanConstant(True)) is True
+
+
+def test_is_guaranteed_cacheable_label_closed_and_independent():
+    from equivalib.core.cache import is_guaranteed_cacheable
+    from equivalib.core.normalize import normalize
+    from equivalib.core.expression import Reference
+    from equivalib.core.name import Name as CoreName
+    node = normalize(Annotated[bool, CoreName("X")])
+    constraint = Reference("Y")
+    assert is_guaranteed_cacheable(node, node, constraint) is True
+
+
+# --------------------------------------------------------------------------
+# Nested / complex generate scenarios
+# --------------------------------------------------------------------------
+
+def test_generate_nested_two_constrained_labels():
+    """Two independent named booleans can be jointly constrained."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    And = core_attr("And")
+    Eq = core_attr("Eq")
+    tree = Tuple[Annotated[bool, Name("A")], Annotated[bool, Name("B")]]
+    constraint = And(Eq(ref("A"), bool_const(True)), Eq(ref("B"), bool_const(False)))
+    assert generate(tree, constraint, {}) == {(True, False)}
+
+
+def test_generate_union_label_with_equality_constraint():
+    """Constraint on a union-typed named label narrows to matching values."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    tree = Annotated[Union[Literal[1], Literal[2], Literal[3]], Name("X")]
+    constraint = Eq(ref("X"), int_const(2))
+    assert generate(tree, constraint, {}) == {2}
+
+
+def test_generate_three_label_strict_ordering():
+    """A < B < C constraint over three integer labels."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    And = core_attr("And")
+    Gt = core_attr("Gt")
+    tree = Tuple[
+        Annotated[int, ValueRange(0, 2), Name("A")],
+        Annotated[int, ValueRange(0, 2), Name("B")],
+        Annotated[int, ValueRange(0, 2), Name("C")],
+    ]
+    constraint = And(Gt(ref("B"), ref("A")), Gt(ref("C"), ref("B")))
+    assert generate(tree, constraint, {}) == {(0, 1, 2)}
+
+
+def test_generate_none_in_named_union():
+    """Named label with a union that includes None."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    tree = Annotated[Union[None, Literal["x"]], Name("V")]
+    assert generate(tree, true_expr(), {}) == {None, "x"}
+
+
+def test_generate_le_and_ge_constraints():
+    """Le and Ge operators filter an integer range correctly."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    And = core_attr("And")
+    Le = core_attr("Le")
+    Ge = core_attr("Ge")
+    tree = Annotated[int, ValueRange(0, 5), Name("X")]
+    constraint = And(Ge(ref("X"), int_const(2)), Le(ref("X"), int_const(4)))
+    assert generate(tree, constraint, {}) == {2, 3, 4}
+
+
+def test_generate_arbitrary_is_stable_across_calls():
+    """Repeated arbitrary calls always return the same value."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    tree = Annotated[int, ValueRange(0, 10), Name("N")]
+    r1 = generate(tree, true_expr(), {"N": "arbitrary"})
+    r2 = generate(tree, true_expr(), {"N": "arbitrary"})
+    assert r1 == r2
+    assert len(r1) == 1
+
+
+def test_generate_non_empty_for_all_super_methods_when_satisfiable():
+    """All super methods produce a non-empty result when the problem is satisfiable."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    tree = Annotated[int, ValueRange(1, 5), Name("X")]
+    for method in ["all", "arbitrary", "uniform_random", "arbitrarish_randomish"]:
+        result = generate(tree, true_expr(), {"X": method})
+        assert result, f"Expected non-empty result for method={method!r}"

@@ -115,10 +115,10 @@ def validate_expression(expr: object, node: object) -> None:
 
     # Type-check the top-level expression: must be boolean-typed
     result_type = _check_expr_type(expr, known_labels, label_shapes, require_bool=False)
-    if result_type == "numeric":
+    if result_type != "bool":
         raise TypeError(
-            f"Top-level constraint must be a boolean expression, got a numeric "
-            f"expression: {expr!r}."
+            f"Top-level constraint must be a boolean expression, "
+            f"got {result_type!r}: {expr!r}."
         )
 
 
@@ -144,10 +144,13 @@ def _walk_for_shapes(node: object, result: dict) -> None:
 
 
 def _check_expr_type(expr: object, known_labels: frozenset, label_shapes: dict, require_bool: bool) -> str:
-    """Return 'bool' or 'numeric' (or raise if invalid)."""
+    """Return 'bool', 'numeric', or 'any' (or raise if invalid).
+
+    'any' is returned only for references to labels with non-scalar shapes
+    (e.g. tuples or heterogeneous unions).  The top-level caller is responsible
+    for rejecting 'any' at the constraint root.
+    """
     if isinstance(expr, BooleanConstant):
-        if require_bool is False:
-            pass  # BooleanConstant can appear in any position for now
         return "bool"
 
     if isinstance(expr, IntegerConstant):
@@ -161,13 +164,12 @@ def _check_expr_type(expr: object, known_labels: frozenset, label_shapes: dict, 
             )
         if expr.label in label_shapes:
             _validate_address(expr.label, expr.path, label_shapes[expr.label])
+            resolved = _resolve_shape(label_shapes[expr.label], expr.path)
+            return _shape_type(resolved)
         elif expr.path:
             raise ValueError(
                 f"Label {expr.label!r} is not in label_shapes but has a non-empty path."
             )
-        # References to named nodes whose shape is a tuple can yield numeric or
-        # other values depending on the path – we treat all reference results as
-        # opaque (allow either position) for simplicity.
         return "any"
 
     if isinstance(expr, Neg):
@@ -198,9 +200,9 @@ def _check_expr_type(expr: object, known_labels: frozenset, label_shapes: dict, 
     if isinstance(expr, (And, Or)):
         lt = _check_expr_type(expr.left, known_labels, label_shapes, require_bool=True)
         rt = _check_expr_type(expr.right, known_labels, label_shapes, require_bool=True)
-        if lt != "bool" and lt != "any":
+        if lt not in ("bool", "any"):
             raise TypeError(f"{type(expr).__name__} left operand must be boolean: {expr!r}")
-        if rt != "bool" and rt != "any":
+        if rt not in ("bool", "any"):
             raise TypeError(f"{type(expr).__name__} right operand must be boolean: {expr!r}")
         return "bool"
 
@@ -210,29 +212,68 @@ def _check_expr_type(expr: object, known_labels: frozenset, label_shapes: dict, 
     )
 
 
+def _resolve_shape(shape: object, path: tuple) -> object:
+    """Navigate ``shape`` by following ``path`` and return the resulting sub-shape."""
+    current = shape
+    for idx in path:
+        if isinstance(current, UnionNode):
+            # _validate_address already verified all options are TupleNodes;
+            # use the first option as a representative for structure descent.
+            current = current.options[0]
+        if isinstance(current, TupleNode):
+            current = current.items[idx]
+        else:
+            raise ValueError(f"Cannot index into shape {current!r} at path {path!r}.")
+    return current
+
+
+def _shape_type(shape: object) -> str:
+    """Return the expression type ('bool', 'numeric', or 'any') for a given shape."""
+    if isinstance(shape, BoolNode):
+        return "bool"
+    if isinstance(shape, IntRangeNode):
+        return "numeric"
+    if isinstance(shape, LiteralNode):
+        # Infer from the literal value's Python type.
+        if isinstance(shape.value, bool):
+            return "bool"
+        if isinstance(shape.value, int):
+            return "numeric"
+        return "any"
+    if isinstance(shape, UnionNode):
+        option_types = {_shape_type(o) for o in shape.options}
+        if len(option_types) == 1:
+            return option_types.pop()
+        return "any"
+    # NoneNode, TupleNode, etc. are opaque in expression context.
+    return "any"
+
+
 def _validate_address(label: str, path: tuple, shape: object) -> None:
     """Raise ValueError if ``path`` is not a valid address into ``shape``."""
     current = shape
     for i, idx in enumerate(path):
-        if not isinstance(current, TupleNode):
-            raise ValueError(
-                f"Address path {path!r} for label {label!r} descends into a "
-                f"non-tuple at position {i}: shape is {current!r}."
-            )
-        # A Union where some branches are tuples and others are not is ambiguous.
-        # We need every possible shape along the path to be a tuple.
+        # Handle union shapes: all branches must be tuples and all must
+        # support the index.
         if isinstance(current, UnionNode):
             for opt in current.options:
                 if not isinstance(opt, TupleNode):
                     raise ValueError(
                         f"Address path {path!r} for label {label!r} crosses a "
-                        f"union that contains a non-tuple option: {opt!r}."
+                        f"union that contains a non-tuple option at position {i}: {opt!r}."
                     )
-            # All options are tuples; take the first one for length check.
+                if idx >= len(opt.items) or idx < 0:
+                    raise ValueError(
+                        f"Address index {idx} is out of range for union branch of "
+                        f"length {len(opt.items)} (label {label!r}, path {path!r})."
+                    )
+            # All options are valid tuples; use the first as the representative
+            # for further shape descent.
             current = current.options[0]
+
         if not isinstance(current, TupleNode):
             raise ValueError(
-                f"Address path {path!r} for label {label!r} descends into "
+                f"Address path {path!r} for label {label!r} descends into a "
                 f"non-tuple at position {i}: shape is {current!r}."
             )
         if idx >= len(current.items) or idx < 0:
@@ -241,8 +282,5 @@ def _validate_address(label: str, path: tuple, shape: object) -> None:
                 f"{len(current.items)} (label {label!r}, path {path!r})."
             )
         current = current.items[idx]
-
-    # If the shape at a union contains non-tuple options we should already have
-    # caught that above. No further checks needed for zero-length paths.
 
 

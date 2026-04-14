@@ -6,14 +6,14 @@ these immutable IR nodes rather than on raw ``typing`` objects.
 Kind-rank table (used for canonical total order, documented here):
     0 – None
     1 – bool
-    2 – int / float (numeric scalars)
+    2 – int (numeric scalars; float is not supported)
     3 – str
     4 – tuple
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Tuple as TypingTuple
 
 
