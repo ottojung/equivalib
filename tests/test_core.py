@@ -1714,3 +1714,63 @@ def test_ne_type_mismatch_with_undefined_operand_under_or():
     result = generate(tree, constraint, {})
     expected: set[object] = {(True, 0), (True, 1), (False, 1)}
     assert result == expected, f"Expected {expected}, got {result}"
+
+
+# --------------------------------------------------------------------------
+# P1: _ZERO_DIV sentinel must propagate through arithmetic wrappers
+# --------------------------------------------------------------------------
+
+
+def test_zero_div_sentinel_propagates_through_add():
+    """Eq(Add(FloorDiv(X, 0), 1), 1) must yield no solutions.
+
+    FloorDiv(X, 0) is undefined (sentinel); Add must propagate the sentinel
+    so that the surrounding Eq always evaluates to False, not True.
+    """
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    Add = core_attr("Add")
+    FloorDiv = core_attr("FloorDiv")
+    tree = Annotated[int, ValueRange(0, 2), Name("X")]
+    # FloorDiv(X, 0) is undefined; Add(undefined, 1) must also be undefined,
+    # so Eq(undefined, 1) is always False → no solutions.
+    constraint = Eq(Add(FloorDiv(ref("X"), int_const(0)), int_const(1)), int_const(1))
+    result = generate(tree, constraint, {})
+    expected: set[object] = set()
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_zero_div_sentinel_propagates_through_neg():
+    """Eq(Neg(FloorDiv(X, 0)), 0) must yield no solutions."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    Neg = core_attr("Neg")
+    FloorDiv = core_attr("FloorDiv")
+    tree = Annotated[int, ValueRange(0, 2), Name("X")]
+    constraint = Eq(Neg(FloorDiv(ref("X"), int_const(0))), int_const(0))
+    result = generate(tree, constraint, {})
+    expected: set[object] = set()
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_zero_div_sentinel_propagates_through_add_under_or():
+    """Or(B, Eq(Add(FloorDiv(X, 0), 1), 1)) must allow only B=True solutions.
+
+    Sentinel propagates: undefined → Or(B, False) = B → only (True, x) solutions.
+    """
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Or = core_attr("Or")
+    Eq = core_attr("Eq")
+    Add = core_attr("Add")
+    FloorDiv = core_attr("FloorDiv")
+    tree = Tuple[
+        Annotated[bool, Name("B")],
+        Annotated[int, ValueRange(0, 1), Name("X")],
+    ]
+    constraint = Or(ref("B"), Eq(Add(FloorDiv(ref("X"), int_const(0)), int_const(1)), int_const(1)))
+    result = generate(tree, constraint, {})
+    expected: set[object] = {(True, 0), (True, 1)}
+    assert result == expected, f"Expected {expected}, got {result}"

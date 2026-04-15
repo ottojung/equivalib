@@ -47,7 +47,7 @@ from equivalib.core.types import (
     IRNode,
     labels as tree_labels,
 )
-from equivalib.core.domains import domain_map
+from equivalib.core.domains import _values_node_tagged, _untag_value
 from equivalib.core.order import canonical_key, canonical_sorted
 from equivalib.core.eval import _structural_eq, eval_expression_partial
 
@@ -70,6 +70,77 @@ _EncResult = tuple[Any, str, bool, Any]
 
 
 # ---------------------------------------------------------------------------
+# Domain computation helpers
+# ---------------------------------------------------------------------------
+
+def _sat_compute_domains(
+    node: IRNode,
+    int_sat_labels: set[str],
+) -> tuple[dict[str, tuple[int, int]], dict[str, list[object]]]:
+    """Compute bounds for int SAT labels and full domains for all other labels.
+
+    For integer-range SAT labels (``IntRangeNode``), only the tightest bounds
+    across all occurrences are extracted from the tree — no full value
+    enumeration.  For all other labels (bool, enum), the complete domain list
+    is returned via tagged-frozenset intersection (same semantics as
+    ``domain_map``).
+
+    Returns:
+        int_bounds:    ``{label: (lo, hi)}`` for every label in
+                       ``int_sat_labels``.  An empty intersection (``lo > hi``)
+                       signals an empty domain without listing any values.
+        other_domains: ``{label: [values]}`` for non-int-SAT labels.
+    """
+    int_occurrences: dict[str, list[tuple[int, int]]] = {}
+    other_occurrences: dict[str, list[frozenset[object]]] = {}
+
+    def _walk(n: IRNode) -> None:
+        if isinstance(n, (NoneNode, BoolNode, LiteralNode, IntRangeNode)):
+            return
+        if isinstance(n, TupleNode):
+            for item in n.items:
+                _walk(item)
+        elif isinstance(n, UnionNode):
+            for opt in n.options:
+                _walk(opt)
+        elif isinstance(n, NamedNode):
+            label = n.label
+            if label in int_sat_labels and isinstance(n.inner, IntRangeNode):
+                # Direct bounds extraction: no range enumeration.
+                lo, hi = n.inner.min_value, n.inner.max_value
+                if label not in int_occurrences:
+                    int_occurrences[label] = []
+                int_occurrences[label].append((lo, hi))
+            else:
+                tagged_vals = _values_node_tagged(n.inner)
+                if label not in other_occurrences:
+                    other_occurrences[label] = []
+                other_occurrences[label].append(tagged_vals)
+            _walk(n.inner)
+        # impossible() not called here; unknown node types are silently ignored
+        # (they are handled by the public domain_map in domains.py if needed).
+
+    _walk(node)
+
+    # Intersect bounds for int labels (largest lo, smallest hi across occurrences).
+    int_bounds: dict[str, tuple[int, int]] = {}
+    for label, bounds_list in int_occurrences.items():
+        lo = max(b[0] for b in bounds_list)
+        hi = min(b[1] for b in bounds_list)
+        int_bounds[label] = (lo, hi)
+
+    # Intersect tagged frozensets for other labels.
+    other_domains: dict[str, list[object]] = {}
+    for label, occ_list in other_occurrences.items():
+        tagged_domain: frozenset[object] = occ_list[0]
+        for occ in occ_list[1:]:
+            tagged_domain = tagged_domain & occ
+        other_domains[label] = [_untag_value(tv) for tv in tagged_domain]
+
+    return int_bounds, other_domains
+
+
+# ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 
@@ -80,14 +151,8 @@ def sat_search(node: IRNode, constraint: Expression) -> list[dict[str, object]]:
     All other labels (string/None/tuple literals, mixed unions) are enumerated
     in Python via backtracking, with CP-SAT invoked for the remaining labels.
     """
-    domains = domain_map(node)
-
-    # Early exit: any empty domain means no satisfying assignments.
-    for domain_vals in domains.values():
-        if not domain_vals:
-            return []
-
     # Classify labels into CP-SAT-encodable (bool / int-range) and enum.
+    # (Done first so we know which labels are int SAT before computing domains.)
     sat_kinds, enum_label_set = _classify_labels(node)
 
     # Restrict to labels that actually appear in the tree.
@@ -95,9 +160,23 @@ def sat_search(node: IRNode, constraint: Expression) -> list[dict[str, object]]:
     sat_kinds = {lbl: knd for lbl, knd in sat_kinds.items() if lbl in tree_label_set}
     enum_labels = sorted(enum_label_set & tree_label_set)
 
+    # Compute domains without enumerating int-range SAT labels.
+    # For int SAT labels: direct (lo, hi) bounds from IntRangeNode (no range materialisation).
+    # For enum and bool labels: full tagged-frozenset intersection (same as domain_map).
+    int_sat_labels = {lbl for lbl, knd in sat_kinds.items() if knd == _INT}
+    int_bounds, other_domains = _sat_compute_domains(node, int_sat_labels)
+
+    # Early exit: empty domain for any label → no satisfying assignments.
+    for label, (lo, hi) in int_bounds.items():
+        if lo > hi:
+            return []
+    for domain_vals in other_domains.values():
+        if not domain_vals:
+            return []
+
     # Precompute canonical-sorted domain lists for enum labels.
     sorted_enum_domains: dict[str, list[object]] = {
-        label: canonical_sorted(domains[label])
+        label: canonical_sorted(other_domains.get(label, []))
         for label in enum_labels
     }
 
@@ -105,8 +184,7 @@ def sat_search(node: IRNode, constraint: Expression) -> list[dict[str, object]]:
     sat_bounds: dict[str, tuple[int, int]] = {}
     for label, kind in sat_kinds.items():
         if kind == _INT:
-            int_vals = [v for v in domains[label] if isinstance(v, int) and not isinstance(v, bool)]
-            sat_bounds[label] = (min(int_vals), max(int_vals)) if int_vals else (0, 0)
+            sat_bounds[label] = int_bounds.get(label, (0, 0))
         else:  # bool
             sat_bounds[label] = (0, 1)
 
@@ -116,7 +194,7 @@ def sat_search(node: IRNode, constraint: Expression) -> list[dict[str, object]]:
         sorted_enum_domains,
         sat_kinds,
         sat_bounds,
-        domains,
+        other_domains,
         constraint,
         {},
         results,
@@ -284,7 +362,7 @@ def _solve_sat(
         def on_solution_callback(self) -> None:
             sol: dict[str, object] = {}
             for name, var in self._variables.items():
-                int_val = self.value(var)
+                int_val = self.Value(var)
                 sol[name] = bool(int_val) if self._kinds[name] == _BOOL else int_val
             self.solutions.append(sol)
 
@@ -294,7 +372,7 @@ def _solve_sat(
     # Keep single-threaded so the solution callback is invoked sequentially,
     # which is required by the ortools callback API.
     solver.parameters.num_workers = 1
-    solver.solve(model, collector)
+    solver.Solve(model, collector)
     return collector.solutions
 
 
@@ -491,6 +569,8 @@ def _encode_arith(
         (val, kind, is_const, defined) = _encode_arith(
             model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr.operand, counter
         )
+        if kind == _ZERO_DIV:
+            return (0, _ZERO_DIV, True, True)  # propagate undefined sentinel
         if is_const:
             assert isinstance(val, int)
             return (-val, _INT, True, True)
@@ -503,6 +583,8 @@ def _encode_arith(
         (rv, _rk, rc, rd) = _encode_arith(
             model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr.right, counter
         )
+        if _ZERO_DIV in (_lk, _rk):
+            return (0, _ZERO_DIV, True, True)  # propagate undefined sentinel
         if lc and rc:
             assert isinstance(lv, int) and isinstance(rv, int)
             return (lv + rv if isinstance(expr, Add) else lv - rv, _INT, True, True)
@@ -516,6 +598,8 @@ def _encode_arith(
         (rv, _rk, rc, rd) = _encode_arith(
             model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr.right, counter
         )
+        if _ZERO_DIV in (_lk, _rk):
+            return (0, _ZERO_DIV, True, True)  # propagate undefined sentinel
         if lc and rc:
             assert isinstance(lv, int) and isinstance(rv, int)
             return (lv * rv, _INT, True, True)
@@ -540,6 +624,8 @@ def _encode_arith(
         (rv, _rk, rc, rd) = _encode_arith(
             model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr.right, counter
         )
+        if _ZERO_DIV in (_lk, _rk):
+            return (0, _ZERO_DIV, True, True)  # propagate undefined sentinel
         if lc and rc:
             assert isinstance(lv, int) and isinstance(rv, int)
             if rv == 0:
@@ -566,6 +652,8 @@ def _encode_arith(
         (rv, _rk, rc, rd) = _encode_arith(
             model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr.right, counter
         )
+        if _ZERO_DIV in (_lk, _rk):
+            return (0, _ZERO_DIV, True, True)  # propagate undefined sentinel
         if lc and rc:
             assert isinstance(lv, int) and isinstance(rv, int)
             if rv == 0:
@@ -595,7 +683,7 @@ def _floor_div_remainder_bounds(div_lo: int, div_hi: int) -> tuple[int, int]:
       - If b < 0: b + 1 <= r <= 0
       - Mixed or unknown: -(|b|-1) <= r <= |b|-1
     Returns a symmetric conservative bound ``(-max_r, max_r)`` safe for all
-    cases, suitable as the ``new_int_var`` domain when the exact sign of ``b``
+    cases, suitable as the ``NewIntVar`` domain when the exact sign of ``b``
     is not yet determined.
     """
     max_abs_b = max(abs(div_lo), abs(div_hi))
