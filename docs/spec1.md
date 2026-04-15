@@ -47,6 +47,12 @@ The words MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY are to be interpreted as n
 ```python
 Label: TypeAlias = str
 Method: TypeAlias = Literal["all", "arbitrary", "uniform_random", "arbitrarish_randomish"]
+Expression: TypeAlias = Union[
+    BooleanConstant, IntegerConstant, Reference,
+    Neg, Add, Sub, Mul, FloorDiv, Mod,
+    Eq, Ne, Lt, Le, Gt, Ge,
+    And, Or,
+]
 
 generate(tree: Type[T], constraint: Expression = BooleanExpression(True), methods: Optional[Mapping[Label, Method]] = None) -> Set[T]
 ```
@@ -55,7 +61,7 @@ Here `T` is the runtime type denoted by `tree`.
 
 Default behavior:
 
-- if a label is not present in `methods`, its method is `"all"`
+- if `methods` is `None` or a label is not present in `methods`, its method is `"all"`
 - if the constraint is omitted in examples, it defaults to `BooleanExpression(True)`
 
 `BooleanExpression(True)` denotes the always-true boolean expression value. A compliant implementation MAY represent it canonically as `BooleanConstant(True)`.
@@ -74,7 +80,7 @@ generate(tree)
 means:
 
 ```python
-generate(tree, BooleanExpression(True), {})
+generate(tree, BooleanExpression(True), None)
 ```
 
 ## TypeTree
@@ -645,7 +651,7 @@ generate(Annotated[bool, Name("X")], BooleanExpression(True), {"X": "arbitrary"}
 == { True }
 
 generate(Annotated[Tuple[bool, bool], Name("X")], BooleanExpression(True), {"X": "arbitrary"})
-== { (True, False) }
+== { (True, True) }
 
 generate(
     Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
@@ -673,7 +679,7 @@ generate(
     Ne(Reference("X", ()), Reference("Y", ())),
   {"X": "all", "Y": "arbitrary"},
 )
-== { (True, False) }
+== { (False, True) }
 
 generate(
     Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
