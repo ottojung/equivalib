@@ -1142,16 +1142,16 @@ def test_generate_arbitrary_is_stable_across_calls():
     assert len(r1) == 1
 
 
-def test_apply_methods_arbitrary_uses_type_aware_filtering():
-    assignments = [{"X": True}, {"X": 1}]
+def test_apply_methods_arbitrary_uses_type_aware_filtering() -> None:
+    assignments: list[dict[str, object]] = [{"X": True}, {"X": 1}]
     reduced = apply_methods(assignments, {"X": "arbitrary"})
     assert reduced == [{"X": True}]
 
 
-def test_apply_methods_arbitrarish_randomish_preserves_bool_int_distinction(monkeypatch: pytest.MonkeyPatch):
+def test_apply_methods_arbitrarish_randomish_preserves_bool_int_distinction(monkeypatch: pytest.MonkeyPatch) -> None:
     # Force deterministic witness selection from distinct projected values.
     monkeypatch.setattr("equivalib.core.methods.random.choice", lambda seq: seq[-1])
-    assignments = [{"X": True}, {"X": 1}]
+    assignments: list[dict[str, object]] = [{"X": True}, {"X": 1}]
     reduced = apply_methods(assignments, {"X": "arbitrarish_randomish"})
     assert reduced == [{"X": 1}]
 

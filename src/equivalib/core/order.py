@@ -2,13 +2,14 @@
 
 Kind rank table (documented here):
     0 – None
-    1 – bool  (True before False: True=1, False=0, so descending)
+    1 – bool
     2 – int
     3 – str
     4 – tuple
 
-For booleans: True (rank 0) < False (rank 1) means True sorts first.
-For all others: natural ascending order within each kind.
+Within each kind, ascending order is used.  For booleans the secondary key
+is ``0`` for ``True`` and ``1`` for ``False``, so ``True`` sorts before
+``False``.  For all other kinds: natural ascending order.
 """
 
 from __future__ import annotations

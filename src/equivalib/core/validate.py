@@ -91,7 +91,13 @@ def _check_node(node: IRNode) -> None:
 
 
 def validate_methods(node: IRNode, methods: Mapping[Label, Method]) -> None:
-    """Raise ValueError if any method key or value is invalid."""
+    """Raise TypeError or ValueError if any method key or value is invalid.
+
+    Raises:
+        TypeError:  if ``methods`` is not a ``Mapping``.
+        ValueError: if a key is not a label in the tree, or a value is not a
+                    recognised method string.
+    """
     if not isinstance(methods, Mapping):
         raise TypeError(
             f"'methods' must be a Mapping[str, str], got {type(methods).__name__!r}."
@@ -184,9 +190,11 @@ def _merge_shapes(left: IRNode, right: IRNode) -> IRNode:
 def _check_expr_type(expr: Expression, known_labels: frozenset[str], label_shapes: LabelShapes) -> ExprType:
     """Return 'bool', 'numeric', or 'any' (or raise if invalid).
 
-    'any' is returned only for references to labels with opaque shapes
-    (e.g. tuples or heterogeneous unions).  The top-level caller rejects 'any'
-    at the constraint root; And/Or also reject operands typed as 'any'.
+    'any' is returned for expressions whose type cannot be resolved to
+    'bool' or 'numeric' — for example, references to labels whose shape
+    is a tuple, a non-bool/non-numeric literal, None, or a heterogeneous
+    union.  The top-level caller rejects 'any' at the constraint root;
+    And/Or also reject operands typed as 'any'.
     """
     if isinstance(expr, BooleanConstant):
         return "bool"
