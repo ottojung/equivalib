@@ -21,7 +21,7 @@ class VarArraySolutionPrinter(cp_model.CpSolverSolutionCallback):
 
 
     def on_solution_callback(self):
-        mapped = tuple(self.Value(v) for v in self._variables)
+        mapped = tuple(self.value(v) for v in self._variables)
         self.collected[mapped] = True
 
 
@@ -36,7 +36,7 @@ class RandomCollapser(Collapser):
         variables = [v.get_var() for v in ctx.assignments.values() if isinstance(v, Super)]
         solution_printer = VarArraySolutionPrinter(variables)
         solver.parameters.enumerate_all_solutions = True
-        solver.Solve(ctx.model.model, solution_printer)
+        solver.solve(ctx.model.model, solution_printer)
         assignments = tuple(solution_printer.get_collected())
         self.assignment = random.choice(assignments)
 

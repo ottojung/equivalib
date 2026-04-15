@@ -35,14 +35,14 @@ class SentenceModel:
     def add_variable(self, name: str, t: LT.SuperType) -> None:
         if isinstance(t.over, LT.BoundedIntType):
             low, high = (t.over.range.min, t.over.range.max)
-            var = self.model.NewIntVar(low, high, name)
+            var = self.model.new_int_var(low, high, name)
         elif isinstance(t.over, LT.BoolType):
-            var = self.model.NewBoolVar(name)
+            var = self.model.new_bool_var(name)
         else:
             _x: NoReturn = t.over
             raise ValueError(f"Impossible base type {repr(t)}.")
 
-        var_index: int = var.Index()
+        var_index: int = var.index
         self._names[name] = (t, var_index)
 
 
@@ -50,11 +50,11 @@ class SentenceModel:
         (t, index) = self._names[name]
 
         if isinstance(t.over, LT.BoundedIntType):
-            ret1: cp_model.IntVar = self.model.GetIntVarFromProtoIndex(index)
+            ret1: cp_model.IntVar = self.model.get_int_var_from_proto_index(index)
             return ret1
 
         if isinstance(t.over, LT.BoolType):
-            ret2: cp_model.BoolVarT = self.model.GetBoolVarFromProtoIndex(index)
+            ret2: cp_model.IntVar = self.model.get_bool_var_from_proto_index(index)
             return ret2
 
         _x: NoReturn = t.over
@@ -67,17 +67,17 @@ class SentenceModel:
 
 
     def add(self, expr: object) -> None:
-        self.model.Add(expr)
+        self.model.add(expr)
 
 
     def check_satisfiability(self) -> bool:
         solver = cp_model.CpSolver()
-        status = solver.Solve(self.model)
+        status = solver.solve(self.model)
         return status in (cp_model.OPTIMAL, cp_model.FEASIBLE)
 
 
     @property
-    def model(self):
+    def model(self) -> cp_model.CpModel:
         if self._model is None:
             self._model = cp_model.CpModel()
 
