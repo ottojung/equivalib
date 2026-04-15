@@ -59,3 +59,13 @@ def canonical_sorted(values: Iterable[object]) -> list[object]:
 def canonical_first(values: Iterable[object]) -> object:
     """Return the canonical-first element from ``values``."""
     return min(values, key=_sort_key)
+
+
+def canonical_key(v: object) -> tuple[object, ...]:
+    """Return a sort key for ``v`` in the canonical total order.
+
+    Identical to the internal ``_sort_key``; exposed publicly so that
+    callers can build composite sort keys over structured values (e.g.
+    dicts of label assignments) without depending on the private name.
+    """
+    return _sort_key(v)
