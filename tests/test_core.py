@@ -1688,3 +1688,29 @@ def test_mod_variable_zero_divisor_under_or_short_circuit():
     # Y=1: Mod(1, 1)=0 → Eq(0,0)=True → Or(B, True)=True → both B=True and B=False
     expected: set[object] = {(True, 0), (True, 1), (False, 1)}
     assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_ne_type_mismatch_with_undefined_operand_under_or():
+    """Ne(FloorDiv(1, Y), bool_const) must be False when Y=0 (undefined), not True.
+
+    The bool-vs-int type mismatch makes Ne always True when both operands are
+    defined, but the result must be False when the FloorDiv operand is undefined
+    (Y=0), so that the short-circuit semantics of Or are preserved.
+    """
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Or = core_attr("Or")
+    Ne = core_attr("Ne")
+    FloorDiv = core_attr("FloorDiv")
+    tree = Tuple[
+        Annotated[bool, Name("B")],
+        Annotated[int, ValueRange(0, 1), Name("Y")],
+    ]
+    # Ne(FloorDiv(1, Y), True): int vs bool → type mismatch → Ne=True when defined,
+    # but must be False when Y=0 (FloorDiv undefined).
+    # Or(B, Ne(...)): Y=0 → Ne=False → Or(B,False)=B → only B=True
+    #                 Y=1 → FloorDiv(1,1)=1 vs True → Ne=True → Or=True → both B
+    constraint = Or(ref("B"), Ne(FloorDiv(int_const(1), ref("Y")), bool_const(True)))
+    result = generate(tree, constraint, {})
+    expected: set[object] = {(True, 0), (True, 1), (False, 1)}
+    assert result == expected, f"Expected {expected}, got {result}"

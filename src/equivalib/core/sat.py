@@ -907,9 +907,17 @@ def _reify_comparison(
     # Type mismatch: bool vs int.
     if (lk == _BOOL and rk == _INT) or (lk == _INT and rk == _BOOL):
         if op == "eq":
-            model.add_bool_and([~b])  # always False
+            model.add_bool_and([~b])  # always False (undefined ⇒ False too)
         else:  # ne
-            model.add_bool_and([b])  # always True
+            # True only when both operands are defined; an undefined operand
+            # (e.g. FloorDiv with a zero-able variable divisor) must yield False
+            # so that short-circuiting under Or works correctly.
+            defs = [x for x in (ld, rd) if x is not True]
+            if defs:
+                model.add_bool_and([b]).only_enforce_if(defs)
+                model.add_bool_and([~b]).only_enforce_if([~d for d in defs])
+            else:
+                model.add_bool_and([b])  # both operands always defined
         return b
 
     # "other"-typed operands.
@@ -920,9 +928,15 @@ def _reify_comparison(
             # CP-SAT var vs "other" Python value: type mismatch.
             result = (op == "ne")  # ne: True; eq: False
         if result:
-            model.add_bool_and([b])
+            # True only when both operands are defined (same reasoning as above).
+            defs = [x for x in (ld, rd) if x is not True]
+            if defs:
+                model.add_bool_and([b]).only_enforce_if(defs)
+                model.add_bool_and([~b]).only_enforce_if([~d for d in defs])
+            else:
+                model.add_bool_and([b])
         else:
-            model.add_bool_and([~b])
+            model.add_bool_and([~b])  # always False
         return b
 
     # Same kind, both constants.
