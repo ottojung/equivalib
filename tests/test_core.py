@@ -1834,9 +1834,9 @@ def test_floordiv_undefined_divisor_no_duplicate_sat_assignments():
     node = TupleNode((NamedNode("B", BoolNode()), NamedNode("Y", IntRangeNode(0, 1))))
     constraint = Or(Reference("B", ()), Eq(FloorDiv(IntegerConstant(1), Reference("Y", ())), IntegerConstant(0)))
     assignments = _sat_search(node, constraint)
-    seen: set[frozenset[object]] = set()
+    seen: set[frozenset[tuple[str, object]]] = set()
     for asgn in assignments:
-        key: frozenset[object] = frozenset(asgn.items())
+        key: frozenset[tuple[str, object]] = frozenset(asgn.items())
         assert key not in seen, f"Duplicate assignment in sat_search result: {asgn}\nAll: {assignments}"
         seen.add(key)
 
@@ -1849,9 +1849,9 @@ def test_mod_undefined_divisor_no_duplicate_sat_assignments():
     node = TupleNode((NamedNode("B", BoolNode()), NamedNode("Y", IntRangeNode(0, 1))))
     constraint = Or(Reference("B", ()), Eq(Mod(IntegerConstant(1), Reference("Y", ())), IntegerConstant(0)))
     assignments = _sat_search(node, constraint)
-    seen: set[frozenset[object]] = set()
+    seen: set[frozenset[tuple[str, object]]] = set()
     for asgn in assignments:
-        key: frozenset[object] = frozenset(asgn.items())
+        key: frozenset[tuple[str, object]] = frozenset(asgn.items())
         assert key not in seen, f"Duplicate assignment in sat_search result: {asgn}\nAll: {assignments}"
         seen.add(key)
 

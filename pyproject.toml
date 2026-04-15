@@ -67,7 +67,6 @@ ignore = [
     "PLR0911",  # too-many-return-statements
     "PLR0912",  # too-many-branches
     "PLR0913",  # too-many-arguments
-    "PLR0915",  # too-many-statements
     "PLR2004",  # magic-value-comparison
     "PLC2801",  # unnecessary-dunder-call
     "PLW1641",  # eq-without-hash
@@ -76,3 +75,4 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "src/equivalib/__init__.py" = ["F401", "F403"]
 "src/equivalib/all.py" = ["F401", "F403"]
+"src/equivalib/core/sat.py" = ["PLR0915"]
