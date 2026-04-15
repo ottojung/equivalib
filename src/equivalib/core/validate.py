@@ -46,7 +46,7 @@ from equivalib.core.expression import (
 )
 from equivalib.core.methods import Label, Method
 
-_VALID_METHODS = frozenset({"all", "arbitrary", "uniform_random", "arbitrarish_randomish"})
+_VALID_METHODS = frozenset({"all", "arbitrary", "uniform_random"})
 LabelShapes: TypeAlias = dict[str, IRNode]
 ExprType: TypeAlias = str
 
