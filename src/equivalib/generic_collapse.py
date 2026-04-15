@@ -2,7 +2,7 @@
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import random
-from typing import Protocol, Union, NoReturn, Optional
+from typing import Protocol, Union, NoReturn
 
 from equivalib.dynamic import denv
 from equivalib.constant import Constant
@@ -29,16 +29,13 @@ def generic_collapse(self: Sentence, coll_t: type[Collapser]) -> Sentence:
         for k, v in self.assignments.items():
             if isinstance(v, Super):
                 var = v.get_var()
-                super_ty: Optional[LT.SuperType] = None
+                super_ty = self.model.get_super_type(v.name)
 
                 if isinstance(var, list):
                     chosen_name, chosen_value = random.choice(var)
                     val: Union[VarName, Constant] = chosen_name or Constant(chosen_value)
                 else:
                     val = coll.collapse(var)
-                    super_ty = self.model.get_super_type(v.name)
-
-                assert super_ty is not None
 
                 if isinstance(super_ty.over, LT.BoolType):
                     constructor: Union[type[bool], type[int]] = bool

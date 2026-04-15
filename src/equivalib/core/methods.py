@@ -1,9 +1,10 @@
 """Super-method reduction: from S0 (all satisfying assignments) to S* (final set).
 
 Public API:
-    apply_methods(assignments, methods) -> list[dict]
+    apply_methods(assignments, methods, label_order) -> list[dict]
 
-Processes labels in ascending lexicographic order.
+Processes labels in structural tree order (first-appearance order during
+left-to-right DFS traversal of the input type tree).
 """
 
 from __future__ import annotations
