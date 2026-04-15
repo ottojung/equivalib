@@ -26,15 +26,34 @@ jobs:
       run: uv sync --extra dev --extra test
 
     - name: Run tests and collect coverage
+      id: tests
+      continue-on-error: true
       run: uv run pytest -v --cov=./src --cov-branch
 
     - name: Upload coverage to Codecov
+      if: always()
       uses: codecov/codecov-action@v4
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
     - name: Type check
+      id: typecheck
+      continue-on-error: true
       run: uv run mypy
 
     - name: Lint check
+      id: lint
+      continue-on-error: true
       run: uv run ruff check ./src/ ./tests/
+
+    - name: Check all steps passed
+      if: always()
+      run: |
+        failed=""
+        if [ "${{ steps.tests.outcome }}" = "failure" ]; then failed="$failed tests"; fi
+        if [ "${{ steps.typecheck.outcome }}" = "failure" ]; then failed="$failed typecheck"; fi
+        if [ "${{ steps.lint.outcome }}" = "failure" ]; then failed="$failed lint"; fi
+        if [ -n "$failed" ]; then
+          echo "The following steps failed:$failed"
+          exit 1
+        fi

@@ -29,7 +29,6 @@ The core MUST support:
 - named subtrees via `Name(label)`
 - boolean constraint ASTs over labels and addresses
 - one public generation function
-- well-defined semantic caching
 
 The core does not specify:
 
@@ -46,7 +45,7 @@ The words MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY are to be interpreted as n
 
 ```python
 Label: TypeAlias = str
-Method: TypeAlias = Literal["all", "arbitrary", "uniform_random", "arbitrarish_randomish"]
+Method: TypeAlias = Literal["all", "arbitrary", "uniform_random"]
 Expression: TypeAlias = Union[
     BooleanConstant, IntegerConstant, Reference,
     Neg, Add, Sub, Mul, FloorDiv, Mod,
@@ -186,6 +185,22 @@ Therefore:
 - union branch order is not observable
 - tuple element order remains semantically significant
 
+### bool and int are disjoint types
+
+`bool` and `int` are disjoint types in this spec.
+
+Even though Python's `bool` is a subclass of `int`, this spec treats them as entirely separate domains.
+
+This means:
+
+- `True != 1` and `False != 0` for all purposes of this spec
+- a label whose domain is `bool` MUST NOT produce `int` values, and vice versa
+- `Eq(x, y)` returns `False` whenever `x` is a boolean and `y` is an integer, regardless of their numeric values
+- `Ne(x, y)` returns `True` whenever `x` is a boolean and `y` is an integer, regardless of their numeric values
+- the same rule applies recursively inside tuples: `(True,) != (1,)`
+
+A compliant implementation MUST enforce type-aware structural equality at every nesting level, so that boolean and integer values of the same magnitude are never conflated.
+
 ## Validation Rules
 
 A compliant implementation MUST reject invalid trees, including at least:
@@ -277,7 +292,7 @@ Address evaluation MUST fail if any step:
 
 Define `mentioned_labels(expr)` recursively as the set of labels occurring in `Reference(label, path)` nodes.
 
-This notion is used later for solver relevance and cacheability.
+This notion is used later for solver relevance.
 
 ## Denotation of Unnamed Trees
 
@@ -502,23 +517,6 @@ It MUST satisfy this non-emptiness invariant:
 
 If every label is super and every super label uses `"uniform_random"`, then the final singleton assignment MUST be uniformly distributed over the satisfying assignments in `S0`, modulo deduplication of equal runtime outputs.
 
-### Method `"arbitrarish_randomish"`
-
-For label `L`, choose one value `v` from `projection(L, S)` using a non-deterministic heuristic policy, then replace `S` by:
-
-```text
-{ σ in S | σ(L) = v }
-```
-
-This method:
-
-- MUST be non-deterministic
-- MUST choose only values that are in `projection(L, S)`
-- MUST satisfy the same non-emptiness invariant as the other witness methods
-- SHOULD give non-zero probability to at least two different projected values whenever `projection(L, S)` has more than one member
-
-This method prioritizes speed over distribution quality, while still aiming not to return the same witness all the time.
-
 ## Definition of `generate`
 
 Let `S*` be the assignment set that remains after processing every super label according to its method.
@@ -561,81 +559,11 @@ In particular, if a super label:
 
 then a global solver is not required for that label.
 
-## Caching
-
-### Purpose of caching
-
-Generation is extensional: the same subtree under the same relevant context denotes the same value set.
-
-Caching is therefore semantically natural, not just an optimization trick.
-
-A compliant implementation MUST have a well-defined caching model.
-
-### Label-closed subtrees
-
-For a subtree `u` inside a larger tree `t`, define `labels(u)` as the labels occurring in `u`.
-
-`u` is label-closed in `t` if every occurrence in `t` of every label in `labels(u)` also lies inside `u`.
-
-Intuition:
-
-- a label-closed subtree contains the whole meaning of its own labels
-- no outside occurrence can further narrow those labels by repeated-label intersection
-
-### Constraint-independent subtrees
-
-A subtree `u` is constraint-independent with respect to `constraint` if:
-
-```text
-labels(u) ∩ mentioned_labels(constraint) = ∅
-```
-
-Intuition:
-
-- the constraint does not talk about any label inside `u`
-- therefore `u` does not interact logically with the rest of the tree through the constraint
-
-### Guaranteed-cacheable subtrees
-
-A subtree is guaranteed-cacheable if it is both:
-
-- label-closed, and
-- constraint-independent
-
-For every guaranteed-cacheable subtree `u`, the denotation of `u` depends only on:
-
-- the subtree structure itself, and
-- the methods restricted to `labels(u)`
-
-It does not depend on the rest of the enclosing tree.
-
-Therefore a compliant implementation MUST be able to memoize and reuse the generated values of `u` across distinct enclosing results without changing observable behavior.
-
-At minimum, the semantic cache key for a guaranteed-cacheable subtree MUST be a function of:
-
-- the subtree itself, and
-- the methods restricted to the labels of that subtree
-
-Implementations MAY cache broader classes of subtrees if they can prove semantic equivalence.
-
-Caching compliance MAY be validated by instrumentation, tracing, or other implementation evidence. The observable outputs must remain exactly unchanged whether the cache is cold or warm.
-
-### Immediate corollaries
-
-The following are always guaranteed-cacheable:
-
-- unnamed subtrees
-- named subtrees whose labels are local to that subtree and not mentioned in the constraint
-
-This includes the simple case requested by the core design:
-
-- values that do not contain anything mentioned in the constraint can be cached, provided their labels are not shared outside the subtree
-
 ## Examples
 
 The `"all"` examples below are exact.
 
-The examples using `"arbitrary"`, `"uniform_random"`, or `"arbitrarish_randomish"` show one compliant outcome unless stated otherwise.
+The examples using `"arbitrary"` or `"uniform_random"` show one compliant outcome unless stated otherwise.
 
 ```python
 generate(Literal[True], BooleanExpression(True), {})
@@ -706,7 +634,6 @@ A core implementation is compliant with this spec if it:
 - implements label-domain intersection correctly
 - evaluates `Expression` ASTs according to the constructor semantics above
 - implements super-label semantics and the non-emptiness invariant correctly
-- implements the guaranteed-cacheable-subtree rule correctly
 - returns plain runtime values as a set of instances of the denoted runtime type
 
 For randomized methods, compliance has two layers:
@@ -733,15 +660,13 @@ For randomized methods, compliance has two layers:
 | GEN-13 | MUST | Super methods preserve non-emptiness | for any satisfiable input, replace some `"all"` methods with super methods | output stays non-empty |
 | GEN-14 | MUST | `uniform_random` returns a singleton subset of the `"all"` result when satisfiable | compare `generate(tree, constraint, {"X": "uniform_random"})` against `generate(tree, constraint, {"X": "all"})` | result cardinality is `1`, result is a subset of the `"all"` result |
 | GEN-15 | SHOULD | `uniform_random` is statistically close to uniform when all labels are super and use `"uniform_random"` | sample many runs on a problem with several satisfying assignments | frequencies are close to uniform over satisfying outputs |
-| GEN-16 | MUST | `arbitrarish_randomish` returns a singleton subset of the `"all"` result when satisfiable | compare `generate(tree, constraint, {"X": "arbitrarish_randomish"})` against `generate(tree, constraint, {"X": "all"})` | result cardinality is `1`, result is a subset of the `"all"` result |
-| GEN-17 | SHOULD | `arbitrarish_randomish` shows some variation when several witnesses exist | sample many runs on a problem with several satisfying assignments | at least two distinct outputs appear |
-| GEN-18 | MUST | Empty label is invalid | any tree containing `Name("")` | validation error |
-| GEN-19 | MUST | Missing label reference in the expression is invalid | `generate(Annotated[bool, Name("X")], Eq(Reference("Y", ()), BooleanConstant(True)), {})` | validation error |
-| GEN-20 | MUST | Plain `int` is invalid in core | any tree containing plain `int` without `ValueRange(...)` | validation error |
-| GEN-21 | MUST | `Expression` is AST-based, not source-text-based | pass a source string instead of an AST | type or validation error |
-| GEN-22 | MUST | Single-constraint conjunction replaces a constraint set | compare `generate(tree, And(c1, c2), methods)` with the conceptual two-constraint case | same result as requiring both `c1` and `c2` |
-| GEN-23 | MUST | Guaranteed-cacheable unnamed subtrees are cacheable | any unnamed subtree reused in many outputs | implementation can demonstrate semantic reuse without changing output |
-| GEN-24 | MUST | Guaranteed-cacheable closed unconstrained named subtrees are cacheable | subtree is label-closed and its labels are disjoint from `mentioned_labels(constraint)` | implementation can demonstrate semantic reuse across enclosing outputs without changing output |
+| GEN-16 | MUST | Empty label is invalid | any tree containing `Name("")` | validation error |
+| GEN-17 | MUST | Missing label reference in the expression is invalid | `generate(Annotated[bool, Name("X")], Eq(Reference("Y", ()), BooleanConstant(True)), {})` | validation error |
+| GEN-18 | MUST | Plain `int` is invalid in core | any tree containing plain `int` without `ValueRange(...)` | validation error |
+| GEN-19 | MUST | `Expression` is AST-based, not source-text-based | pass a source string instead of an AST | type or validation error |
+| GEN-20 | MUST | Single-constraint conjunction replaces a constraint set | compare `generate(tree, And(c1, c2), methods)` with the conceptual two-constraint case | same result as requiring both `c1` and `c2` |
+| GEN-21 | MUST | `bool` and `int` are disjoint: `Eq(bool_val, int_val)` is false | `generate(Tuple[Annotated[bool, Name("X")], Annotated[int, ValueRange(1, 1), Name("Y")]], Eq(Reference("X", ()), Reference("Y", ())), {"X": "all", "Y": "all"})` | `{}` |
+| GEN-22 | MUST | `bool` and `int` are disjoint: `Ne(bool_val, int_val)` is true | `generate(Tuple[Annotated[bool, Name("X")], Annotated[int, ValueRange(1, 1), Name("Y")]], Ne(Reference("X", ()), Reference("Y", ())), {"X": "all", "Y": "all"})` | `{(True, 1), (False, 1)}` |
 
 ## Summary
 
@@ -751,13 +676,12 @@ This core has one observable interface:
 generate(tree, constraint, methods)
 ```
 
-Its semantics are governed by five ideas:
+Its semantics are governed by four ideas:
 
 - unnamed structure expands exhaustively
 - `Name(label)` defines variable identity
 - `Expression` restricts admissible assignments
 - super methods collapse selected labels to one witness
-- guaranteed-cacheable regions can be reused safely
 
 The key invariant is the one that motivated this redesign:
 

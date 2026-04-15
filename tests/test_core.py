@@ -343,19 +343,8 @@ def test_generate_uniform_random_always_returns_subset_of_all():
     assert random_result <= all_results
 
 
-def test_generate_arbitrarish_randomish_always_returns_subset_of_all():
-    generate = core_attr("generate")
-    Name = core_attr("Name")
-    Ne = core_attr("Ne")
-    tree = Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
-    constraint = Ne(ref("X"), ref("Y"))
-    all_results = generate(tree, constraint, {"X": "all", "Y": "all"})
-    randomish_result = generate(tree, constraint, {"X": "arbitrarish_randomish", "Y": "arbitrarish_randomish"})
-    assert len(randomish_result) == 1
-    assert randomish_result <= all_results
 
-
-@pytest.mark.parametrize("method", ["arbitrary", "uniform_random", "arbitrarish_randomish"])
+@pytest.mark.parametrize("method", ["arbitrary", "uniform_random"])
 def test_super_methods_preserve_non_empty_singleton_subset_when_satisfiable(method):
     generate = core_attr("generate")
     Name = core_attr("Name")
@@ -1155,20 +1144,12 @@ def test_apply_methods_arbitrary_uses_type_aware_filtering() -> None:
     assert reduced == [{"X": True}]
 
 
-def test_apply_methods_arbitrarish_randomish_preserves_bool_int_distinction(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Force deterministic witness selection from distinct projected values.
-    monkeypatch.setattr("equivalib.core.methods.random.choice", lambda seq: seq[-1])
-    assignments: list[dict[str, object]] = [{"X": True}, {"X": 1}]
-    reduced = apply_methods(assignments, {"X": "arbitrarish_randomish"})
-    assert reduced == [{"X": 1}]
-
-
 def test_generate_non_empty_for_all_super_methods_when_satisfiable():
     """All super methods produce a non-empty result when the problem is satisfiable."""
     generate = core_attr("generate")
     Name = core_attr("Name")
     tree = Annotated[int, ValueRange(1, 5), Name("X")]
-    for method in ["all", "arbitrary", "uniform_random", "arbitrarish_randomish"]:
+    for method in ["all", "arbitrary", "uniform_random"]:
         result = generate(tree, true_expr(), {"X": method})
         assert result, f"Expected non-empty result for method={method!r}"
 

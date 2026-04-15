@@ -187,13 +187,6 @@ This applies to:
 
 - choose projected values with probability proportional to the number of satisfying assignments supporting that value
 
-`"arbitrarish_randomish"`:
-
-- non-deterministic
-- choose uniformly from the distinct projected values, not weighted by assignment counts
-
-This last decision is intentional. It gives useful variation while remaining fast and easy to explain.
-
 ### Address validity
 
 Address paths in `Reference(label, path)` must be validated statically against the denotation shape of the named subtree.
@@ -431,7 +424,6 @@ Required policies:
 - `"all"`: no filtering
 - `"arbitrary"`: choose first value under canonical order
 - `"uniform_random"`: weighted by assignment counts
-- `"arbitrarish_randomish"`: uniform over distinct projected values
 
 The non-emptiness invariant is automatic if witness selection is always from the live projection.
 
@@ -612,7 +604,6 @@ Test:
 - `"arbitrary"` determinism
 - `"arbitrary"` singleton output
 - `"uniform_random"` subset-of-all property
-- `"arbitrarish_randomish"` subset-of-all property
 - non-emptiness under all super methods when the exhaustive problem is satisfiable
 
 #### Group 8: caching

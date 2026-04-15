@@ -14,7 +14,7 @@ from typing import Literal, Mapping, TypeAlias
 from equivalib.core.order import canonical_first
 
 Label: TypeAlias = str
-Method: TypeAlias = Literal["all", "arbitrary", "uniform_random", "arbitrarish_randomish"]
+Method: TypeAlias = Literal["all", "arbitrary", "uniform_random"]
 
 
 def apply_methods(assignments: list[dict[str, object]], methods: Mapping[Label, Method]) -> list[dict[str, object]]:
@@ -78,10 +78,6 @@ def _choose_witness(method: str, label: str, projection: list[object]) -> object
     if method == "uniform_random":
         # Weighted by the number of satisfying assignments supporting each value.
         return random.choices(projection, k=1)[0]
-
-    if method == "arbitrarish_randomish":
-        # Uniform over distinct projected values.
-        return random.choice(distinct)
 
     raise ValueError(f"Unknown method {method!r} for label {label!r}.")
 
