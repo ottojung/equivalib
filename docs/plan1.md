@@ -150,7 +150,7 @@ Deterministic selection requires a total order on runtime values.
 
 The implementation must use:
 
-- booleans: `True` before `False`
+- booleans: `False` before `True`
 - integers: ascending numeric order
 - strings: lexicographic ascending order
 - `None`: before tuples and after primitive scalars is acceptable, but the chosen place must be fixed and documented in code
