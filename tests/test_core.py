@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import random
 from typing import Annotated, Any, Literal, Tuple, Union
 
 import pytest
@@ -27,6 +28,20 @@ from equivalib.core.normalize import normalize
 from equivalib.core.order import canonical_first, canonical_sorted
 from equivalib.core.types import BoolNode, LiteralNode, NamedNode, TupleNode, UnionNode
 from equivalib.core.validate import validate_expression, validate_methods, validate_tree
+
+
+def random_seed(seed):
+    """Context manager to set the random seed for deterministic "random" generation."""
+
+    class RandomSeedContext:
+        def __enter__(self):
+            self.original_state = random.getstate()
+            random.seed(seed)
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            random.setstate(self.original_state)
+
+    return RandomSeedContext()
 
 
 def core_attr(name: str) -> Any:
@@ -1266,7 +1281,58 @@ def test_validate_rejects_deeply_nested_named_node():
 # -------------------------------------------------------------------------
 
 
-def test_example1():
+def test_example12():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Gt = core_attr("Gt")
+    tree = Tuple[Annotated[int, ValueRange(0, 9), Name("X")], Annotated[int, ValueRange(0, 9), Name("Y")]]
+    constraint = Gt(ref("X"), ref("Y"))
+    with random_seed(7):
+        assert generate(tree, constraint, {"Y": "uniform_random", "X": "all"}) == {
+            (5, 4),
+            (6, 4),
+            (7, 4),
+            (8, 4),
+            (9, 4),
+        }
+
+
+def test_example11():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Gt = core_attr("Gt")
+    tree = Tuple[Annotated[int, ValueRange(0, 9), Name("X")], Annotated[int, ValueRange(0, 9), Name("Y")]]
+    constraint = Gt(ref("X"), ref("Y"))
+    with random_seed(7):
+        assert generate(tree, constraint, {"X": "all", "Y": "uniform_random"}) == {
+            (5, 4),
+            (6, 4),
+            (7, 4),
+            (8, 4),
+            (9, 4),
+        }
+
+
+def test_example10():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Gt = core_attr("Gt")
+    tree = Tuple[Annotated[int, ValueRange(0, 99), Name("X")], Annotated[int, ValueRange(0, 99), Name("Y")]]
+    constraint = Gt(ref("X"), ref("Y"))
+    with random_seed(42):
+        assert generate(tree, constraint, {"X": "uniform_random", "Y": "uniform_random"}) == {(80, 2)}
+
+
+def test_example9():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Gt = core_attr("Gt")
+    tree = Tuple[Annotated[int, ValueRange(0, 2), Name("X")], Annotated[int, ValueRange(0, 2), Name("Y")]]
+    constraint = Gt(ref("X"), ref("Y"))
+    assert generate(tree, constraint, {"X": "arbitrary"}) == {(1, 0)}
+
+
+def test_example8():
     generate = core_attr("generate")
     tree = Union[Annotated[int, ValueRange(1, 3)], Literal[True, False]]
     assert generate(tree) == {False, True, 1, 2, 3}
