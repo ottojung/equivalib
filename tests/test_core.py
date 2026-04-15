@@ -1569,13 +1569,13 @@ def test_mod_python_semantics_negative_dividend_positive_divisor():
 
 
 def test_floordiv_bounds_negative_dividend_variable_divisor():
-    """FloorDiv bound computation must not invert when both values are negative.
+    """FloorDiv bound computation must not invert when dividend is negative.
 
-    l in [-5,-3], r in [2,3]: correct quotients include -3 (= -5//2), but the
-    old formula l_lo // r_hi = -5 // 3 = -2 and l_hi // r_lo = -3 // 2 = -2
-    produced (-2, -2) instead of the correct (-3, -2), missing -3 // 2 = -2
-    is fine, but -5 // 2 = -3 should be reachable.  Use a tuple tree so both
-    labels are SAT-encoded (ValueRange) and the quotient var domain must include -3.
+    l in [-5,-3], r in [2,3]: the quotient -3 (= -5//2) must be reachable.
+    The old formula used l_lo // r_hi = -5 // 3 = -2 and l_hi // r_lo = -3 // 2 = -2,
+    producing bounds (-2, -2) and missing -5 // 2 = -3.  The correct bounds
+    require computing all four corners and taking min/max.
+    Use a tuple tree so both labels are SAT-encoded (ValueRange).
     """
     generate = core_attr("generate")
     Name = core_attr("Name")

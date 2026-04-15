@@ -680,8 +680,9 @@ def _compute_bounds(
         l_lo, l_hi = _compute_bounds(expr.left, sat_bounds, enum_assignment)
         r_lo, r_hi = _compute_bounds(expr.right, sat_bounds, enum_assignment)
         if r_lo > 0:
-            # All-positive divisors: compute all four corner quotients (floor
-            # division is not monotone when the dividend is negative).
+            # Divisor range is entirely positive (r_lo > 0): compute all four
+            # corner quotients because floor division is not monotone when the
+            # dividend can be negative.
             quotients = [l_lo // r_lo, l_lo // r_hi, l_hi // r_lo, l_hi // r_hi]
             return (min(quotients), max(quotients))
         max_abs = max(abs(l_lo), abs(l_hi))
