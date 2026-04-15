@@ -670,7 +670,7 @@ def test_validate_rejects_non_int_path_element():
     """A Reference with a non-int path element (e.g. str) must be rejected."""
     tree_node = NamedNode("X", TupleNode((BoolNode(),)))
     # Python does not enforce type annotations at runtime, so this constructs fine
-    expr = Reference("X", ("0",))
+    expr = Reference("X", ("0",))  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="plain int"):
         validate_expression(expr, tree_node)
 
@@ -1206,14 +1206,14 @@ def test_validate_methods_rejects_non_mapping():
     """Passing a list (not a Mapping) as methods must raise TypeError."""
     tree = normalize(bool)
     with pytest.raises(TypeError):
-        validate_methods(tree, ["all"])
+        validate_methods(tree, ["all"])  # type: ignore[arg-type]
 
 
 def test_validate_methods_rejects_tuple_as_methods():
     """Passing a tuple as methods must raise TypeError."""
     tree = normalize(bool)
     with pytest.raises(TypeError):
-        validate_methods(tree, ("all",))
+        validate_methods(tree, ("all",))  # type: ignore[arg-type]
 
 
 # --------------------------------------------------------------------------
