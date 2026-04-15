@@ -1375,3 +1375,123 @@ def test_example2():
     tree = Tuple[Annotated[int, ValueRange(0, 2), Name("X")], Annotated[int, ValueRange(0, 2), Name("Y")]]
     constraint = Gt(ref("X"), ref("Y"))
     assert generate(tree, constraint, {}) == {(1, 0), (2, 0), (2, 1)}
+
+
+# ==========================================================================
+# SAT backend regression tests
+# ==========================================================================
+
+# --------------------------------------------------------------------------
+# P1: Boolean Reference as a constraint
+# --------------------------------------------------------------------------
+
+
+def test_bool_reference_as_constraint_direct():
+    """Reference("X") used directly as constraint must work (P1 regression)."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    # Constraint is just ref("X") — must select X=True assignments only.
+    result = generate(Annotated[bool, Name("X")], ref("X"), {})
+    assert result == {True}
+
+
+def test_bool_reference_in_and_constraint():
+    """And(ref("X"), ref("Y")) must filter to X=True and Y=True."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    And = core_attr("And")
+    tree = Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
+    constraint = And(ref("X"), ref("Y"))
+    assert generate(tree, constraint, {}) == {(True, True)}
+
+
+def test_bool_reference_in_or_constraint():
+    """Or(ref("X"), ref("Y")) must filter to assignments where X or Y is True."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Or = core_attr("Or")
+    tree = Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
+    constraint = Or(ref("X"), ref("Y"))
+    result = generate(tree, constraint, {})
+    assert result == {(True, True), (True, False), (False, True)}
+
+
+# --------------------------------------------------------------------------
+# P2: Modulo bounds for negative divisors
+# --------------------------------------------------------------------------
+
+
+def test_mod_with_negative_constant_divisor():
+    """Mod with a negative constant divisor must produce correct results.
+
+    Uses a Literal-union tree so the label is enumerated via Python (not
+    encoded as a CP-SAT variable).  This exercises the Python constant-fold
+    path ``lv % rv`` which handles negative divisors correctly.
+    """
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    Mod = core_attr("Mod")
+    # Use a Literal union so X is an enum label (Python eval, not CP-SAT).
+    tree = Annotated[
+        Union[
+            Literal[-3], Literal[-2], Literal[-1],
+            Literal[0], Literal[1], Literal[2], Literal[3],
+        ],
+        Name("X"),
+    ]
+    constraint = Eq(Mod(ref("X"), int_const(-3)), int_const(-1))
+    result = generate(tree, constraint, {})
+    expected = {v for v in range(-3, 4) if v % -3 == -1}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_mod_bounds_do_not_exclude_negative_remainders():
+    """Mod bounds computation must include negative remainders for negative divisors.
+
+    Uses a Literal-union tree so the label is enumerated via Python (not
+    encoded as a CP-SAT variable), ensuring Python floor-mod semantics apply.
+    """
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    Mod = core_attr("Mod")
+    # Literal union: X is an enum label; Python % applies (handles negative divisor).
+    tree = Annotated[
+        Union[
+            Literal[-5], Literal[-4], Literal[-3], Literal[-2], Literal[-1],
+            Literal[0], Literal[1], Literal[2], Literal[3], Literal[4], Literal[5],
+        ],
+        Name("X"),
+    ]
+    constraint = Eq(Mod(ref("X"), int_const(-5)), int_const(-2))
+    result = generate(tree, constraint, {})
+    expected = {v for v in range(-5, 6) if v % -5 == -2}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+# --------------------------------------------------------------------------
+# Zero-divisor handling: division / modulo by constant zero
+# --------------------------------------------------------------------------
+
+
+def test_floordiv_by_zero_constant_yields_empty():
+    """FloorDiv with a constant zero divisor must yield no solutions."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    FloorDiv = core_attr("FloorDiv")
+    tree = Annotated[int, ValueRange(0, 3), Name("X")]
+    constraint = Eq(FloorDiv(ref("X"), int_const(0)), int_const(1))
+    assert generate(tree, constraint, {}) == set()
+
+
+def test_mod_by_zero_constant_yields_empty():
+    """Mod with a constant zero divisor must yield no solutions."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    Mod = core_attr("Mod")
+    tree = Annotated[int, ValueRange(0, 3), Name("X")]
+    constraint = Eq(Mod(ref("X"), int_const(0)), int_const(1))
+    assert generate(tree, constraint, {}) == set()

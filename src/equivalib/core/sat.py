@@ -304,6 +304,20 @@ def _add_constraint(
             model.add_bool_or([])  # always unsatisfiable
         return  # BooleanConstant(True): no constraint needed
 
+    if isinstance(expr, Reference):
+        label = expr.label
+        if label in sat_vars and sat_kinds[label] == _BOOL:
+            # Boolean SAT variable used directly as a constraint (must be True).
+            model.add_bool_and([sat_vars[label]])
+            return
+        if label in enum_assignment:
+            v: object = enum_assignment[label]
+            if v is False:
+                model.add_bool_or([])  # constraint is False → unsatisfiable
+            # v is True → no constraint needed
+            return
+        raise ValueError(f"Reference to unknown label {label!r}")  # should not reach
+
     if isinstance(expr, And):
         _add_constraint(model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr.left, counter)
         _add_constraint(model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr.right, counter)
@@ -346,6 +360,23 @@ def _reify_constraint(
             model.add_bool_and([b])
         else:
             model.add_bool_and([~b])
+        return b
+
+    if isinstance(expr, Reference):
+        label = expr.label
+        counter[0] += 1
+        b = model.new_bool_var(f"_ref{counter[0]}")
+        if label in sat_vars and sat_kinds[label] == _BOOL:
+            # Reify the boolean SAT variable directly.
+            model.add(sat_vars[label] == b)
+        elif label in enum_assignment:
+            v: object = enum_assignment[label]
+            if v is True:
+                model.add_bool_and([b])
+            else:
+                model.add_bool_and([~b])
+        else:
+            raise ValueError(f"Reference to unknown label {label!r}")  # should not reach
         return b
 
     if isinstance(expr, And):
@@ -472,6 +503,10 @@ def _encode_arith(
         )
         if lc and rc:
             assert isinstance(lv, int) and isinstance(rv, int)
+            if rv == 0:
+                # Division by zero: make the model unsatisfiable.
+                model.add_bool_or([])
+                return (0, _INT, True)
             return (lv // rv, _INT, True)
         lo, hi = _compute_bounds(expr, sat_bounds, enum_assignment)
         counter[0] += 1
@@ -488,6 +523,10 @@ def _encode_arith(
         )
         if lc and rc:
             assert isinstance(lv, int) and isinstance(rv, int)
+            if rv == 0:
+                # Modulo by zero: make the model unsatisfiable.
+                model.add_bool_or([])
+                return (0, _INT, True)
             return (lv % rv, _INT, True)
         lo, hi = _compute_bounds(expr, sat_bounds, enum_assignment)
         counter[0] += 1
@@ -551,10 +590,21 @@ def _compute_bounds(
         max_abs = max(abs(l_lo), abs(l_hi))
         return (-max_abs, max_abs)
     if isinstance(expr, Mod):
-        _, r_hi = _compute_bounds(expr.right, sat_bounds, enum_assignment)
-        l_lo, l_hi = _compute_bounds(expr.left, sat_bounds, enum_assignment)
-        r_hi_abs = abs(r_hi)
-        return (min(0, l_lo), max(r_hi_abs - 1, l_hi))
+        r_lo, r_hi = _compute_bounds(expr.right, sat_bounds, enum_assignment)
+        max_abs_divisor = max(abs(r_lo), abs(r_hi))
+        if max_abs_divisor == 0:
+            return (-_BIG, _BIG)
+        max_remainder = max_abs_divisor - 1
+        if r_lo > 0:
+            # All-positive divisors: CP-SAT truncated remainder in [-(d-1), d-1].
+            # Use symmetric bounds since dividend may be negative.
+            return (-max_remainder, max_remainder)
+        if r_hi < 0:
+            # All-negative divisors: CP-SAT doesn't support this;
+            # use conservative bounds for constant-folded sub-expressions.
+            return (-max_remainder, max_remainder)
+        # Mixed-sign or zero-possible divisors.
+        return (-max_remainder, max_remainder)
     return (-_BIG, _BIG)
 
 
@@ -597,17 +647,16 @@ def _add_comparison(
         return
 
     # "other"-typed operands (strings, None, tuples, …)
-    if lk == _OTHER or rk == _OTHER:
+    if _OTHER in (lk, rk):
         if lc and rc:
             # Both are Python values; use structural equality.
             result = _structural_cmp(lv, rv, op)
             if not result:
                 model.add_bool_or([])
-        else:
+        elif op == "eq":
             # One is a CP-SAT variable, other is an "other"-typed Python value:
             # structural type mismatch — can never be equal.
-            if op == "eq":
-                model.add_bool_or([])
+            model.add_bool_or([])
             # ne: always satisfied
         return
 
@@ -655,7 +704,7 @@ def _reify_comparison(
         return b
 
     # "other"-typed operands.
-    if lk == _OTHER or rk == _OTHER:
+    if _OTHER in (lk, rk):
         if lc and rc:
             result = _structural_cmp(lv, rv, op)
         else:
