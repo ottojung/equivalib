@@ -6,7 +6,7 @@ This document specifies the core semantics of the library as a single generation
 
 The core is defined by observable behavior.
 
-It does not require any specific internal architecture. A compliant implementation MAY use staged expansion, direct search, dynamic programming, SAT-style solving, SMT-style solving, CP-SAT, or some other implementation strategy.
+It does not require any specific internal architecture. A compliant implementation MAY use staged expansion, direct search, dynamic programming, or some other implementation strategy.
 
 The purpose of the core is to separate:
 
@@ -35,7 +35,6 @@ The core does not specify:
 - compilation from any other representation
 - dataclass-specific behavior
 - a particular AST representation language beyond the constructors in this spec
-- a particular solver backend
 
 ## Normative Terms
 
@@ -292,7 +291,7 @@ Address evaluation MUST fail if any step:
 
 Define `mentioned_labels(expr)` recursively as the set of labels occurring in `Reference(label, path)` nodes.
 
-This notion is used later for solver relevance.
+This notion is used later when defining which labels must participate in constraint solving.
 
 ## Denotation of Unnamed Trees
 
@@ -541,31 +540,6 @@ This definition implies the key invariant:
 - a super method MUST return a non-empty result if and only if the corresponding all-exhaustive problem is non-empty
 
 Methods may change completeness, determinism, and distribution, but they MUST NOT introduce emptiness when satisfying assignments already exist.
-
-## Solvers
-
-### Solver suggestion
-
-A compliant implementation SHOULD consider SAT-style, SMT-style, or CP-style solving techniques when computing:
-
-- satisfiability of `Sat(tree, constraint)`
-- exact conditional projections for `"uniform_random"`
-- deterministic witness selection for difficult `"arbitrary"` cases
-
-The spec does not require any particular backend.
-
-### Solver locality
-
-A solver is not required merely because a value is super.
-
-If a label or subtree is unconstrained in the sense defined below, a compliant implementation MAY handle it by direct local enumeration or direct local witness selection.
-
-In particular, if a super label:
-
-- is not mentioned in `constraint`, and
-- does not require cross-subtree domain intersection beyond its own closed region,
-
-then a global solver is not required for that label.
 
 ## Examples
 

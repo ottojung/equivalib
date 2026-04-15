@@ -64,26 +64,33 @@ The following constraint types MUST be supported:
 | `Gt(a, b)` | `model.Add(var_a > var_b)` |
 | `Ge(a, b)` | `model.Add(var_a >= var_b)` |
 
+As defined in [docs/spec1.md](spec1.md), `Lt`, `Le`, `Gt`, and `Ge` apply only to integers.
+A compliant implementation MUST reject any use of these operators with non-integer operands at validation time rather than encoding them in CP-SAT.
+
 ### Type-aware comparison encoding
 
-As defined in [docs/spec1.md](spec1.md), `bool` and `int` are disjoint types: `True != 1` and `False != 0`.
-CP-SAT internally models `BoolVar` as a 0/1 integer variable, so a direct CP-SAT equality between a `BoolVar` and an `IntVar` could produce a wrong result — it would treat `True == 1` as satisfiable, violating the spec.
+CP-SAT internally models `BoolVar` as a 0/1 integer variable, so a direct CP-SAT equality between a boolean-typed operand and an integer-typed operand could produce a wrong result — it would treat `True == 1` as satisfiable, violating the spec's requirement that `bool` and `int` are disjoint types (`True != 1`, `False != 0`).
 
-A compliant implementation MUST apply type-aware encoding when both operands of a comparison are super labels:
+A compliant implementation MUST apply type-aware comparison handling to all comparison operands whose declared or inferred types are known at validation/encoding time, including super labels, literals/constants, and computed arithmetic subexpressions.
 
-- If the two operands have different declared types (one `bool`, one `int`), the implementation MUST resolve the comparison to a compile-time constant **before** encoding it in CP-SAT:
-  - `Eq(bool_label, int_label)` → always `False`; add `model.AddBoolOr([])` (an empty disjunction, which is always unsatisfiable) or any equivalent constant-false constraint.
-  - `Ne(bool_label, int_label)` → always `True`; the constraint is vacuous and need not be added to the model.
-- `Lt`, `Le`, `Gt`, `Ge` between a `bool` label and an `int` label are ill-typed per [docs/spec1.md](spec1.md) and MUST be rejected at validation time rather than encoded in CP-SAT.
+- If the two operands of `Eq` or `Ne` have different declared or inferred types (one `bool`, one `int`), the implementation MUST resolve the comparison to a compile-time constant **before** encoding anything in CP-SAT:
+  - `Eq(bool_expr, int_expr)` → always `False`; add `model.AddBoolOr([])` (an empty disjunction, which is always unsatisfiable) or any equivalent constant-false constraint.
+  - `Ne(bool_expr, int_expr)` → always `True`; the constraint is vacuous and need not be added to the model.
+- `Lt`, `Le`, `Gt`, `Ge` between a boolean-typed operand and an integer-typed operand are ill-typed per [docs/spec1.md](spec1.md) and MUST be rejected at validation time rather than encoded in CP-SAT.
 
-When both operands have the same declared type, the standard `model.Add(...)` encoding described above applies.
+When both operands have the same declared or inferred type:
+- `Eq` and `Ne` MUST use the standard `model.Add(...)` encoding described above.
+- `Lt`, `Le`, `Gt`, and `Ge` MUST use the standard `model.Add(...)` encoding described above only when both operands have declared type `int`.
+- `Lt`, `Le`, `Gt`, and `Ge` with two `bool` operands are ill-typed per [docs/spec1.md](spec1.md) and MUST be rejected at validation time rather than encoded in CP-SAT.
 
 ### Compound boolean expressions
 
 For compound boolean expressions (`And`, `Or`), the implementation MUST decompose them into their sub-expressions and encode each sub-expression as a separate CP-SAT constraint or a reified constraint as appropriate.
 
 `Neg` is arithmetic negation as defined in [docs/spec1.md](spec1.md), not a boolean combinator.
-When `Neg`, `Add`, `Sub`, `Mul`, `FloorDiv`, or `Mod` appears as an operand to `Eq`, `Ne`, `Lt`, `Le`, `Gt`, or `Ge`, the implementation MUST represent that arithmetic subexpression as a CP-SAT linear expression or as an auxiliary integer variable constrained to equal the subexpression's value, and then use that integer-valued result in the enclosing comparison constraint.
+When `Neg`, `Add`, `Sub`, `Mul`, `FloorDiv`, or `Mod` appears as an operand to `Eq`, `Ne`, `Lt`, `Le`, `Gt`, or `Ge`, the implementation MUST first apply the type-aware rules above.
+In particular, `Eq`/`Ne` between a boolean-typed expression and an integer-typed expression MUST be constant-folded even when either side is a literal or an arithmetic subexpression.
+Otherwise, the implementation MUST represent the arithmetic subexpression as a CP-SAT linear expression or as an auxiliary integer variable constrained to equal the subexpression's value, and then use that integer-valued result in the enclosing comparison constraint.
 
 A constant reference `BooleanConstant(False)` as the top-level constraint MUST cause the solver to report unsatisfiable immediately, without encoding any variables.
 
@@ -226,8 +233,9 @@ This reduces model size and solver runtime.
 | Encode boolean super labels as `NewBoolVar` | MUST |
 | Encode bounded-integer super labels as `NewIntVar` with correct bounds | MUST |
 | Translate comparison expressions to `model.Add(...)` calls | MUST |
-| Resolve mixed bool/int comparisons as compile-time constants (not in CP-SAT) | MUST |
-| Reject ill-typed ordering comparisons between bool and int at validation time | MUST |
+| Apply type-aware comparison handling to all operands (labels, constants, and arithmetic subexpressions) | MUST |
+| Resolve mixed bool/int `Eq`/`Ne` as compile-time constants before CP-SAT encoding | MUST |
+| Reject `Lt`/`Le`/`Gt`/`Ge` with non-integer operands (bool or mixed types) at validation time | MUST |
 | Check satisfiability via `CpSolver().Solve(model)` and `OPTIMAL`/`FEASIBLE` | MUST |
 | Clone models for branches instead of mutating shared state | MUST |
 | Persist variable proto indices across solver calls within a branch | MUST |
