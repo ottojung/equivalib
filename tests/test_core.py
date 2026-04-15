@@ -7,9 +7,8 @@ import pytest
 
 from equivalib import ValueRange
 from equivalib.core.cache import is_constraint_independent, is_guaranteed_cacheable, is_label_closed
-from equivalib.core.domains import domain_map, _type_aware_intersect
-from equivalib.core.eval import eval_expression, eval_expression_partial, Unknown, _structural_eq
-from equivalib.core.methods import apply_methods
+from equivalib.core.domains import _type_aware_intersect, domain_map
+from equivalib.core.eval import Unknown, _structural_eq, eval_expression, eval_expression_partial
 from equivalib.core.expression import (
     Add,
     And,
@@ -22,11 +21,12 @@ from equivalib.core.expression import (
     Or,
     Reference,
 )
+from equivalib.core.methods import apply_methods
 from equivalib.core.name import Name as CoreName
 from equivalib.core.normalize import normalize
 from equivalib.core.order import canonical_first, canonical_sorted
-from equivalib.core.types import LiteralNode, NamedNode, BoolNode, TupleNode, UnionNode
-from equivalib.core.validate import validate_methods, validate_tree, validate_expression
+from equivalib.core.types import BoolNode, LiteralNode, NamedNode, TupleNode, UnionNode
+from equivalib.core.validate import validate_expression, validate_methods, validate_tree
 
 
 def core_attr(name: str) -> Any:
@@ -343,7 +343,6 @@ def test_generate_uniform_random_always_returns_subset_of_all():
     assert random_result <= all_results
 
 
-
 @pytest.mark.parametrize("method", ["arbitrary", "uniform_random"])
 def test_super_methods_preserve_non_empty_singleton_subset_when_satisfiable(method):
     generate = core_attr("generate")
@@ -535,6 +534,7 @@ def test_generate_supports_default_arguments():
 # Mixed named/unnamed trees
 # --------------------------------------------------------------------------
 
+
 def test_generate_mixed_unnamed_literal_and_named_bool():
     """Unnamed Literal[3] expands to {3}; named bool expands per assignment."""
     generate = core_attr("generate")
@@ -549,8 +549,10 @@ def test_generate_mixed_unnamed_bool_and_named_bool():
     Name = core_attr("Name")
     tree = Tuple[bool, Annotated[bool, Name("X")]]
     assert generate(tree, true_expr(), {}) == {
-        (True, True), (True, False),
-        (False, True), (False, False),
+        (True, True),
+        (True, False),
+        (False, True),
+        (False, False),
     }
 
 
@@ -560,8 +562,10 @@ def test_generate_mixed_unnamed_int_range_and_named_bool():
     Name = core_attr("Name")
     tree = Tuple[Annotated[int, ValueRange(0, 1)], Annotated[bool, Name("X")]]
     assert generate(tree, true_expr(), {}) == {
-        (0, True), (0, False),
-        (1, True), (1, False),
+        (0, True),
+        (0, False),
+        (1, True),
+        (1, False),
     }
 
 
@@ -571,8 +575,10 @@ def test_generate_mixed_unnamed_union_and_named_bool():
     Name = core_attr("Name")
     tree = Tuple[Union[Literal["a"], Literal["b"]], Annotated[bool, Name("X")]]
     assert generate(tree, true_expr(), {}) == {
-        ("a", True), ("a", False),
-        ("b", True), ("b", False),
+        ("a", True),
+        ("a", False),
+        ("b", True),
+        ("b", False),
     }
 
 
@@ -587,6 +593,7 @@ def test_generate_mixed_unnamed_none_and_named_bool():
 # --------------------------------------------------------------------------
 # Normalize edge cases
 # --------------------------------------------------------------------------
+
 
 def test_normalize_multi_value_literal_expands_to_union():
     """Literal[True, False] normalizes to a union of two singletons."""
@@ -625,6 +632,7 @@ def test_normalize_annotated_name_before_value_range():
 # --------------------------------------------------------------------------
 # Validate: address on union-typed labels
 # --------------------------------------------------------------------------
+
 
 def test_generate_address_on_union_of_same_arity_tuples():
     """A path into a union where every branch is a tuple of the same arity is valid."""
@@ -733,6 +741,7 @@ def test_generate_literal_true_not_same_as_literal_one():
 # Validate: arithmetic on bool references must be rejected
 # --------------------------------------------------------------------------
 
+
 def test_generate_rejects_arithmetic_on_bool_reference():
     """Add with a bool-typed reference must fail validation."""
     generate = core_attr("generate")
@@ -794,6 +803,7 @@ def test_generate_rejects_ordering_on_any_typed_reference():
 # Expression evaluation (direct tests on eval module)
 # --------------------------------------------------------------------------
 
+
 def test_eval_full_expression_basic_arithmetic():
     expr = Add(Mul(Reference("x"), IntegerConstant(3)), IntegerConstant(1))
     assert eval_expression(expr, {"x": 4}) == 13
@@ -828,6 +838,7 @@ def test_eval_partial_neg_of_unknown():
 # Canonical ordering
 # --------------------------------------------------------------------------
 
+
 def test_canonical_order_bools_false_before_true():
     assert canonical_sorted([False, True]) == [False, True]
 
@@ -857,6 +868,7 @@ def test_canonical_first_selects_minimum():
 # --------------------------------------------------------------------------
 # Domain computation
 # --------------------------------------------------------------------------
+
 
 def test_domain_map_single_named_label():
     node = normalize(Annotated[bool, CoreName("X")])
@@ -932,9 +944,7 @@ def test_domain_map_union_literal_bool_int_preserves_distinct_types():
     dm = domain_map(tree_node)
     assert len(dm["X"]) == 1, f"Expected [1] but got {dm['X']!r}"
     assert dm["X"][0] == 1, f"Expected 1 (int) but got {dm['X'][0]!r}"
-    assert type(dm["X"][0]) is int, (
-        f"Expected type int but got {type(dm['X'][0])!r}"
-    )
+    assert type(dm["X"][0]) is int, f"Expected type int but got {type(dm['X'][0])!r}"
 
 
 def test_generate_union_literal_bool_int_respects_type_identity():
@@ -1027,6 +1037,7 @@ def test_values_nested_tuple():
 # Cache helpers
 # --------------------------------------------------------------------------
 
+
 def test_mentioned_labels_arithmetic_expression():
     mentioned_labels = core_attr("mentioned_labels")
     Add = core_attr("Add")
@@ -1070,6 +1081,7 @@ def test_is_guaranteed_cacheable_label_closed_and_independent():
 # --------------------------------------------------------------------------
 # Nested / complex generate scenarios
 # --------------------------------------------------------------------------
+
 
 def test_generate_nested_two_constrained_labels():
     """Two independent named booleans can be jointly constrained."""
@@ -1158,6 +1170,7 @@ def test_generate_non_empty_for_all_super_methods_when_satisfiable():
 # Normalize: Literal value type restrictions
 # --------------------------------------------------------------------------
 
+
 def test_normalize_rejects_float_literal():
     """Literal with a float value must be rejected (not in supported types)."""
     generate = core_attr("generate")
@@ -1188,6 +1201,7 @@ def test_normalize_accepts_all_supported_scalar_literals():
 # Validate: validate_methods type guard
 # --------------------------------------------------------------------------
 
+
 def test_validate_methods_rejects_non_mapping():
     """Passing a list (not a Mapping) as methods must raise TypeError."""
     tree = normalize(bool)
@@ -1206,6 +1220,7 @@ def test_validate_methods_rejects_tuple_as_methods():
 # Search: domain precomputation does not change results
 # --------------------------------------------------------------------------
 
+
 def test_search_sorted_domain_precomputation_produces_correct_results():
     """Results from search() must be the same whether domains are pre-sorted or not."""
     generate = core_attr("generate")
@@ -1219,6 +1234,7 @@ def test_search_sorted_domain_precomputation_produces_correct_results():
 # --------------------------------------------------------------------------
 # Validate: nested NamedNode rejection
 # --------------------------------------------------------------------------
+
 
 def test_validate_rejects_nested_named_node():
     """A NamedNode whose inner is also a NamedNode must be rejected."""
@@ -1243,3 +1259,47 @@ def test_validate_rejects_deeply_nested_named_node():
     # NamedNode("outer", TupleNode([NamedNode("inner", BoolNode())])) — Name inside a Tuple inside a Name
     with pytest.raises(ValueError, match="[Nn]ested"):
         validate_tree(NamedNode("outer", TupleNode((NamedNode("inner", BoolNode()),))))
+
+
+# -------------------------------------------------------------------------
+# Interesting examples
+# -------------------------------------------------------------------------
+
+
+def test_example1():
+    generate = core_attr("generate")
+    tree = Union[Annotated[int, ValueRange(1, 3)], Literal[True, False]]
+    assert generate(tree) == {False, True, 1, 2, 3}
+
+
+def test_example6():
+    generate = core_attr("generate")
+    tree = Union[Annotated[int, ValueRange(1, 3)], bool]
+    assert generate(tree) == {False, True, 1, 2, 3}
+
+
+def test_example5():
+    generate = core_attr("generate")
+    tree = Union[Annotated[int, ValueRange(3, 5)], bool]
+    assert generate(tree) == {3, 4, 5, True, False}
+
+
+def test_example4():
+    generate = core_attr("generate")
+    tree = bool
+    assert generate(tree) == {False, True}
+
+
+def test_example3():
+    generate = core_attr("generate")
+    tree = Union[Annotated[int, ValueRange(0, 2)], bool]
+    assert generate(tree) == {0, 1, 2, False, True}
+
+
+def test_example2():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Gt = core_attr("Gt")
+    tree = Tuple[Annotated[int, ValueRange(0, 2), Name("X")], Annotated[int, ValueRange(0, 2), Name("Y")]]
+    constraint = Gt(ref("X"), ref("Y"))
+    assert generate(tree, constraint, {}) == {(1, 0), (2, 0), (2, 1)}
