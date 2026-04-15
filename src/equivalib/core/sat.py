@@ -316,7 +316,7 @@ def _add_constraint(
                 model.add_bool_or([])  # constraint is False → unsatisfiable
             # v is True → no constraint needed
             return
-        raise ValueError(f"Reference to unknown label {label!r}")  # should not reach
+        raise ValueError(f"Reference to unknown label {label!r} in _add_constraint")  # should not reach
 
     if isinstance(expr, And):
         _add_constraint(model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr.left, counter)
@@ -376,7 +376,7 @@ def _reify_constraint(
             else:
                 model.add_bool_and([~b])
         else:
-            raise ValueError(f"Reference to unknown label {label!r}")  # should not reach
+            raise ValueError(f"Reference to unknown label {label!r} in _reify_constraint")  # should not reach
         return b
 
     if isinstance(expr, And):
