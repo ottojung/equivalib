@@ -511,51 +511,16 @@ def _encode_arith(
                 model.add_bool_or([])
                 return (0, _INT, True)
             return (lv // rv, _INT, True)
-        if rc:
-            assert isinstance(rv, int)
-            if rv == 0:
-                # Constant zero divisor: make the model unsatisfiable.
-                model.add_bool_or([])
-                return (0, _INT, True)
-        # Encode Python floor division: a = b*q + r, with r bounded per Python semantics.
-        # Python: if b > 0 then 0 <= r < b; if b < 0 then b < r <= 0.
+        if rc and rv == 0:
+            # Constant zero divisor with variable dividend: unsatisfiable.
+            model.add_bool_or([])
+            return (0, _INT, True)
+        # Encode Python floor division via Euclidean identity a = b*q + r.
         r_lo, r_hi = _compute_bounds(expr.right, sat_bounds, enum_assignment)
         q_lo, q_hi = _compute_bounds(expr, sat_bounds, enum_assignment)
-        counter[0] += 1
-        q = model.new_int_var(q_lo, q_hi, f"_fdiv_q{counter[0]}")
-        counter[0] += 1
-        # For the remainder r: Python floor mod bounds [0, |b|-1] for b>0 or [-(|b|-1), 0] for b<0.
-        max_abs_b = max(abs(r_lo), abs(r_hi))
-        safe_r_lo = -(max_abs_b - 1) if max_abs_b > 0 else 0
-        safe_r_hi = max_abs_b - 1 if max_abs_b > 0 else 0
-        r = model.new_int_var(safe_r_lo, safe_r_hi, f"_fdiv_r{counter[0]}")
-        if rc:
-            # Constant divisor: encode exact Python floor mod bounds.
-            assert isinstance(rv, int)
-            if rv > 0:
-                model.add(r >= 0)
-                model.add(r < rv)
-            else:
-                model.add(r > rv)
-                model.add(r <= 0)
-            # a = b*q + r (linear since b is constant)
-            model.add(rv * q + r == lv)
-        else:
-            # Variable divisor: need b*q auxiliary (non-linear).
-            counter[0] += 1
-            bq_lo = min(r_lo * q_lo, r_lo * q_hi, r_hi * q_lo, r_hi * q_hi)
-            bq_hi = max(r_lo * q_lo, r_lo * q_hi, r_hi * q_lo, r_hi * q_hi)
-            bq = model.new_int_var(bq_lo, bq_hi, f"_fdiv_bq{counter[0]}")
-            model.add_multiplication_equality(bq, [rv, q])
-            model.add(bq + r == lv)
-            # r >= 0 when b > 0; r <= 0 when b < 0; b != 0.
-            b_pos = model.new_bool_var(f"_fdiv_bpos{counter[0]}")
-            model.add(rv >= 1).only_enforce_if(b_pos)
-            model.add(rv <= -1).only_enforce_if(~b_pos)
-            model.add(r >= 0).only_enforce_if(b_pos)
-            model.add(r < rv).only_enforce_if(b_pos)
-            model.add(r <= 0).only_enforce_if(~b_pos)
-            model.add(r > rv).only_enforce_if(~b_pos)
+        q, _r = _encode_floor_div_or_mod(
+            model, lv, rv, lc, rc, r_lo, r_hi, q_lo, q_hi, counter, "fdiv",
+        )
         return (q, _INT, False)
 
     if isinstance(expr, Mod):
@@ -572,49 +537,94 @@ def _encode_arith(
                 model.add_bool_or([])
                 return (0, _INT, True)
             return (lv % rv, _INT, True)
-        if rc:
-            assert isinstance(rv, int)
-            if rv == 0:
-                # Constant zero divisor: make the model unsatisfiable.
-                model.add_bool_or([])
-                return (0, _INT, True)
-        # Encode Python floor modulo: a = b*q + r, with r bounded per Python semantics.
-        # Python: if b > 0 then 0 <= r < b; if b < 0 then b < r <= 0.
-        r_lo2, r_hi2 = _compute_bounds(expr.right, sat_bounds, enum_assignment)
-        q_lo2, q_hi2 = _compute_bounds(FloorDiv(expr.left, expr.right), sat_bounds, enum_assignment)
-        max_abs_b2 = max(abs(r_lo2), abs(r_hi2))
-        safe_r2_lo = -(max_abs_b2 - 1) if max_abs_b2 > 0 else 0
-        safe_r2_hi = max_abs_b2 - 1 if max_abs_b2 > 0 else 0
-        counter[0] += 1
-        q2 = model.new_int_var(q_lo2, q_hi2, f"_mod_q{counter[0]}")
-        counter[0] += 1
-        r2 = model.new_int_var(safe_r2_lo, safe_r2_hi, f"_mod_r{counter[0]}")
-        if rc:
-            assert isinstance(rv, int)
-            if rv > 0:
-                model.add(r2 >= 0)
-                model.add(r2 < rv)
-            else:
-                model.add(r2 > rv)
-                model.add(r2 <= 0)
-            model.add(rv * q2 + r2 == lv)
-        else:
-            counter[0] += 1
-            bq2_lo = min(r_lo2 * q_lo2, r_lo2 * q_hi2, r_hi2 * q_lo2, r_hi2 * q_hi2)
-            bq2_hi = max(r_lo2 * q_lo2, r_lo2 * q_hi2, r_hi2 * q_lo2, r_hi2 * q_hi2)
-            bq2 = model.new_int_var(bq2_lo, bq2_hi, f"_mod_bq{counter[0]}")
-            model.add_multiplication_equality(bq2, [rv, q2])
-            model.add(bq2 + r2 == lv)
-            b_pos2 = model.new_bool_var(f"_mod_bpos{counter[0]}")
-            model.add(rv >= 1).only_enforce_if(b_pos2)
-            model.add(rv <= -1).only_enforce_if(~b_pos2)
-            model.add(r2 >= 0).only_enforce_if(b_pos2)
-            model.add(r2 < rv).only_enforce_if(b_pos2)
-            model.add(r2 <= 0).only_enforce_if(~b_pos2)
-            model.add(r2 > rv).only_enforce_if(~b_pos2)
-        return (r2, _INT, False)
+        if rc and rv == 0:
+            # Constant zero divisor with variable dividend: unsatisfiable.
+            model.add_bool_or([])
+            return (0, _INT, True)
+        # Encode Python floor modulo via Euclidean identity a = b*q + r.
+        r_lo, r_hi = _compute_bounds(expr.right, sat_bounds, enum_assignment)
+        q_lo, q_hi = _compute_bounds(FloorDiv(expr.left, expr.right), sat_bounds, enum_assignment)
+        _q, r = _encode_floor_div_or_mod(
+            model, lv, rv, lc, rc, r_lo, r_hi, q_lo, q_hi, counter, "mod",
+        )
+        return (r, _INT, False)
 
     raise TypeError(f"Expected arithmetic expression, got {type(expr).__name__!r}: {expr!r}")
+
+
+def _floor_div_remainder_bounds(div_lo: int, div_hi: int) -> tuple[int, int]:
+    """Return conservative bounds on ``r`` in the Euclidean identity ``a = b*q + r``.
+
+    For Python floor division semantics:
+      - If b > 0: 0 <= r <= b - 1
+      - If b < 0: b + 1 <= r <= 0
+      - Mixed or unknown: -(|b|-1) <= r <= |b|-1
+    Returns a symmetric conservative bound ``(-max_r, max_r)`` safe for all
+    cases, suitable as the ``new_int_var`` domain when the exact sign of ``b``
+    is not yet determined.
+    """
+    max_abs_b = max(abs(div_lo), abs(div_hi))
+    if max_abs_b == 0:
+        return (0, 0)
+    max_r = max_abs_b - 1
+    return (-max_r, max_r)
+
+
+def _encode_floor_div_or_mod(
+    model: cp_model.CpModel,
+    lv: Any,
+    rv: Any,
+    lc: bool,
+    rc: bool,
+    r_lo: int,
+    r_hi: int,
+    q_lo: int,
+    q_hi: int,
+    counter: list[int],
+    tag: str,
+) -> tuple[Any, Any]:
+    """Encode Python floor-division identity ``a = b*q + r`` in ``model``.
+
+    Returns ``(q, r)`` as CP-SAT IntVars with Python remainder semantics:
+      - b > 0 ⟹ 0 ≤ r < b
+      - b < 0 ⟹ b < r ≤ 0
+
+    ``lv``/``rv`` are the dividend/divisor encodings; ``lc``/``rc`` indicate
+    whether they are plain Python ints.  ``r_lo``/``r_hi`` are the bounds
+    on the divisor expression; ``q_lo``/``q_hi`` are bounds on the quotient.
+    """
+    safe_r_lo, safe_r_hi = _floor_div_remainder_bounds(r_lo, r_hi)
+    counter[0] += 1
+    q = model.new_int_var(q_lo, q_hi, f"_{tag}_q{counter[0]}")
+    counter[0] += 1
+    r = model.new_int_var(safe_r_lo, safe_r_hi, f"_{tag}_r{counter[0]}")
+    if rc:
+        assert isinstance(rv, int)  # mypy narrowing: rc guarantees rv is a constant int
+        if rv > 0:
+            model.add(r >= 0)
+            model.add(r < rv)
+        else:
+            model.add(r > rv)
+            model.add(r <= 0)
+        # a = b*q + r (linear since b is a constant)
+        model.add(rv * q + r == lv)
+    else:
+        # Variable divisor: use b*q auxiliary variable (product constraint).
+        counter[0] += 1
+        bq_lo = min(r_lo * q_lo, r_lo * q_hi, r_hi * q_lo, r_hi * q_hi)
+        bq_hi = max(r_lo * q_lo, r_lo * q_hi, r_hi * q_lo, r_hi * q_hi)
+        bq = model.new_int_var(bq_lo, bq_hi, f"_{tag}_bq{counter[0]}")
+        model.add_multiplication_equality(bq, [rv, q])
+        model.add(bq + r == lv)
+        # Enforce Python remainder sign: r >= 0 when b > 0; r <= 0 when b < 0.
+        b_pos = model.new_bool_var(f"_{tag}_bpos{counter[0]}")
+        model.add(rv >= 1).only_enforce_if(b_pos)
+        model.add(rv <= -1).only_enforce_if(~b_pos)
+        model.add(r >= 0).only_enforce_if(b_pos)
+        model.add(r < rv).only_enforce_if(b_pos)
+        model.add(r <= 0).only_enforce_if(~b_pos)
+        model.add(r > rv).only_enforce_if(~b_pos)
+    return (q, r)
 
 
 # ---------------------------------------------------------------------------
@@ -674,17 +684,7 @@ def _compute_bounds(
         max_abs_divisor = max(abs(r_lo), abs(r_hi))
         if max_abs_divisor == 0:
             return (-_BIG, _BIG)
-        max_remainder = max_abs_divisor - 1
-        if r_lo > 0:
-            # All-positive divisors: CP-SAT truncated remainder in [-(d-1), d-1].
-            # Use symmetric bounds since dividend may be negative.
-            return (-max_remainder, max_remainder)
-        if r_hi < 0:
-            # All-negative divisors: CP-SAT doesn't support this;
-            # use conservative bounds for constant-folded sub-expressions.
-            return (-max_remainder, max_remainder)
-        # Mixed-sign or zero-possible divisors.
-        return (-max_remainder, max_remainder)
+        return _floor_div_remainder_bounds(r_lo, r_hi)
     return (-_BIG, _BIG)
 
 
