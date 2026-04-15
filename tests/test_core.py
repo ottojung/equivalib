@@ -15,7 +15,9 @@ from equivalib.core.expression import (
     And,
     BooleanConstant,
     Eq,
+    FloorDiv,
     IntegerConstant,
+    Mod,
     Mul,
     Ne,
     Neg,
@@ -26,7 +28,8 @@ from equivalib.core.methods import apply_methods
 from equivalib.core.name import Name as CoreName
 from equivalib.core.normalize import normalize
 from equivalib.core.order import canonical_first, canonical_sorted
-from equivalib.core.types import BoolNode, LiteralNode, NamedNode, TupleNode, UnionNode
+from equivalib.core.sat import sat_search as _sat_search
+from equivalib.core.types import BoolNode, IntRangeNode, LiteralNode, NamedNode, TupleNode, UnionNode
 from equivalib.core.validate import validate_expression, validate_methods, validate_tree
 
 
@@ -1375,3 +1378,523 @@ def test_example2():
     tree = Tuple[Annotated[int, ValueRange(0, 2), Name("X")], Annotated[int, ValueRange(0, 2), Name("Y")]]
     constraint = Gt(ref("X"), ref("Y"))
     assert generate(tree, constraint, {}) == {(1, 0), (2, 0), (2, 1)}
+
+
+# ==========================================================================
+# SAT backend regression tests
+# ==========================================================================
+
+# --------------------------------------------------------------------------
+# P1: Boolean Reference as a constraint
+# --------------------------------------------------------------------------
+
+
+def test_bool_reference_as_constraint_direct():
+    """Reference("X") used directly as constraint must work (P1 regression)."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    # Constraint is just ref("X") — must select X=True assignments only.
+    result = generate(Annotated[bool, Name("X")], ref("X"), {})
+    assert result == {True}
+
+
+def test_bool_reference_in_and_constraint():
+    """And(ref("X"), ref("Y")) must filter to X=True and Y=True."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    And = core_attr("And")
+    tree = Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
+    constraint = And(ref("X"), ref("Y"))
+    assert generate(tree, constraint, {}) == {(True, True)}
+
+
+def test_bool_reference_in_or_constraint():
+    """Or(ref("X"), ref("Y")) must filter to assignments where X or Y is True."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Or = core_attr("Or")
+    tree = Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
+    constraint = Or(ref("X"), ref("Y"))
+    result = generate(tree, constraint, {})
+    assert result == {(True, True), (True, False), (False, True)}
+
+
+# --------------------------------------------------------------------------
+# P2: Modulo bounds for negative divisors
+# --------------------------------------------------------------------------
+
+
+def test_mod_with_negative_constant_divisor():
+    """Mod with a negative constant divisor must produce correct results.
+
+    Uses a Literal-union tree so the label is enumerated via Python (not
+    encoded as a CP-SAT variable).  This exercises the Python constant-fold
+    path ``lv % rv`` which handles negative divisors correctly.
+    """
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    Mod = core_attr("Mod")
+    # Use a Literal union so X is an enum label (Python eval, not CP-SAT).
+    tree = Annotated[
+        Union[
+            Literal[-3], Literal[-2], Literal[-1],
+            Literal[0], Literal[1], Literal[2], Literal[3],
+        ],
+        Name("X"),
+    ]
+    constraint = Eq(Mod(ref("X"), int_const(-3)), int_const(-1))
+    result = generate(tree, constraint, {})
+    expected = {v for v in range(-3, 4) if v % -3 == -1}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_mod_bounds_do_not_exclude_negative_remainders():
+    """Mod bounds computation must include negative remainders for negative divisors.
+
+    Uses a Literal-union tree so the label is enumerated via Python (not
+    encoded as a CP-SAT variable), ensuring Python floor-mod semantics apply.
+    """
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    Mod = core_attr("Mod")
+    # Literal union: X is an enum label; Python % applies (handles negative divisor).
+    tree = Annotated[
+        Union[
+            Literal[-5], Literal[-4], Literal[-3], Literal[-2], Literal[-1],
+            Literal[0], Literal[1], Literal[2], Literal[3], Literal[4], Literal[5],
+        ],
+        Name("X"),
+    ]
+    constraint = Eq(Mod(ref("X"), int_const(-5)), int_const(-2))
+    result = generate(tree, constraint, {})
+    expected = {v for v in range(-5, 6) if v % -5 == -2}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+# --------------------------------------------------------------------------
+# Zero-divisor handling: division / modulo by constant zero
+# --------------------------------------------------------------------------
+
+
+def test_floordiv_by_zero_constant_yields_empty():
+    """FloorDiv with a constant zero divisor must yield no solutions."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    FloorDiv = core_attr("FloorDiv")
+    tree = Annotated[int, ValueRange(0, 3), Name("X")]
+    constraint = Eq(FloorDiv(ref("X"), int_const(0)), int_const(1))
+    assert generate(tree, constraint, {}) == set()
+
+
+def test_mod_by_zero_constant_yields_empty():
+    """Mod with a constant zero divisor must yield no solutions."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    Mod = core_attr("Mod")
+    tree = Annotated[int, ValueRange(0, 3), Name("X")]
+    constraint = Eq(Mod(ref("X"), int_const(0)), int_const(1))
+    assert generate(tree, constraint, {}) == set()
+
+
+# --------------------------------------------------------------------------
+# P1: Python floor-division and modulo semantics for SAT-encoded labels
+# --------------------------------------------------------------------------
+# These tests use ValueRange labels, which are encoded as CP-SAT variables.
+# The constraint is evaluated via the CP-SAT model, so semantics must match
+# Python's floor division // and floor modulo % (not C-style truncation).
+
+
+def test_floordiv_python_semantics_negative_dividend():
+    """FloorDiv must use Python // semantics (floor toward -inf), not truncated.
+
+    Python: -1 // 2 = -1 (floor), but CP-SAT trunc: -1 / 2 = 0.
+    """
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    FloorDiv = core_attr("FloorDiv")
+    tree = Annotated[int, ValueRange(-3, 3), Name("X")]
+    constraint = Eq(FloorDiv(ref("X"), int_const(2)), int_const(-1))
+    result = generate(tree, constraint, {})
+    expected = {v for v in range(-3, 4) if v // 2 == -1}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_floordiv_python_semantics_negative_divisor():
+    """FloorDiv with negative constant divisor must use Python // semantics."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    FloorDiv = core_attr("FloorDiv")
+    tree = Annotated[int, ValueRange(-3, 3), Name("X")]
+    constraint = Eq(FloorDiv(ref("X"), int_const(-2)), int_const(0))
+    result = generate(tree, constraint, {})
+    expected = {v for v in range(-3, 4) if v // -2 == 0}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_mod_python_semantics_negative_dividend():
+    """Mod with positive divisor and negative SAT-encoded dividend must use Python % semantics.
+
+    Python: -1 % 3 = 2, but CP-SAT truncated: -1 % 3 = -1.
+    """
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    Mod = core_attr("Mod")
+    tree = Annotated[int, ValueRange(-3, 3), Name("X")]
+    constraint = Eq(Mod(ref("X"), int_const(3)), int_const(2))
+    result = generate(tree, constraint, {})
+    expected = {v for v in range(-3, 4) if v % 3 == 2}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_mod_python_semantics_negative_dividend_positive_divisor():
+    """Mod must use Python % semantics for negative dividend and positive divisor."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    Mod = core_attr("Mod")
+    tree = Annotated[int, ValueRange(-4, 4), Name("X")]
+    constraint = Eq(Mod(ref("X"), int_const(3)), int_const(1))
+    result = generate(tree, constraint, {})
+    expected = {v for v in range(-4, 5) if v % 3 == 1}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+# --------------------------------------------------------------------------
+# P1: FloorDiv bounds for negative dividends
+# --------------------------------------------------------------------------
+
+
+def test_floordiv_bounds_negative_dividend_variable_divisor():
+    """FloorDiv bound computation must not invert when dividend is negative.
+
+    l in [-5,-3], r in [2,3]: the quotient -3 (= -5//2) must be reachable.
+    The old formula used l_lo // r_hi = -5 // 3 = -2 and l_hi // r_lo = -3 // 2 = -2,
+    producing bounds (-2, -2) and missing -5 // 2 = -3.  The correct bounds
+    require computing all four corners and taking min/max.
+    Use a tuple tree so both labels are SAT-encoded (ValueRange).
+    """
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    FloorDiv = core_attr("FloorDiv")
+    tree = Tuple[
+        Annotated[int, ValueRange(-5, -3), Name("X")],
+        Annotated[int, ValueRange(2, 3), Name("Y")],
+    ]
+    constraint = Eq(FloorDiv(ref("X"), ref("Y")), int_const(-3))
+    result = generate(tree, constraint, {})
+    expected = {(x, y) for x in range(-5, -2) for y in range(2, 4) if x // y == -3}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_floordiv_bounds_negative_both():
+    """FloorDiv with all-negative dividend range and constant divisor bound check."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    FloorDiv = core_attr("FloorDiv")
+    tree = Annotated[int, ValueRange(-5, -1), Name("X")]
+    constraint = Eq(FloorDiv(ref("X"), int_const(2)), int_const(-3))
+    result = generate(tree, constraint, {})
+    expected = {v for v in range(-5, 0) if v // 2 == -3}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+# --------------------------------------------------------------------------
+# Zero-divisor under Or short-circuit: must NOT make model globally unsat
+# --------------------------------------------------------------------------
+
+
+def test_floordiv_by_zero_under_or_does_not_block_valid_solutions():
+    """Or(ref("B"), Eq(FloorDiv(X, 0), 1)) with B=True must yield solutions.
+
+    When FloorDiv(X, 0) is under an Or that can be satisfied via the other
+    branch (B=True), the zero-divisor must NOT make the entire model unsat.
+    """
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Or = core_attr("Or")
+    Eq = core_attr("Eq")
+    FloorDiv = core_attr("FloorDiv")
+    tree = Tuple[
+        Annotated[bool, Name("B")],
+        Annotated[int, ValueRange(0, 2), Name("X")],
+    ]
+    constraint = Or(ref("B"), Eq(FloorDiv(ref("X"), int_const(0)), int_const(1)))
+    result = generate(tree, constraint, {})
+    # B=True satisfies the Or regardless of X; B=False requires FloorDiv(X,0)==1 (impossible)
+    expected = {(True, x) for x in range(0, 3)}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_mod_by_zero_under_or_does_not_block_valid_solutions():
+    """Or(ref("B"), Eq(Mod(X, 0), 1)) with B=True must yield solutions."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Or = core_attr("Or")
+    Eq = core_attr("Eq")
+    Mod = core_attr("Mod")
+    tree = Tuple[
+        Annotated[bool, Name("B")],
+        Annotated[int, ValueRange(0, 2), Name("X")],
+    ]
+    constraint = Or(ref("B"), Eq(Mod(ref("X"), int_const(0)), int_const(1)))
+    result = generate(tree, constraint, {})
+    expected = {(True, x) for x in range(0, 3)}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_floordiv_variable_zero_divisor_under_or_short_circuit():
+    """Or(ref("B"), Eq(FloorDiv(1, Y), 0)) with Y in {0,1}: B=True must include Y=0.
+
+    The variable-divisor encoding must NOT add an unconditional Y!=0 constraint.
+    When B=True the Or is satisfied regardless of Y, so (True, 0) must be a solution.
+    """
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Or = core_attr("Or")
+    Eq = core_attr("Eq")
+    FloorDiv = core_attr("FloorDiv")
+    tree = Tuple[
+        Annotated[bool, Name("B")],
+        Annotated[int, ValueRange(0, 1), Name("Y")],
+    ]
+    constraint = Or(ref("B"), Eq(FloorDiv(int_const(1), ref("Y")), int_const(0)))
+    result = generate(tree, constraint, {})
+    # B=True satisfies the Or regardless of Y; B=False requires FloorDiv(1,Y)==0
+    # which is impossible for Y in {0,1} (Y=0 undefined, Y=1 gives 1!=0).
+    expected = {(True, y) for y in range(0, 2)}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_mod_variable_zero_divisor_under_or_short_circuit():
+    """Or(ref("B"), Eq(Mod(1, Y), 0)) with Y in {0,1}: B=True must include Y=0."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Or = core_attr("Or")
+    Eq = core_attr("Eq")
+    Mod = core_attr("Mod")
+    tree = Tuple[
+        Annotated[bool, Name("B")],
+        Annotated[int, ValueRange(0, 1), Name("Y")],
+    ]
+    constraint = Or(ref("B"), Eq(Mod(int_const(1), ref("Y")), int_const(0)))
+    result = generate(tree, constraint, {})
+    # Y=0: Mod(1, 0) is undefined → Eq=False → Or(B, False)=B → only B=True
+    # Y=1: Mod(1, 1)=0 → Eq(0,0)=True → Or(B, True)=True → both B=True and B=False
+    expected: set[object] = {(True, 0), (True, 1), (False, 1)}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_ne_type_mismatch_with_undefined_operand_under_or():
+    """Ne(FloorDiv(1, Y), bool_const) must be False when Y=0 (undefined), not True.
+
+    The bool-vs-int type mismatch makes Ne always True when both operands are
+    defined, but the result must be False when the FloorDiv operand is undefined
+    (Y=0), so that the short-circuit semantics of Or are preserved.
+    """
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Or = core_attr("Or")
+    Ne = core_attr("Ne")
+    FloorDiv = core_attr("FloorDiv")
+    tree = Tuple[
+        Annotated[bool, Name("B")],
+        Annotated[int, ValueRange(0, 1), Name("Y")],
+    ]
+    # Ne(FloorDiv(1, Y), True): int vs bool → type mismatch → Ne=True when defined,
+    # but must be False when Y=0 (FloorDiv undefined).
+    # Or(B, Ne(...)): Y=0 → Ne=False → Or(B,False)=B → only B=True
+    #                 Y=1 → FloorDiv(1,1)=1 vs True → Ne=True → Or=True → both B
+    constraint = Or(ref("B"), Ne(FloorDiv(int_const(1), ref("Y")), bool_const(True)))
+    result = generate(tree, constraint, {})
+    expected: set[object] = {(True, 0), (True, 1), (False, 1)}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+# --------------------------------------------------------------------------
+# P1: _ZERO_DIV sentinel must propagate through arithmetic wrappers
+# --------------------------------------------------------------------------
+
+
+def test_zero_div_sentinel_propagates_through_add():
+    """Eq(Add(FloorDiv(X, 0), 1), 1) must yield no solutions.
+
+    FloorDiv(X, 0) is undefined (sentinel); Add must propagate the sentinel
+    so that the surrounding Eq always evaluates to False, not True.
+    """
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    Add = core_attr("Add")
+    FloorDiv = core_attr("FloorDiv")
+    tree = Annotated[int, ValueRange(0, 2), Name("X")]
+    # FloorDiv(X, 0) is undefined; Add(undefined, 1) must also be undefined,
+    # so Eq(undefined, 1) is always False → no solutions.
+    constraint = Eq(Add(FloorDiv(ref("X"), int_const(0)), int_const(1)), int_const(1))
+    result = generate(tree, constraint, {})
+    expected: set[object] = set()
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_zero_div_sentinel_propagates_through_neg():
+    """Eq(Neg(FloorDiv(X, 0)), 0) must yield no solutions."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    Neg = core_attr("Neg")
+    FloorDiv = core_attr("FloorDiv")
+    tree = Annotated[int, ValueRange(0, 2), Name("X")]
+    constraint = Eq(Neg(FloorDiv(ref("X"), int_const(0))), int_const(0))
+    result = generate(tree, constraint, {})
+    expected: set[object] = set()
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_zero_div_sentinel_propagates_through_add_under_or():
+    """Or(B, Eq(Add(FloorDiv(X, 0), 1), 1)) must allow only B=True solutions.
+
+    Sentinel propagates: undefined → Or(B, False) = B → only (True, x) solutions.
+    """
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Or = core_attr("Or")
+    Eq = core_attr("Eq")
+    Add = core_attr("Add")
+    FloorDiv = core_attr("FloorDiv")
+    tree = Tuple[
+        Annotated[bool, Name("B")],
+        Annotated[int, ValueRange(0, 1), Name("X")],
+    ]
+    constraint = Or(ref("B"), Eq(Add(FloorDiv(ref("X"), int_const(0)), int_const(1)), int_const(1)))
+    result = generate(tree, constraint, {})
+    expected: set[object] = {(True, 0), (True, 1)}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+# --------------------------------------------------------------------------
+# P1: Encode boolean expressions (Eq/Ne/And/Or) as operands in _encode_arith
+# --------------------------------------------------------------------------
+
+
+def test_eq_of_eq_and_bool_const():
+    """Eq(Eq(ref("X"), int_const(1)), bool_const(True)) must work without TypeError.
+
+    _encode_arith must handle boolean expression nodes (Eq, Ne, And, Or) as
+    operands by reifying them into a BoolVar, rather than raising TypeError.
+    Semantics: Eq(X, 1) is True iff X==1, so
+      Eq(Eq(X, 1), True) is satisfied iff X==1.
+    """
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    tree = Annotated[int, ValueRange(0, 2), Name("X")]
+    constraint = Eq(Eq(ref("X"), int_const(1)), bool_const(True))
+    result = generate(tree, constraint, {})
+    expected: set[object] = {1}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_eq_of_and_and_bool_const():
+    """Eq(And(Eq(X,1), Eq(Y,2)), bool_const(True)) must work without TypeError."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    And = core_attr("And")
+    tree = Tuple[
+        Annotated[int, ValueRange(0, 2), Name("X")],
+        Annotated[int, ValueRange(0, 2), Name("Y")],
+    ]
+    constraint = Eq(And(Eq(ref("X"), int_const(1)), Eq(ref("Y"), int_const(2))), bool_const(True))
+    result = generate(tree, constraint, {})
+    expected: set[object] = {(1, 2)}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+# --------------------------------------------------------------------------
+# P1: Undefined-division auxiliaries must not cause duplicate CP-SAT solutions
+# --------------------------------------------------------------------------
+
+
+def test_floordiv_undefined_divisor_no_duplicate_sat_assignments():
+    """sat_search must not return duplicate assignments when div_defined=False.
+
+    Or(B, Eq(FloorDiv(1, Y), 0)) with Y in {0,1}: when Y=0 and B=True the
+    division is undefined (div_defined=False).  Auxiliary q/r vars must be
+    pinned to a single state so CP-SAT emits exactly one solution per unique
+    (B, Y) label assignment, not one per (q, r) combination.
+    """
+    node = TupleNode((NamedNode("B", BoolNode()), NamedNode("Y", IntRangeNode(0, 1))))
+    constraint = Or(Reference("B", ()), Eq(FloorDiv(IntegerConstant(1), Reference("Y", ())), IntegerConstant(0)))
+    assignments = _sat_search(node, constraint)
+    seen: set[frozenset[tuple[str, object]]] = set()
+    for asgn in assignments:
+        key: frozenset[tuple[str, object]] = frozenset(asgn.items())
+        assert key not in seen, f"Duplicate assignment in sat_search result: {asgn}\nAll: {assignments}"
+        seen.add(key)
+
+
+def test_mod_undefined_divisor_no_duplicate_sat_assignments():
+    """sat_search must not return duplicate assignments when div_defined=False (Mod).
+
+    Same as the FloorDiv test but using Mod.
+    """
+    node = TupleNode((NamedNode("B", BoolNode()), NamedNode("Y", IntRangeNode(0, 1))))
+    constraint = Or(Reference("B", ()), Eq(Mod(IntegerConstant(1), Reference("Y", ())), IntegerConstant(0)))
+    assignments = _sat_search(node, constraint)
+    seen: set[frozenset[tuple[str, object]]] = set()
+    for asgn in assignments:
+        key: frozenset[tuple[str, object]] = frozenset(asgn.items())
+        assert key not in seen, f"Duplicate assignment in sat_search result: {asgn}\nAll: {assignments}"
+        seen.add(key)
+
+
+# --------------------------------------------------------------------------
+# P1: Reference path must be followed when reifying enum boolean references
+# --------------------------------------------------------------------------
+
+
+def test_reference_path_into_enum_tuple_in_reify_constraint():
+    """Or(ref("B"), ref("T", (0,))) must follow path when T is an enum label.
+
+    T is a tuple-valued enum label always assigned (True, False).  T[0] = True,
+    so Or(B, T[0]) is trivially satisfied for both B=True and B=False.  Before
+    the fix, _reify_constraint evaluated T without following path (0,), so it
+    treated the tuple as a non-True value and forced the branch to False,
+    incorrectly dropping B=False.
+    """
+    node = TupleNode((
+        NamedNode("B", BoolNode()),
+        NamedNode("T", TupleNode((LiteralNode(True), LiteralNode(False)))),
+    ))
+    # T is always (True, False); T[0]=True, so Or(B, True) must admit B=False too.
+    constraint = Or(Reference("B", ()), Reference("T", (0,)))
+    assignments = _sat_search(node, constraint)
+    pairs = {(a["B"], a["T"]) for a in assignments}
+    expected = {(True, (True, False)), (False, (True, False))}
+    assert pairs == expected, f"Expected {expected}, got {pairs}"
+
+
+def test_reference_path_into_enum_tuple_as_hard_constraint():
+    """ref("T", (1,)) as hard constraint must be unsatisfiable when T[1] is always False.
+
+    T is always (True, False) so T[1] = False.  Using it as a hard constraint
+    must make the model unsatisfiable.  Without the path fix, _add_constraint
+    sees T = (True, False) which is not False, so it treats it as True (no
+    constraint added) and admits solutions.
+    """
+    node = TupleNode((
+        NamedNode("B", BoolNode()),
+        NamedNode("T", TupleNode((LiteralNode(True), LiteralNode(False)))),
+    ))
+    # T[1] = False always → hard constraint is always False → no solutions.
+    constraint = Reference("T", (1,))
+    assignments = _sat_search(node, constraint)
+    assert assignments == [], f"Expected no solutions, got {assignments}"

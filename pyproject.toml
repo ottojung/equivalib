@@ -75,3 +75,4 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "src/equivalib/__init__.py" = ["F401", "F403"]
 "src/equivalib/all.py" = ["F401", "F403"]
+"src/equivalib/core/sat.py" = ["PLR0915"]
