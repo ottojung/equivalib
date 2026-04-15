@@ -1272,6 +1272,12 @@ def test_example1():
     assert generate(tree) == {False, True, 1, 2, 3}
 
 
+def test_example7():
+    generate = core_attr("generate")
+    tree = Union[Annotated[int, ValueRange(0, 3)], Literal[True, False]]
+    assert generate(tree) == {False, 1, 2, 3}
+
+
 def test_example6():
     generate = core_attr("generate")
     tree = Union[Annotated[int, ValueRange(1, 3)], bool]
