@@ -1495,3 +1495,69 @@ def test_mod_by_zero_constant_yields_empty():
     tree = Annotated[int, ValueRange(0, 3), Name("X")]
     constraint = Eq(Mod(ref("X"), int_const(0)), int_const(1))
     assert generate(tree, constraint, {}) == set()
+
+
+# --------------------------------------------------------------------------
+# P1: Python floor-division and modulo semantics for SAT-encoded labels
+# --------------------------------------------------------------------------
+# These tests use ValueRange labels, which are encoded as CP-SAT variables.
+# The constraint is evaluated via the CP-SAT model, so semantics must match
+# Python's floor division // and floor modulo % (not C-style truncation).
+
+
+def test_floordiv_python_semantics_negative_dividend():
+    """FloorDiv must use Python // semantics (floor toward -inf), not truncated.
+
+    Python: -1 // 2 = -1 (floor), but CP-SAT trunc: -1 / 2 = 0.
+    """
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    FloorDiv = core_attr("FloorDiv")
+    tree = Annotated[int, ValueRange(-3, 3), Name("X")]
+    constraint = Eq(FloorDiv(ref("X"), int_const(2)), int_const(-1))
+    result = generate(tree, constraint, {})
+    expected = {v for v in range(-3, 4) if v // 2 == -1}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_floordiv_python_semantics_negative_divisor():
+    """FloorDiv with negative constant divisor must use Python // semantics."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    FloorDiv = core_attr("FloorDiv")
+    tree = Annotated[int, ValueRange(-3, 3), Name("X")]
+    constraint = Eq(FloorDiv(ref("X"), int_const(-2)), int_const(0))
+    result = generate(tree, constraint, {})
+    expected = {v for v in range(-3, 4) if v // -2 == 0}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_mod_python_semantics_negative_dividend():
+    """Mod with positive divisor and negative SAT-encoded dividend must use Python % semantics.
+
+    Python: -1 % 3 = 2, but CP-SAT truncated: -1 % 3 = -1.
+    """
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    Mod = core_attr("Mod")
+    tree = Annotated[int, ValueRange(-3, 3), Name("X")]
+    constraint = Eq(Mod(ref("X"), int_const(3)), int_const(2))
+    result = generate(tree, constraint, {})
+    expected = {v for v in range(-3, 4) if v % 3 == 2}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_mod_python_semantics_both_negative():
+    """Mod must use Python % semantics for negative dividend and positive divisor."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    Mod = core_attr("Mod")
+    tree = Annotated[int, ValueRange(-4, 4), Name("X")]
+    constraint = Eq(Mod(ref("X"), int_const(3)), int_const(1))
+    result = generate(tree, constraint, {})
+    expected = {v for v in range(-4, 5) if v % 3 == 1}
+    assert result == expected, f"Expected {expected}, got {result}"

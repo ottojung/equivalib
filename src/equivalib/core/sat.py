@@ -200,7 +200,10 @@ def _enum_backtrack(
         for value in sorted_enum_domains.get(label, []):
             enum_assignment[label] = value
             # Partial-evaluation pruning: skip if constraint is already False.
-            partial = eval_expression_partial(constraint, enum_assignment)
+            try:
+                partial = eval_expression_partial(constraint, enum_assignment)
+            except ZeroDivisionError:
+                partial = False
             if partial is not False:
                 _enum_backtrack(
                     rest, sorted_enum_domains, sat_kinds, sat_bounds,
@@ -508,11 +511,52 @@ def _encode_arith(
                 model.add_bool_or([])
                 return (0, _INT, True)
             return (lv // rv, _INT, True)
-        lo, hi = _compute_bounds(expr, sat_bounds, enum_assignment)
+        if rc:
+            assert isinstance(rv, int)
+            if rv == 0:
+                # Constant zero divisor: make the model unsatisfiable.
+                model.add_bool_or([])
+                return (0, _INT, True)
+        # Encode Python floor division: a = b*q + r, with r bounded per Python semantics.
+        # Python: if b > 0 then 0 <= r < b; if b < 0 then b < r <= 0.
+        r_lo, r_hi = _compute_bounds(expr.right, sat_bounds, enum_assignment)
+        q_lo, q_hi = _compute_bounds(expr, sat_bounds, enum_assignment)
         counter[0] += 1
-        aux = model.new_int_var(lo, hi, f"_div{counter[0]}")
-        model.add_division_equality(aux, lv, rv)
-        return (aux, _INT, False)
+        q = model.new_int_var(q_lo, q_hi, f"_fdiv_q{counter[0]}")
+        counter[0] += 1
+        # For the remainder r: Python floor mod bounds [0, |b|-1] for b>0 or [-(|b|-1), 0] for b<0.
+        max_abs_b = max(abs(r_lo), abs(r_hi))
+        safe_r_lo = -(max_abs_b - 1) if max_abs_b > 0 else 0
+        safe_r_hi = max_abs_b - 1 if max_abs_b > 0 else 0
+        r = model.new_int_var(safe_r_lo, safe_r_hi, f"_fdiv_r{counter[0]}")
+        if rc:
+            # Constant divisor: encode exact Python floor mod bounds.
+            assert isinstance(rv, int)
+            if rv > 0:
+                model.add(r >= 0)
+                model.add(r < rv)
+            else:
+                model.add(r > rv)
+                model.add(r <= 0)
+            # a = b*q + r (linear since b is constant)
+            model.add(rv * q + r == lv)
+        else:
+            # Variable divisor: need b*q auxiliary (non-linear).
+            counter[0] += 1
+            bq_lo = min(r_lo * q_lo, r_lo * q_hi, r_hi * q_lo, r_hi * q_hi)
+            bq_hi = max(r_lo * q_lo, r_lo * q_hi, r_hi * q_lo, r_hi * q_hi)
+            bq = model.new_int_var(bq_lo, bq_hi, f"_fdiv_bq{counter[0]}")
+            model.add_multiplication_equality(bq, [rv, q])
+            model.add(bq + r == lv)
+            # r >= 0 when b > 0; r <= 0 when b < 0; b != 0.
+            b_pos = model.new_bool_var(f"_fdiv_bpos{counter[0]}")
+            model.add(rv >= 1).only_enforce_if(b_pos)
+            model.add(rv <= -1).only_enforce_if(~b_pos)
+            model.add(r >= 0).only_enforce_if(b_pos)
+            model.add(r < rv).only_enforce_if(b_pos)
+            model.add(r <= 0).only_enforce_if(~b_pos)
+            model.add(r > rv).only_enforce_if(~b_pos)
+        return (q, _INT, False)
 
     if isinstance(expr, Mod):
         (lv, _lk, lc) = _encode_arith(
@@ -528,11 +572,47 @@ def _encode_arith(
                 model.add_bool_or([])
                 return (0, _INT, True)
             return (lv % rv, _INT, True)
-        lo, hi = _compute_bounds(expr, sat_bounds, enum_assignment)
+        if rc:
+            assert isinstance(rv, int)
+            if rv == 0:
+                # Constant zero divisor: make the model unsatisfiable.
+                model.add_bool_or([])
+                return (0, _INT, True)
+        # Encode Python floor modulo: a = b*q + r, with r bounded per Python semantics.
+        # Python: if b > 0 then 0 <= r < b; if b < 0 then b < r <= 0.
+        r_lo2, r_hi2 = _compute_bounds(expr.right, sat_bounds, enum_assignment)
+        q_lo2, q_hi2 = _compute_bounds(FloorDiv(expr.left, expr.right), sat_bounds, enum_assignment)
+        max_abs_b2 = max(abs(r_lo2), abs(r_hi2))
+        safe_r2_lo = -(max_abs_b2 - 1) if max_abs_b2 > 0 else 0
+        safe_r2_hi = max_abs_b2 - 1 if max_abs_b2 > 0 else 0
         counter[0] += 1
-        aux = model.new_int_var(lo, hi, f"_mod{counter[0]}")
-        model.add_modulo_equality(aux, lv, rv)
-        return (aux, _INT, False)
+        q2 = model.new_int_var(q_lo2, q_hi2, f"_mod_q{counter[0]}")
+        counter[0] += 1
+        r2 = model.new_int_var(safe_r2_lo, safe_r2_hi, f"_mod_r{counter[0]}")
+        if rc:
+            assert isinstance(rv, int)
+            if rv > 0:
+                model.add(r2 >= 0)
+                model.add(r2 < rv)
+            else:
+                model.add(r2 > rv)
+                model.add(r2 <= 0)
+            model.add(rv * q2 + r2 == lv)
+        else:
+            counter[0] += 1
+            bq2_lo = min(r_lo2 * q_lo2, r_lo2 * q_hi2, r_hi2 * q_lo2, r_hi2 * q_hi2)
+            bq2_hi = max(r_lo2 * q_lo2, r_lo2 * q_hi2, r_hi2 * q_lo2, r_hi2 * q_hi2)
+            bq2 = model.new_int_var(bq2_lo, bq2_hi, f"_mod_bq{counter[0]}")
+            model.add_multiplication_equality(bq2, [rv, q2])
+            model.add(bq2 + r2 == lv)
+            b_pos2 = model.new_bool_var(f"_mod_bpos{counter[0]}")
+            model.add(rv >= 1).only_enforce_if(b_pos2)
+            model.add(rv <= -1).only_enforce_if(~b_pos2)
+            model.add(r2 >= 0).only_enforce_if(b_pos2)
+            model.add(r2 < rv).only_enforce_if(b_pos2)
+            model.add(r2 <= 0).only_enforce_if(~b_pos2)
+            model.add(r2 > rv).only_enforce_if(~b_pos2)
+        return (r2, _INT, False)
 
     raise TypeError(f"Expected arithmetic expression, got {type(expr).__name__!r}: {expr!r}")
 
