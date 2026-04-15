@@ -479,7 +479,16 @@ such that:
 
 - `v` is in `projection(L, S)`
 - the selection is deterministic for fixed input
+- `v` is the first element of `projection(L, S)` under canonical value order
 - the selection MAY depend on the full current assignment set `S`, not only on the projection
+
+Canonical value order is:
+
+1. `None`
+2. booleans (`False < True`)
+3. integers in ascending numeric order
+4. strings in ascending lexicographic order
+5. tuples in ascending lexicographic order under this same recursive value order
 
 Then replace `S` by:
 
@@ -576,10 +585,10 @@ generate(Annotated[bool, Name("X")], BooleanExpression(True), {"X": "all"})
 == { True, False }
 
 generate(Annotated[bool, Name("X")], BooleanExpression(True), {"X": "arbitrary"})
-== { True }
+== { False }
 
 generate(Annotated[Tuple[bool, bool], Name("X")], BooleanExpression(True), {"X": "arbitrary"})
-== { (True, True) }
+== { (False, False) }
 
 generate(
     Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
@@ -600,21 +609,21 @@ generate(
     Eq(Reference("X", ()), Reference("Y", ())),
   {"X": "all", "Y": "arbitrary"},
 )
-== { (True, True) }
+== { (False, False) }
 
 generate(
     Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
     Ne(Reference("X", ()), Reference("Y", ())),
   {"X": "all", "Y": "arbitrary"},
 )
-== { (False, True) }
+== { (True, False) }
 
 generate(
     Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
     Ne(Reference("X", ()), Reference("Y", ())),
   {"X": "arbitrary", "Y": "arbitrary"},
 )
-== { (True, False) }
+== { (False, True) }
 
 generate(
     Annotated[Tuple[bool, bool], Name("X")],

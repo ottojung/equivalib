@@ -128,15 +128,15 @@ def test_generate_accepts_name_and_value_range_in_either_metadata_order():
 def test_generate_named_bool_arbitrary_picks_canonical_first():
     generate = core_attr("generate")
     Name = core_attr("Name")
-    assert generate(Annotated[bool, Name("X")], true_expr(), {"X": "arbitrary"}) == {True}
+    assert generate(Annotated[bool, Name("X")], true_expr(), {"X": "arbitrary"}) == {False}
 
 
 def test_generate_named_tuple_arbitrary_picks_one_tuple_witness():
     generate = core_attr("generate")
     Name = core_attr("Name")
-    # Canonical order: True < False (True sorts first), so (True, True) is the
+    # Canonical order: False < True (False sorts first), so (False, False) is the
     # lexicographically-first tuple under the canonical total order.
-    assert generate(Annotated[Tuple[bool, bool], Name("X")], true_expr(), {"X": "arbitrary"}) == {(True, True)}
+    assert generate(Annotated[Tuple[bool, bool], Name("X")], true_expr(), {"X": "arbitrary"}) == {(False, False)}
 
 
 def test_generate_repeated_named_tuples_share_one_atomic_value():
@@ -327,8 +327,8 @@ def test_generate_arbitrary_with_shared_constraint_is_deterministic():
     constraint = Ne(ref("X"), ref("Y"))
     first = generate(tree, constraint, {"X": "arbitrary", "Y": "arbitrary"})
     second = generate(tree, constraint, {"X": "arbitrary", "Y": "arbitrary"})
-    assert first == {(True, False)}
-    assert second == {(True, False)}
+    assert first == {(False, True)}
+    assert second == {(False, True)}
 
 
 def test_generate_uniform_random_always_returns_subset_of_all():
@@ -828,8 +828,8 @@ def test_eval_partial_neg_of_unknown():
 # Canonical ordering
 # --------------------------------------------------------------------------
 
-def test_canonical_order_bools_true_before_false():
-    assert canonical_sorted([False, True]) == [True, False]
+def test_canonical_order_bools_false_before_true():
+    assert canonical_sorted([False, True]) == [False, True]
 
 
 def test_canonical_order_ints_ascending():
@@ -847,11 +847,11 @@ def test_canonical_order_none_before_tuples():
 
 def test_canonical_order_tuples_lexicographic():
     data = [(True, False), (True, True), (False, True), (False, False)]
-    assert canonical_sorted(data) == [(True, True), (True, False), (False, True), (False, False)]
+    assert canonical_sorted(data) == [(False, False), (False, True), (True, False), (True, True)]
 
 
 def test_canonical_first_selects_minimum():
-    assert canonical_first([False, True]) is True
+    assert canonical_first([False, True]) is False
 
 
 # --------------------------------------------------------------------------

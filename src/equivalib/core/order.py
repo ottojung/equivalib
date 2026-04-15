@@ -8,8 +8,8 @@ Kind rank table (documented here):
     4 – tuple
 
 Within each kind, ascending order is used.  For booleans the secondary key
-is ``0`` for ``True`` and ``1`` for ``False``, so ``True`` sorts before
-``False``.  For all other kinds: natural ascending order.
+is ``0`` for ``False`` and ``1`` for ``True``, so ``False`` sorts before
+``True``.  For all other kinds: natural ascending order.
 """
 
 from __future__ import annotations
@@ -40,8 +40,8 @@ def _sort_key(v: object) -> tuple[object, ...]:
     if v is None:
         return (rank,)
     if isinstance(v, bool):
-        # True before False: use 0 for True, 1 for False
-        return (rank, 0 if v else 1)
+        # False before True: use 0 for False, 1 for True
+        return (rank, 0 if not v else 1)
     if isinstance(v, int):
         return (rank, v)
     if isinstance(v, str):
