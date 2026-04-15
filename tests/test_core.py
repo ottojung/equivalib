@@ -1646,3 +1646,45 @@ def test_mod_by_zero_under_or_does_not_block_valid_solutions():
     result = generate(tree, constraint, {})
     expected = {(True, x) for x in range(0, 3)}
     assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_floordiv_variable_zero_divisor_under_or_short_circuit():
+    """Or(ref("B"), Eq(FloorDiv(1, Y), 0)) with Y in {0,1}: B=True must include Y=0.
+
+    The variable-divisor encoding must NOT add an unconditional Y!=0 constraint.
+    When B=True the Or is satisfied regardless of Y, so (True, 0) must be a solution.
+    """
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Or = core_attr("Or")
+    Eq = core_attr("Eq")
+    FloorDiv = core_attr("FloorDiv")
+    tree = Tuple[
+        Annotated[bool, Name("B")],
+        Annotated[int, ValueRange(0, 1), Name("Y")],
+    ]
+    constraint = Or(ref("B"), Eq(FloorDiv(int_const(1), ref("Y")), int_const(0)))
+    result = generate(tree, constraint, {})
+    # B=True satisfies the Or regardless of Y; B=False requires FloorDiv(1,Y)==0
+    # which is impossible for Y in {0,1} (Y=0 undefined, Y=1 gives 1!=0).
+    expected = {(True, y) for y in range(0, 2)}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_mod_variable_zero_divisor_under_or_short_circuit():
+    """Or(ref("B"), Eq(Mod(1, Y), 0)) with Y in {0,1}: B=True must include Y=0."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Or = core_attr("Or")
+    Eq = core_attr("Eq")
+    Mod = core_attr("Mod")
+    tree = Tuple[
+        Annotated[bool, Name("B")],
+        Annotated[int, ValueRange(0, 1), Name("Y")],
+    ]
+    constraint = Or(ref("B"), Eq(Mod(int_const(1), ref("Y")), int_const(0)))
+    result = generate(tree, constraint, {})
+    # Y=0: Mod(1, 0) is undefined → Eq=False → Or(B, False)=B → only B=True
+    # Y=1: Mod(1, 1)=0 → Eq(0,0)=True → Or(B, True)=True → both B=True and B=False
+    expected: set[object] = {(True, 0), (True, 1), (False, 1)}
+    assert result == expected, f"Expected {expected}, got {result}"

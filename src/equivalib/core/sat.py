@@ -59,11 +59,14 @@ _INT = "int"
 _OTHER = "other"
 _ZERO_DIV = "zero_div"  # sentinel: operand is undefined due to division by zero
 
-# Encoded expression: (value, kind, is_const)
-# - value: CP-SAT LinearExpr / BoolVar / IntVar, or a Python constant
-# - kind: _BOOL | _INT | _OTHER
+# Encoded expression: (value, kind, is_const, defined)
+# - value:   CP-SAT LinearExpr / BoolVar / IntVar, or a Python constant
+# - kind:    _BOOL | _INT | _OTHER | _ZERO_DIV
 # - is_const: True iff value is a plain Python object (not a CP-SAT expression)
-_EncResult = tuple[Any, str, bool]
+# - defined: True (always defined) or a CP-SAT BoolVar that is 1 iff the
+#            expression is well-defined (used for variable-divisor FloorDiv/Mod
+#            to avoid polluting the model with a global rv!=0 constraint)
+_EncResult = tuple[Any, str, bool, Any]
 
 
 # ---------------------------------------------------------------------------
@@ -420,6 +423,28 @@ def _reify_constraint(
 # Arithmetic expression encoding
 # ---------------------------------------------------------------------------
 
+def _and_defined(model: cp_model.CpModel, d1: Any, d2: Any, counter: list[int]) -> Any:
+    """Return a condition (True or BoolVar) representing ``d1 AND d2``.
+
+    Used to propagate the ``defined`` status through compound arithmetic:
+    if either operand of an Add/Sub/Neg/Mul is potentially undefined (i.e.
+    it has a CP-SAT BoolVar as its ``defined`` field), the compound result
+    is also potentially undefined under the same condition.
+    """
+    if d1 is True:
+        return d2
+    if d2 is True:
+        return d1
+    # Both are BoolVars: create an AND BoolVar.
+    counter[0] += 1
+    b = model.new_bool_var(f"_def{counter[0]}")
+    # b => (d1 AND d2)
+    model.add_bool_and([d1, d2]).only_enforce_if(b)
+    # (d1 AND d2) => b  ⟺  ~d1 OR ~d2 OR b
+    model.add_bool_or([~d1, ~d2, b])
+    return b
+
+
 def _encode_arith(
     model: cp_model.CpModel,
     sat_vars: dict[str, Any],
@@ -431,127 +456,134 @@ def _encode_arith(
 ) -> _EncResult:
     """Encode an arithmetic (or leaf) expression.
 
-    Returns ``(value, kind, is_const)`` where:
+    Returns ``(value, kind, is_const, defined)`` where:
       * ``value``    – CP-SAT LinearExpr / BoolVar / IntVar, or a Python scalar
-      * ``kind``     – ``_BOOL`` | ``_INT`` | ``_OTHER``
+      * ``kind``     – ``_BOOL`` | ``_INT`` | ``_OTHER`` | ``_ZERO_DIV``
       * ``is_const`` – True iff ``value`` is a plain Python object
+      * ``defined``  – True (always defined) or a CP-SAT BoolVar that is 1 iff
+                       the expression is well-defined (non-zero divisor)
     """
     if isinstance(expr, BooleanConstant):
         # Represent booleans as 0/1 integers for CP-SAT arithmetic;
         # keep kind=_BOOL so type-aware comparisons can detect the bool type.
-        return (int(expr.value), _BOOL, True)
+        return (int(expr.value), _BOOL, True, True)
 
     if isinstance(expr, IntegerConstant):
-        return (expr.value, _INT, True)
+        return (expr.value, _INT, True, True)
 
     if isinstance(expr, Reference):
         label = expr.label
         if label in sat_vars:
             # CP-SAT variable; references to sat labels always have empty paths.
-            return (sat_vars[label], sat_kinds[label], False)
+            return (sat_vars[label], sat_kinds[label], False, True)
         if label in enum_assignment:
             # Navigate the path in the Python value.
             v: object = enum_assignment[label]
             for idx in expr.path:
                 v = v[idx]  # type: ignore[index]
             if isinstance(v, bool):
-                return (int(v), _BOOL, True)
+                return (int(v), _BOOL, True, True)
             if isinstance(v, int):
-                return (v, _INT, True)
-            return (v, _OTHER, True)
+                return (v, _INT, True, True)
+            return (v, _OTHER, True, True)
         raise ValueError(f"Reference to unknown label {label!r}")  # should not reach
 
     if isinstance(expr, Neg):
-        (val, kind, is_const) = _encode_arith(
+        (val, kind, is_const, defined) = _encode_arith(
             model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr.operand, counter
         )
         if is_const:
             assert isinstance(val, int)
-            return (-val, _INT, True)
-        return (-val, _INT, False)  # CP-SAT LinearExpr negation via unary minus
+            return (-val, _INT, True, True)
+        return (-val, _INT, False, defined)  # CP-SAT LinearExpr negation via unary minus
 
     if isinstance(expr, (Add, Sub)):
-        (lv, _lk, lc) = _encode_arith(
+        (lv, _lk, lc, ld) = _encode_arith(
             model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr.left, counter
         )
-        (rv, _rk, rc) = _encode_arith(
+        (rv, _rk, rc, rd) = _encode_arith(
             model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr.right, counter
         )
         if lc and rc:
             assert isinstance(lv, int) and isinstance(rv, int)
-            return (lv + rv if isinstance(expr, Add) else lv - rv, _INT, True)
-        return ((lv + rv) if isinstance(expr, Add) else (lv - rv), _INT, False)
+            return (lv + rv if isinstance(expr, Add) else lv - rv, _INT, True, True)
+        dd = _and_defined(model, ld, rd, counter)
+        return ((lv + rv) if isinstance(expr, Add) else (lv - rv), _INT, False, dd)
 
     if isinstance(expr, Mul):
-        (lv, _lk, lc) = _encode_arith(
+        (lv, _lk, lc, ld) = _encode_arith(
             model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr.left, counter
         )
-        (rv, _rk, rc) = _encode_arith(
+        (rv, _rk, rc, rd) = _encode_arith(
             model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr.right, counter
         )
         if lc and rc:
             assert isinstance(lv, int) and isinstance(rv, int)
-            return (lv * rv, _INT, True)
+            return (lv * rv, _INT, True, True)
         if lc and isinstance(lv, int):
             # Scalar multiplication: constant * cp_expr
-            return (rv * lv, _INT, False)
+            return (rv * lv, _INT, False, rd)
         if rc and isinstance(rv, int):
             # Scalar multiplication: cp_expr * constant
-            return (lv * rv, _INT, False)
+            return (lv * rv, _INT, False, ld)
         # Both are CP-SAT variables: need auxiliary variable.
         lo, hi = _compute_bounds(expr, sat_bounds, enum_assignment)
         counter[0] += 1
         aux = model.new_int_var(lo, hi, f"_mul{counter[0]}")
         model.add_multiplication_equality(aux, [lv, rv])
-        return (aux, _INT, False)
+        dd = _and_defined(model, ld, rd, counter)
+        return (aux, _INT, False, dd)
 
     if isinstance(expr, FloorDiv):
-        (lv, _lk, lc) = _encode_arith(
+        (lv, _lk, lc, ld) = _encode_arith(
             model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr.left, counter
         )
-        (rv, _rk, rc) = _encode_arith(
+        (rv, _rk, rc, rd) = _encode_arith(
             model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr.right, counter
         )
         if lc and rc:
             assert isinstance(lv, int) and isinstance(rv, int)
             if rv == 0:
                 # Division by zero: propagate sentinel so comparisons evaluate to False.
-                return (0, _ZERO_DIV, True)
-            return (lv // rv, _INT, True)
+                return (0, _ZERO_DIV, True, True)
+            return (lv // rv, _INT, True, True)
         if rc and rv == 0:
             # Constant zero divisor with variable dividend: always undefined.
-            return (0, _ZERO_DIV, True)
+            return (0, _ZERO_DIV, True, True)
         # Encode Python floor division via Euclidean identity a = b*q + r.
         r_lo, r_hi = _compute_bounds(expr.right, sat_bounds, enum_assignment)
         q_lo, q_hi = _compute_bounds(expr, sat_bounds, enum_assignment)
-        q, _r = _encode_floor_div_or_mod(
+        q, _r, div_defined = _encode_floor_div_or_mod(
             model, lv, rv, lc, rc, r_lo, r_hi, q_lo, q_hi, counter, "fdiv",
         )
-        return (q, _INT, False)
+        # Propagate: defined iff both operands are defined AND divisor is non-zero.
+        dd = _and_defined(model, _and_defined(model, ld, rd, counter), div_defined, counter)
+        return (q, _INT, False, dd)
 
     if isinstance(expr, Mod):
-        (lv, _lk, lc) = _encode_arith(
+        (lv, _lk, lc, ld) = _encode_arith(
             model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr.left, counter
         )
-        (rv, _rk, rc) = _encode_arith(
+        (rv, _rk, rc, rd) = _encode_arith(
             model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr.right, counter
         )
         if lc and rc:
             assert isinstance(lv, int) and isinstance(rv, int)
             if rv == 0:
                 # Modulo by zero: propagate sentinel so comparisons evaluate to False.
-                return (0, _ZERO_DIV, True)
-            return (lv % rv, _INT, True)
+                return (0, _ZERO_DIV, True, True)
+            return (lv % rv, _INT, True, True)
         if rc and rv == 0:
             # Constant zero divisor with variable dividend: always undefined.
-            return (0, _ZERO_DIV, True)
+            return (0, _ZERO_DIV, True, True)
         # Encode Python floor modulo via Euclidean identity a = b*q + r.
         r_lo, r_hi = _compute_bounds(expr.right, sat_bounds, enum_assignment)
         q_lo, q_hi = _compute_bounds(FloorDiv(expr.left, expr.right), sat_bounds, enum_assignment)
-        _q, r = _encode_floor_div_or_mod(
+        _q, r, div_defined = _encode_floor_div_or_mod(
             model, lv, rv, lc, rc, r_lo, r_hi, q_lo, q_hi, counter, "mod",
         )
-        return (r, _INT, False)
+        dd = _and_defined(model, _and_defined(model, ld, rd, counter), div_defined, counter)
+        return (r, _INT, False, dd)
 
     raise TypeError(f"Expected arithmetic expression, got {type(expr).__name__!r}: {expr!r}")
 
@@ -586,12 +618,21 @@ def _encode_floor_div_or_mod(
     q_hi: int,
     counter: list[int],
     tag: str,
-) -> tuple[Any, Any]:
+) -> tuple[Any, Any, Any]:
     """Encode Python floor-division identity ``a = b*q + r`` in ``model``.
 
-    Returns ``(q, r)`` as CP-SAT IntVars with Python remainder semantics:
+    Returns ``(q, r, div_defined)`` where ``q`` and ``r`` are CP-SAT IntVars
+    with Python remainder semantics:
       - b > 0 ⟹ 0 ≤ r < b
       - b < 0 ⟹ b < r ≤ 0
+    and ``div_defined`` is:
+      - ``True`` when the divisor is known to be non-zero (constant or domain
+        that excludes 0), so the Euclidean identity is always enforced; or
+      - a CP-SAT BoolVar that is 1 iff the divisor is non-zero, in which case
+        the Euclidean identity and sign constraints are only enforced when that
+        BoolVar is 1.  This prevents a global ``rv != 0`` constraint from being
+        added when the expression appears inside an ``Or`` branch that may be
+        satisfied by the other side (short-circuit semantics).
 
     ``lv``/``rv`` are the dividend/divisor encodings; ``lc``/``rc`` indicate
     whether they are plain Python ints.  ``r_lo``/``r_hi`` are the bounds
@@ -612,23 +653,63 @@ def _encode_floor_div_or_mod(
             model.add(r <= 0)
         # a = b*q + r (linear since b is a constant)
         model.add(rv * q + r == lv)
+        return (q, r, True)  # constant divisor is always non-zero (zero already handled)
     else:
-        # Variable divisor: use b*q auxiliary variable (product constraint).
+        # Variable divisor.  If 0 is not in the divisor's domain the encoding
+        # can be unconditional; otherwise we must make the Euclidean identity
+        # and sign constraints conditional on a ``div_defined`` BoolVar so that
+        # rv == 0 is not globally forbidden (it may be short-circuited in Or).
         counter[0] += 1
         bq_lo = min(r_lo * q_lo, r_lo * q_hi, r_hi * q_lo, r_hi * q_hi)
         bq_hi = max(r_lo * q_lo, r_lo * q_hi, r_hi * q_lo, r_hi * q_hi)
         bq = model.new_int_var(bq_lo, bq_hi, f"_{tag}_bq{counter[0]}")
+        # bq = rv * q unconditionally; when rv=0 this forces bq=0 for any q.
         model.add_multiplication_equality(bq, [rv, q])
-        model.add(bq + r == lv)
-        # Enforce Python remainder sign: r >= 0 when b > 0; r <= 0 when b < 0.
+
+        div_can_be_zero = r_lo <= 0 <= r_hi
+        if not div_can_be_zero:
+            # Zero is outside the divisor's domain: use simple unconditional encoding.
+            model.add(bq + r == lv)
+            b_pos = model.new_bool_var(f"_{tag}_bpos{counter[0]}")
+            model.add(rv >= 1).only_enforce_if(b_pos)
+            model.add(rv <= -1).only_enforce_if(~b_pos)
+            model.add(r >= 0).only_enforce_if(b_pos)
+            model.add(r < rv).only_enforce_if(b_pos)
+            model.add(r <= 0).only_enforce_if(~b_pos)
+            model.add(r > rv).only_enforce_if(~b_pos)
+            return (q, r, True)  # always defined since 0 is not in domain
+
+        # Zero is in the divisor's domain: introduce a ``div_defined`` BoolVar
+        # and make all arithmetic constraints conditional on it.
+        counter[0] += 1
+        div_defined = model.new_bool_var(f"_{tag}_defined{counter[0]}")
+        counter[0] += 1
         b_pos = model.new_bool_var(f"_{tag}_bpos{counter[0]}")
+        counter[0] += 1
+        b_neg = model.new_bool_var(f"_{tag}_bneg{counter[0]}")
+
+        # b_pos + b_neg == div_defined:
+        #   div_defined=1 ⟹ exactly one of b_pos, b_neg is 1
+        #   div_defined=0 ⟹ both b_pos and b_neg are 0
+        model.add(b_pos + b_neg == div_defined)
+
+        # Sign constraints (only active when the corresponding flag is set).
         model.add(rv >= 1).only_enforce_if(b_pos)
-        model.add(rv <= -1).only_enforce_if(~b_pos)
+        model.add(rv <= -1).only_enforce_if(b_neg)
+        # When div_defined=False: rv must be 0.
+        model.add(rv == 0).only_enforce_if(~div_defined)
+
+        # Euclidean identity: only enforced when div_defined (avoids unnecessary
+        # constraints that would make rv=0 assignments infeasible).
+        model.add(bq + r == lv).only_enforce_if(div_defined)
+
+        # Remainder sign: r >= 0 when b > 0; r <= 0 when b < 0.
         model.add(r >= 0).only_enforce_if(b_pos)
         model.add(r < rv).only_enforce_if(b_pos)
-        model.add(r <= 0).only_enforce_if(~b_pos)
-        model.add(r > rv).only_enforce_if(~b_pos)
-    return (q, r)
+        model.add(r <= 0).only_enforce_if(b_neg)
+        model.add(r > rv).only_enforce_if(b_neg)
+
+        return (q, r, div_defined)
 
 
 # ---------------------------------------------------------------------------
@@ -724,8 +805,15 @@ def _add_comparison(
     op: str,
 ) -> None:
     """Add a comparison as a hard constraint to ``model``."""
-    lv, lk, lc = left
-    rv, rk, rc = right
+    lv, lk, lc, ld = left
+    rv, rk, rc, rd = right
+
+    # For a hard constraint, the expression must be well-defined.
+    # If either operand may be undefined (has a BoolVar ``defined``), require it.
+    if ld is not True:
+        model.add_bool_and([ld])
+    if rd is not True:
+        model.add_bool_and([rd])
 
     # Zero-division sentinel: the expression is undefined, so the comparison
     # is always False (no valid assignment can satisfy it).
@@ -782,9 +870,17 @@ def _reify_comparison(
     op: str,
     counter: list[int],
 ) -> Any:  # Returns a CP-SAT BoolVar
-    """Return a BoolVar that is 1 iff the comparison holds."""
-    lv, lk, lc = left
-    rv, rk, rc = right
+    """Return a BoolVar that is 1 iff the comparison holds.
+
+    The ``defined`` field of each operand is respected: if either operand is
+    potentially undefined (has a CP-SAT BoolVar as its ``defined`` field), the
+    returned BoolVar is forced to False whenever the operand is not defined.
+    This avoids polluting the model with a global ``rv != 0`` constraint that
+    would otherwise make ``rv=0`` assignments infeasible even when the
+    comparison is short-circuited by the other branch of an ``Or``.
+    """
+    lv, lk, lc, ld = left
+    rv, rk, rc, rd = right
 
     counter[0] += 1
     b = model.new_bool_var(f"_cmp{counter[0]}")
@@ -793,6 +889,19 @@ def _reify_comparison(
     if _ZERO_DIV in (lk, rk):
         model.add_bool_and([~b])
         return b
+
+    # Collect non-trivial ``defined`` conditions.  These are added to the
+    # ``only_enforce_if`` list for the "~b ⟹ ~comparison" constraints so that
+    # they are only enforced when the operands are actually well-defined.
+    # Simultaneously, for each defined condition we add  b ⟹ defined  so that
+    # the comparison BoolVar cannot be True when an operand is undefined.
+    not_b_and_defined: list[Any] = [~b]
+    if ld is not True:
+        not_b_and_defined.append(ld)
+        model.add_bool_and([ld]).only_enforce_if(b)  # b ⟹ ld
+    if rd is not True:
+        not_b_and_defined.append(rd)
+        model.add_bool_and([rd]).only_enforce_if(b)  # b ⟹ rd
 
     # Type mismatch: bool vs int.
     if (lk == _BOOL and rk == _INT) or (lk == _INT and rk == _BOOL):
@@ -824,24 +933,25 @@ def _reify_comparison(
         return b
 
     # At least one CP-SAT expression.
+    # For the "~b ⟹ ~comparison" direction, only enforce when operands are defined.
     if op == "eq":
         model.add(lv == rv).only_enforce_if(b)
-        model.add(lv != rv).only_enforce_if(~b)
+        model.add(lv != rv).only_enforce_if(not_b_and_defined)
     elif op == "ne":
         model.add(lv != rv).only_enforce_if(b)
-        model.add(lv == rv).only_enforce_if(~b)
+        model.add(lv == rv).only_enforce_if(not_b_and_defined)
     elif op == "lt":
         model.add(lv < rv).only_enforce_if(b)
-        model.add(lv >= rv).only_enforce_if(~b)
+        model.add(lv >= rv).only_enforce_if(not_b_and_defined)
     elif op == "le":
         model.add(lv <= rv).only_enforce_if(b)
-        model.add(lv > rv).only_enforce_if(~b)
+        model.add(lv > rv).only_enforce_if(not_b_and_defined)
     elif op == "gt":
         model.add(lv > rv).only_enforce_if(b)
-        model.add(lv <= rv).only_enforce_if(~b)
+        model.add(lv <= rv).only_enforce_if(not_b_and_defined)
     elif op == "ge":
         model.add(lv >= rv).only_enforce_if(b)
-        model.add(lv < rv).only_enforce_if(~b)
+        model.add(lv < rv).only_enforce_if(not_b_and_defined)
     return b
 
 
