@@ -288,7 +288,7 @@ def _enum_backtrack(
     constraint: Expression,
     enum_assignment: dict[str, object],
     results: list[dict[str, object]],
-    base_model: cp_model.CpModel,
+    base_model: cp_model.CpModel | None,
     sat_var_indices: dict[str, tuple[str, int]],
 ) -> None:
     """Iterate over enum-label combinations; for each, invoke CP-SAT."""
@@ -327,6 +327,7 @@ def _enum_backtrack(
         return
 
     # Solve via CP-SAT for the sat labels.
+    assert base_model is not None
     sat_solutions = _solve_sat(sat_kinds, sat_bounds, all_domains, constraint, enum_assignment, base_model, sat_var_indices)
     for sat_sol in sat_solutions:
         full = dict(enum_assignment)
@@ -342,7 +343,7 @@ def _build_base_model(
     sat_kinds: dict[str, str],
     sat_bounds: dict[str, tuple[int, int]],
     all_domains: dict[str, list[object]],
-) -> tuple[Any, dict[str, tuple[str, int]]]:
+) -> tuple[cp_model.CpModel, dict[str, tuple[str, int]]]:
     """Create a CP-SAT model with one variable per SAT label.
 
     Returns ``(base_model, sat_var_indices)`` where ``sat_var_indices`` maps
