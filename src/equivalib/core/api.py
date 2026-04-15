@@ -6,7 +6,7 @@ Public entry point:
 
 from __future__ import annotations
 
-from typing import Mapping, Optional, Type, TypeVar
+from typing import Mapping, Optional, Type, TypeVar, cast
 
 from equivalib.core.expression import (
     BooleanExpression,
@@ -127,7 +127,7 @@ def generate(
         satisfied = eval_expression(constraint, {})
         if satisfied is not True:
             return set()
-        return set(_values_node(node))  # type: ignore[arg-type]
+        return cast("set[GenerateT]", set(_values_node(node)))
 
     # 6. Exact satisfying-assignment search (S0)
     assignments = search(node, constraint)

@@ -425,6 +425,13 @@ def test_generate_rejects_empty_name_label():
         generate(Annotated[bool, Name("")], true_expr(), {})
 
 
+def test_generate_rejects_non_string_name_label():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    with pytest.raises(ValueError):
+        generate(Annotated[bool, Name(1)], true_expr(), {})
+
+
 def test_generate_rejects_invalid_value_range_bounds():
     generate = core_attr("generate")
     with pytest.raises(ValueError):

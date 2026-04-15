@@ -173,6 +173,13 @@ class CacheStats:
 # Cache stores
 # ---------------------------------------------------------------------------
 
+#: Sentinel returned by ``UnnamedCache.get`` and ``GenerationCache.get`` on a
+#: cache miss.  Callers must check ``result is CACHE_MISS`` rather than
+#: ``result is None`` so that a legitimately cached ``None`` value can be
+#: distinguished from an absent entry.
+CACHE_MISS: object = object()
+
+
 class UnnamedCache:
     """Cache for unnamed (name-free) subtree denotations."""
 
@@ -181,12 +188,13 @@ class UnnamedCache:
         self._stats = stats
 
     def get(self, node: IRNode) -> object:
+        """Return the cached value for *node*, or ``CACHE_MISS`` on a miss."""
         key = node
         if key in self._store:
             self._stats.unnamed_hits += 1
             return self._store[key]
         self._stats.unnamed_misses += 1
-        return None
+        return CACHE_MISS
 
     def set(self, node: IRNode, value: object) -> None:
         self._store[node] = value
@@ -200,12 +208,13 @@ class GenerationCache:
         self._stats = stats
 
     def get(self, subtree: IRNode, methods: Mapping[str, str]) -> object:
+        """Return the cached value, or ``CACHE_MISS`` on a miss."""
         key = _cache_key(subtree, methods)
         if key in self._store:
             self._stats.named_hits += 1
             return self._store[key]
         self._stats.named_misses += 1
-        return None
+        return CACHE_MISS
 
     def set(self, subtree: IRNode, methods: Mapping[str, str], value: object) -> None:
         key = _cache_key(subtree, methods)

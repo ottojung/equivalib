@@ -101,6 +101,10 @@ def _normalize_annotated(base: object, metadata: list[object]) -> IRNode:
     vr = value_ranges[0] if value_ranges else None
     name = names[0] if names else None
 
+    if name is not None and not isinstance(name.label, str):
+        raise ValueError(
+            f"Name label must be a non-empty string, got {type(name.label).__name__!r}: {name.label!r}."
+        )
     if name is not None and name.label == "":
         raise ValueError("Name label must not be empty.")
 
