@@ -40,6 +40,12 @@ def apply_methods(assignments: list[dict[str, object]], methods: Mapping[Label, 
     # alpha-conversion invariance: renaming labels consistently cannot change
     # the processing order and therefore cannot change the output.
     assignment_labels = {label for asgn in assignments for label in asgn}
+    missing_labels = sorted(assignment_labels.difference(label_order))
+    if missing_labels:
+        raise ValueError(
+            "label_order is missing labels present in assignments: "
+            + ", ".join(repr(label) for label in missing_labels)
+        )
     ordered_labels = [lbl for lbl in label_order if lbl in assignment_labels]
 
     current = list(assignments)

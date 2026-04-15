@@ -631,9 +631,11 @@ R = ⋃ { concretize(tree, σ) | σ ∈ S* }
 
 Super labels are processed in the order they first appear during a left-to-right depth-first traversal of `tree`.  This order is a property of the *tree structure*, not of the label strings.  Therefore:
 
-> Consistently renaming all occurrences of any label (alpha conversion) MUST NOT change the output set `R`.
+> Consistently renaming all occurrences of any label (alpha conversion) MUST NOT change the output set `R` for deterministic selection methods such as `"all"` and `"arbitrary"`.
+>
+> For `"uniform_random"`, alpha conversion MUST NOT change the set of possible outputs or the sampling distribution induced by the same implementation. It does not require identical sampled outputs across runs unless the RNG seed and implementation-defined iteration order are held fixed.
 
-A compliant implementation MUST guarantee this invariance.
+A compliant implementation MUST guarantee this invariance at the appropriate semantic level for the selected method.
 
 **Full formula.**
 

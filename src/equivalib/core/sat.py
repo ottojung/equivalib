@@ -11,7 +11,7 @@ representing one satisfying assignment.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from ortools.sat.python import cp_model
 
@@ -66,7 +66,7 @@ _ZERO_DIV = "zero_div"  # sentinel: operand is undefined due to division by zero
 # - defined: True (always defined) or a CP-SAT BoolVar that is 1 iff the
 #            expression is well-defined (used for variable-divisor FloorDiv/Mod
 #            to avoid polluting the model with a global rv!=0 constraint)
-_EncResult = tuple[Any, str, bool, bool | cp_model.IntVar]
+_EncResult = tuple[Any, str, bool, Literal[True] | cp_model.IntVar]
 
 
 # ---------------------------------------------------------------------------
@@ -555,7 +555,7 @@ def _reify_constraint(
 # Arithmetic expression encoding
 # ---------------------------------------------------------------------------
 
-def _and_defined(model: cp_model.CpModel, d1: bool | cp_model.IntVar, d2: bool | cp_model.IntVar, counter: list[int]) -> bool | cp_model.IntVar:
+def _and_defined(model: cp_model.CpModel, d1: Literal[True] | cp_model.IntVar, d2: Literal[True] | cp_model.IntVar, counter: list[int]) -> Literal[True] | cp_model.IntVar:
     """Return a condition (True or BoolVar) representing ``d1 AND d2``.
 
     Used to propagate the ``defined`` status through compound arithmetic:
@@ -765,7 +765,7 @@ def _encode_floor_div_or_mod(
     q_hi: int,
     counter: list[int],
     tag: str,
-) -> tuple[cp_model.IntVar, cp_model.IntVar, bool | cp_model.IntVar]:
+) -> tuple[cp_model.IntVar, cp_model.IntVar, Literal[True] | cp_model.IntVar]:
     """Encode Python floor-division identity ``a = b*q + r`` in ``model``.
 
     Returns ``(q, r, div_defined)`` where ``q`` and ``r`` are CP-SAT IntVars
