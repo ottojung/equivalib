@@ -8,6 +8,9 @@ This document specifies how a compliant implementation of equivalib MUST use a S
 [docs/caching.md](caching.md) defines caching guarantees for constraint-independent subtrees.
 This document defines the required solver backend and the required patterns for using it.
 
+Integrating a SAT/CP solver has the purpose of efficiently evaluating constraints.
+A good implementation will achieve a super-linear speedup over an enumerative approach by leveraging the solver's internal search heuristics and domain propagation.
+
 ## Normative Terms
 
 The words MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY are to be interpreted as normative requirements.
