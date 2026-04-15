@@ -114,6 +114,11 @@ def validate_methods(node: IRNode, methods: Mapping[Label, Method]) -> None:
                 f"Method key {key!r} is not a label in the tree. "
                 f"Known labels: {sorted(known_labels)!r}."
             )
+        if not isinstance(method, str):
+            raise TypeError(
+                f"Method for label {key!r} must be a string, "
+                f"got {type(method).__name__!r}: {method!r}."
+            )
         if method not in _VALID_METHODS:
             raise ValueError(
                 f"Unknown method {method!r} for label {key!r}. "
