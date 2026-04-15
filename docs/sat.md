@@ -64,7 +64,26 @@ The following constraint types MUST be supported:
 | `Gt(a, b)` | `model.Add(var_a > var_b)` |
 | `Ge(a, b)` | `model.Add(var_a >= var_b)` |
 
-For compound expressions (`And`, `Or`, `Neg`), the implementation MUST decompose them into their sub-expressions and encode each sub-expression as a separate CP-SAT constraint or a reified constraint as appropriate.
+### Type-aware comparison encoding
+
+As defined in [docs/spec1.md](spec1.md), `bool` and `int` are disjoint types: `True != 1` and `False != 0`.
+CP-SAT internally models `BoolVar` as a 0/1 integer variable, so a direct CP-SAT equality between a `BoolVar` and an `IntVar` could produce a wrong result — it would treat `True == 1` as satisfiable, violating the spec.
+
+A compliant implementation MUST apply type-aware encoding when both operands of a comparison are super labels:
+
+- If the two operands have different declared types (one `bool`, one `int`), the implementation MUST resolve the comparison to a compile-time constant **before** encoding it in CP-SAT:
+  - `Eq(bool_label, int_label)` → always `False`; add `model.AddBoolOr([])` (an empty disjunction, which is always unsatisfiable) or any equivalent constant-false constraint.
+  - `Ne(bool_label, int_label)` → always `True`; the constraint is vacuous and need not be added to the model.
+- `Lt`, `Le`, `Gt`, `Ge` between a `bool` label and an `int` label are ill-typed per [docs/spec1.md](spec1.md) and MUST be rejected at validation time rather than encoded in CP-SAT.
+
+When both operands have the same declared type, the standard `model.Add(...)` encoding described above applies.
+
+### Compound boolean expressions
+
+For compound boolean expressions (`And`, `Or`), the implementation MUST decompose them into their sub-expressions and encode each sub-expression as a separate CP-SAT constraint or a reified constraint as appropriate.
+
+`Neg` is arithmetic negation as defined in [docs/spec1.md](spec1.md), not a boolean combinator.
+When `Neg`, `Add`, `Sub`, `Mul`, `FloorDiv`, or `Mod` appears as an operand to `Eq`, `Ne`, `Lt`, `Le`, `Gt`, or `Ge`, the implementation MUST represent that arithmetic subexpression as a CP-SAT linear expression or as an auxiliary integer variable constrained to equal the subexpression's value, and then use that integer-valued result in the enclosing comparison constraint.
 
 A constant reference `BooleanConstant(False)` as the top-level constraint MUST cause the solver to report unsatisfiable immediately, without encoding any variables.
 
@@ -161,7 +180,19 @@ solver.parameters.enumerate_all_solutions = True
 solver.parameters.num_workers = 1  # determinism
 ```
 
-Setting `num_workers = 1` ensures that the order of solutions in the callback is deterministic, which is required for the `"all"` and `"arbitrary"` methods defined in [docs/spec1.md](spec1.md).
+Setting `num_workers = 1` ensures that the order in which the solution callback is invoked is deterministic across runs.
+
+However, solver enumeration order MUST NOT be used as the semantic ordering for the `"arbitrary"` method.
+As defined in [docs/spec1.md](spec1.md), `select_arbitrary(L, S)` MUST return the first value of `projection(L, S)` under canonical value order:
+
+1. `None`
+2. booleans (`False < True`)
+3. integers in ascending numeric order
+4. strings in ascending lexicographic order
+5. tuples in ascending lexicographic order under this same recursive value order
+
+The implementation MUST project the collected solver solutions onto each label, then sort the projected values by canonical order, and finally select the first (smallest) element under that order.
+The solver's callback invocation order is an implementation detail and MUST NOT determine which value is selected.
 
 A compliant implementation MUST NOT set `num_workers > 1` unless it can guarantee that the observable output ordering satisfies the determinism requirements of [docs/spec1.md](spec1.md).
 
@@ -195,12 +226,16 @@ This reduces model size and solver runtime.
 | Encode boolean super labels as `NewBoolVar` | MUST |
 | Encode bounded-integer super labels as `NewIntVar` with correct bounds | MUST |
 | Translate comparison expressions to `model.Add(...)` calls | MUST |
+| Resolve mixed bool/int comparisons as compile-time constants (not in CP-SAT) | MUST |
+| Reject ill-typed ordering comparisons between bool and int at validation time | MUST |
 | Check satisfiability via `CpSolver().Solve(model)` and `OPTIMAL`/`FEASIBLE` | MUST |
 | Clone models for branches instead of mutating shared state | MUST |
 | Persist variable proto indices across solver calls within a branch | MUST |
 | Use solution callback with `enumerate_all_solutions` for full enumeration | MUST |
+| Select `"arbitrary"` witness by canonical value order, not solver callback order | MUST |
+| Encode `And`/`Or` as CP-SAT constraints; encode arithmetic (`Neg`, `Add`, etc.) as linear expressions | MUST |
 | Collect all constraints before solving instead of re-solving per comparison | SHOULD |
-| Tune `num_workers = 1` for deterministic output | SHOULD |
+| Tune `num_workers = 1` for deterministic callback invocation | SHOULD |
 | Exclude guaranteed-cacheable subtrees from the CP-SAT model | SHOULD |
 | Use tightest available bounds when creating integer variables | SHOULD |
 | Apply `num_workers > 1` without breaking determinism guarantees | MUST NOT |
