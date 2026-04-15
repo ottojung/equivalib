@@ -435,13 +435,12 @@ def _and_defined(model: cp_model.CpModel, d1: Any, d2: Any, counter: list[int]) 
         return d2
     if d2 is True:
         return d1
-    # Both are BoolVars: create an AND BoolVar.
+    # Both are BoolVars: create a BoolVar that is true iff both d1 and d2 are true.
     counter[0] += 1
     b = model.new_bool_var(f"_def{counter[0]}")
-    # b => (d1 AND d2)
-    model.add_bool_and([d1, d2]).only_enforce_if(b)
-    # (d1 AND d2) => b  ⟺  ~d1 OR ~d2 OR b
-    model.add_bool_or([~d1, ~d2, b])
+    # b ⟺ (d1 AND d2): enforce both directions.
+    model.add_bool_and([d1, d2]).only_enforce_if(b)   # b => d1 AND d2
+    model.add_bool_or([~d1, ~d2, b])                  # d1 AND d2 => b
     return b
 
 
@@ -653,7 +652,8 @@ def _encode_floor_div_or_mod(
             model.add(r <= 0)
         # a = b*q + r (linear since b is a constant)
         model.add(rv * q + r == lv)
-        return (q, r, True)  # constant divisor is always non-zero (zero already handled)
+        # Constant non-zero divisor: always well-defined (zero was caught earlier).
+        return (q, r, True)
     else:
         # Variable divisor.  If 0 is not in the divisor's domain the encoding
         # can be unconditional; otherwise we must make the Euclidean identity
@@ -666,8 +666,8 @@ def _encode_floor_div_or_mod(
         # bq = rv * q unconditionally; when rv=0 this forces bq=0 for any q.
         model.add_multiplication_equality(bq, [rv, q])
 
-        div_can_be_zero = r_lo <= 0 <= r_hi
-        if not div_can_be_zero:
+        divisor_domain_includes_zero = r_lo <= 0 <= r_hi
+        if not divisor_domain_includes_zero:
             # Zero is outside the divisor's domain: use simple unconditional encoding.
             model.add(bq + r == lv)
             b_pos = model.new_bool_var(f"_{tag}_bpos{counter[0]}")
@@ -688,9 +688,9 @@ def _encode_floor_div_or_mod(
         counter[0] += 1
         b_neg = model.new_bool_var(f"_{tag}_bneg{counter[0]}")
 
-        # b_pos + b_neg == div_defined:
-        #   div_defined=1 ⟹ exactly one of b_pos, b_neg is 1
-        #   div_defined=0 ⟹ both b_pos and b_neg are 0
+        # b_pos + b_neg == div_defined requires their integer sum to equal div_defined:
+        #   div_defined=1 requires b_pos + b_neg = 1 (exactly one is true)
+        #   div_defined=0 requires b_pos + b_neg = 0 (both are false)
         model.add(b_pos + b_neg == div_defined)
 
         # Sign constraints (only active when the corresponding flag is set).
@@ -890,11 +890,12 @@ def _reify_comparison(
         model.add_bool_and([~b])
         return b
 
-    # Collect non-trivial ``defined`` conditions.  These are added to the
-    # ``only_enforce_if`` list for the "~b ⟹ ~comparison" constraints so that
-    # they are only enforced when the operands are actually well-defined.
-    # Simultaneously, for each defined condition we add  b ⟹ defined  so that
-    # the comparison BoolVar cannot be True when an operand is undefined.
+    # Two-phase defined-condition handling:
+    # Phase 1: Build not_b_and_defined — the list of literals for the
+    #          "~b ⟹ ~comparison" constraints so they only fire when the
+    #          operands are actually well-defined.
+    # Phase 2: For each non-trivial defined condition, add b ⟹ defined so
+    #          the comparison BoolVar cannot be True when an operand is undefined.
     not_b_and_defined: list[Any] = [~b]
     if ld is not True:
         not_b_and_defined.append(ld)
