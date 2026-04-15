@@ -117,8 +117,8 @@ def _sat_compute_domains(
                     other_occurrences[label] = []
                 other_occurrences[label].append(tagged_vals)
             _walk(n.inner)
-        # impossible() not called here; unknown node types are silently ignored
-        # (they are handled by the public domain_map in domains.py if needed).
+        else:
+            impossible(n)
 
     _walk(node)
 
@@ -189,6 +189,18 @@ def sat_search(node: IRNode, constraint: Expression) -> list[dict[str, object]]:
             sat_bounds[label] = (0, 1)
 
     results: list[dict[str, object]] = []
+
+    if sat_kinds:
+        # Build the base CP-SAT model once (SAT variables + domain-tightening
+        # constraints for bool labels with narrowed domains).  Each enum
+        # combination will clone this base model and add the full constraint
+        # encoding on the clone, avoiding redundant variable construction per
+        # enum branch.
+        base_model, sat_var_indices = _build_base_model(sat_kinds, sat_bounds, other_domains)
+    else:
+        base_model = None
+        sat_var_indices = {}
+
     _enum_backtrack(
         enum_labels,
         sorted_enum_domains,
@@ -198,6 +210,8 @@ def sat_search(node: IRNode, constraint: Expression) -> list[dict[str, object]]:
         constraint,
         {},
         results,
+        base_model,
+        sat_var_indices,
     )
 
     # Sort results in canonical label order so that downstream consumers
@@ -274,6 +288,8 @@ def _enum_backtrack(
     constraint: Expression,
     enum_assignment: dict[str, object],
     results: list[dict[str, object]],
+    base_model: Any,
+    sat_var_indices: dict[str, tuple[str, int]],
 ) -> None:
     """Iterate over enum-label combinations; for each, invoke CP-SAT."""
     if enum_label_list:
@@ -294,6 +310,7 @@ def _enum_backtrack(
                 _enum_backtrack(
                     rest, sorted_enum_domains, sat_kinds, sat_bounds,
                     all_domains, constraint, enum_assignment, results,
+                    base_model, sat_var_indices,
                 )
             del enum_assignment[label]
         return
@@ -310,7 +327,7 @@ def _enum_backtrack(
         return
 
     # Solve via CP-SAT for the sat labels.
-    sat_solutions = _solve_sat(sat_kinds, sat_bounds, all_domains, constraint, enum_assignment)
+    sat_solutions = _solve_sat(sat_kinds, sat_bounds, all_domains, constraint, enum_assignment, base_model, sat_var_indices)
     for sat_sol in sat_solutions:
         full = dict(enum_assignment)
         full.update(sat_sol)
@@ -318,8 +335,41 @@ def _enum_backtrack(
 
 
 # ---------------------------------------------------------------------------
-# CP-SAT solver
+# CP-SAT base-model builder and solver
 # ---------------------------------------------------------------------------
+
+def _build_base_model(
+    sat_kinds: dict[str, str],
+    sat_bounds: dict[str, tuple[int, int]],
+    all_domains: dict[str, list[object]],
+) -> tuple[Any, dict[str, tuple[str, int]]]:
+    """Create a CP-SAT model with one variable per SAT label.
+
+    Returns ``(base_model, sat_var_indices)`` where ``sat_var_indices`` maps
+    each label to ``(kind, proto_index)``.  The base model contains the SAT
+    variables and any domain-tightening constraints for boolean labels whose
+    intersection has narrowed the domain to a single value.
+
+    Per docs/sat.md, this model is cloned once per enum-label combination in
+    ``_solve_sat`` so that variable construction overhead is paid only once.
+    """
+    model = cp_model.CpModel()
+    sat_var_indices: dict[str, tuple[str, int]] = {}
+    for label, kind in sat_kinds.items():
+        if kind == _BOOL:
+            var = model.new_bool_var(label)
+            dom = all_domains.get(label, [])
+            if dom == [True]:
+                model.add_bool_and([var])
+            elif dom == [False]:
+                model.add_bool_and([~var])
+            sat_var_indices[label] = (_BOOL, var.Index())
+        else:  # int
+            lo, hi = sat_bounds[label]
+            var = model.new_int_var(lo, hi, label)
+            sat_var_indices[label] = (_INT, var.Index())
+    return model, sat_var_indices
+
 
 def _solve_sat(
     sat_kinds: dict[str, str],
@@ -327,27 +377,26 @@ def _solve_sat(
     all_domains: dict[str, list[object]],
     constraint: Expression,
     enum_assignment: dict[str, object],
+    base_model: Any,
+    sat_var_indices: dict[str, tuple[str, int]],
 ) -> list[dict[str, object]]:
-    """Build and solve the CP-SAT model; return all satisfying assignments."""
-    model = cp_model.CpModel()
+    """Clone the base model, add constraints, and enumerate all solutions.
 
-    # Create one CP-SAT variable per sat label.
+    Cloning per docs/sat.md: the base model (SAT variables + domain-tightening
+    constraints) is cloned so that variable construction happens only once per
+    call to ``sat_search``, not once per enum-label combination.
+    """
+    model: cp_model.CpModel = base_model.clone()
+
+    # Rehydrate sat variable references from proto indices in the cloned model.
     sat_vars: dict[str, Any] = {}
-    for label, kind in sat_kinds.items():
+    for label, (kind, idx) in sat_var_indices.items():
         if kind == _BOOL:
-            var = model.new_bool_var(label)
-            # Tighten domain if the intersection has already narrowed it.
-            dom = all_domains.get(label, [])
-            if dom == [True]:
-                model.add_bool_and([var])
-            elif dom == [False]:
-                model.add_bool_and([~var])
-            sat_vars[label] = var
-        else:  # int
-            lo, hi = sat_bounds[label]
-            sat_vars[label] = model.new_int_var(lo, hi, label)
+            sat_vars[label] = model.get_bool_var_from_proto_index(idx)
+        else:
+            sat_vars[label] = model.get_int_var_from_proto_index(idx)
 
-    # Encode the constraint into the model.
+    # Encode the constraint into the cloned model.
     counter = [0]  # mutable counter for unique auxiliary variable names
     _add_constraint(model, sat_vars, sat_kinds, enum_assignment, sat_bounds, constraint, counter)
 
@@ -672,6 +721,12 @@ def _encode_arith(
         dd = _and_defined(model, _and_defined(model, ld, rd, counter), div_defined, counter)
         return (r, _INT, False, dd)
 
+    if isinstance(expr, (Eq, Ne, Lt, Le, Gt, Ge, And, Or)):
+        # Boolean expression used as an arithmetic operand (e.g. Eq(Eq(X,1), True)).
+        # Reify the boolean expression into a BoolVar and return it as _BOOL kind.
+        bvar = _reify_constraint(model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr, counter)
+        return (bvar, _BOOL, False, True)
+
     raise TypeError(f"Expected arithmetic expression, got {type(expr).__name__!r}: {expr!r}")
 
 
@@ -758,6 +813,7 @@ def _encode_floor_div_or_mod(
         if not divisor_domain_includes_zero:
             # Zero is outside the divisor's domain: use simple unconditional encoding.
             model.add(bq + r == lv)
+            counter[0] += 1
             b_pos = model.new_bool_var(f"_{tag}_bpos{counter[0]}")
             model.add(rv >= 1).only_enforce_if(b_pos)
             model.add(rv <= -1).only_enforce_if(~b_pos)
@@ -796,6 +852,13 @@ def _encode_floor_div_or_mod(
         model.add(r < rv).only_enforce_if(b_pos)
         model.add(r <= 0).only_enforce_if(b_neg)
         model.add(r > rv).only_enforce_if(b_neg)
+
+        # Pin auxiliary variables to a fixed state when div_defined=False.
+        # This prevents CP-SAT from enumerating multiple (q, r) combinations for
+        # the same label assignment when the divisor is zero (which would cause
+        # duplicate entries in sat_search results and bias uniform_random sampling).
+        model.add(q == 0).only_enforce_if(~div_defined)
+        model.add(r == 0).only_enforce_if(~div_defined)
 
         return (q, r, div_defined)
 

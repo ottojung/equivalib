@@ -15,7 +15,9 @@ from equivalib.core.expression import (
     And,
     BooleanConstant,
     Eq,
+    FloorDiv,
     IntegerConstant,
+    Mod,
     Mul,
     Ne,
     Neg,
@@ -26,7 +28,8 @@ from equivalib.core.methods import apply_methods
 from equivalib.core.name import Name as CoreName
 from equivalib.core.normalize import normalize
 from equivalib.core.order import canonical_first, canonical_sorted
-from equivalib.core.types import BoolNode, LiteralNode, NamedNode, TupleNode, UnionNode
+from equivalib.core.sat import sat_search as _sat_search
+from equivalib.core.types import BoolNode, IntRangeNode, LiteralNode, NamedNode, TupleNode, UnionNode
 from equivalib.core.validate import validate_expression, validate_methods, validate_tree
 
 
@@ -1774,3 +1777,80 @@ def test_zero_div_sentinel_propagates_through_add_under_or():
     result = generate(tree, constraint, {})
     expected: set[object] = {(True, 0), (True, 1)}
     assert result == expected, f"Expected {expected}, got {result}"
+
+
+# --------------------------------------------------------------------------
+# P1: Encode boolean expressions (Eq/Ne/And/Or) as operands in _encode_arith
+# --------------------------------------------------------------------------
+
+
+def test_eq_of_eq_and_bool_const():
+    """Eq(Eq(ref("X"), int_const(1)), bool_const(True)) must work without TypeError.
+
+    _encode_arith must handle boolean expression nodes (Eq, Ne, And, Or) as
+    operands by reifying them into a BoolVar, rather than raising TypeError.
+    Semantics: Eq(X, 1) is True iff X==1, so
+      Eq(Eq(X, 1), True) is satisfied iff X==1.
+    """
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    tree = Annotated[int, ValueRange(0, 2), Name("X")]
+    constraint = Eq(Eq(ref("X"), int_const(1)), bool_const(True))
+    result = generate(tree, constraint, {})
+    expected: set[object] = {1}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_eq_of_and_and_bool_const():
+    """Eq(And(Eq(X,1), Eq(Y,2)), bool_const(True)) must work without TypeError."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    And = core_attr("And")
+    tree = Tuple[
+        Annotated[int, ValueRange(0, 2), Name("X")],
+        Annotated[int, ValueRange(0, 2), Name("Y")],
+    ]
+    constraint = Eq(And(Eq(ref("X"), int_const(1)), Eq(ref("Y"), int_const(2))), bool_const(True))
+    result = generate(tree, constraint, {})
+    expected: set[object] = {(1, 2)}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+# --------------------------------------------------------------------------
+# P1: Undefined-division auxiliaries must not cause duplicate CP-SAT solutions
+# --------------------------------------------------------------------------
+
+
+def test_floordiv_undefined_divisor_no_duplicate_sat_assignments():
+    """sat_search must not return duplicate assignments when div_defined=False.
+
+    Or(B, Eq(FloorDiv(1, Y), 0)) with Y in {0,1}: when Y=0 and B=True the
+    division is undefined (div_defined=False).  Auxiliary q/r vars must be
+    pinned to a single state so CP-SAT emits exactly one solution per unique
+    (B, Y) label assignment, not one per (q, r) combination.
+    """
+    node = TupleNode((NamedNode("B", BoolNode()), NamedNode("Y", IntRangeNode(0, 1))))
+    constraint = Or(Reference("B", ()), Eq(FloorDiv(IntegerConstant(1), Reference("Y", ())), IntegerConstant(0)))
+    assignments = _sat_search(node, constraint)
+    seen: set[tuple[object, ...]] = set()
+    for asgn in assignments:
+        key = tuple(sorted(asgn.items()))
+        assert key not in seen, f"Duplicate assignment in sat_search result: {asgn}\nAll: {assignments}"
+        seen.add(key)
+
+
+def test_mod_undefined_divisor_no_duplicate_sat_assignments():
+    """sat_search must not return duplicate assignments when div_defined=False (Mod).
+
+    Same as the FloorDiv test but using Mod.
+    """
+    node = TupleNode((NamedNode("B", BoolNode()), NamedNode("Y", IntRangeNode(0, 1))))
+    constraint = Or(Reference("B", ()), Eq(Mod(IntegerConstant(1), Reference("Y", ())), IntegerConstant(0)))
+    assignments = _sat_search(node, constraint)
+    seen: set[tuple[object, ...]] = set()
+    for asgn in assignments:
+        key = tuple(sorted(asgn.items()))
+        assert key not in seen, f"Duplicate assignment in sat_search result: {asgn}\nAll: {assignments}"
+        seen.add(key)
