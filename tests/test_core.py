@@ -1854,3 +1854,47 @@ def test_mod_undefined_divisor_no_duplicate_sat_assignments():
         key: frozenset[object] = frozenset(asgn.items())
         assert key not in seen, f"Duplicate assignment in sat_search result: {asgn}\nAll: {assignments}"
         seen.add(key)
+
+
+# --------------------------------------------------------------------------
+# P1: Reference path must be followed when reifying enum boolean references
+# --------------------------------------------------------------------------
+
+
+def test_reference_path_into_enum_tuple_in_reify_constraint():
+    """Or(ref("B"), ref("T", (0,))) must follow path when T is an enum label.
+
+    T is a tuple-valued enum label always assigned (True, False).  T[0] = True,
+    so Or(B, T[0]) is trivially satisfied for both B=True and B=False.  Before
+    the fix, _reify_constraint evaluated T without following path (0,), so it
+    treated the tuple as a non-True value and forced the branch to False,
+    incorrectly dropping B=False.
+    """
+    node = TupleNode((
+        NamedNode("B", BoolNode()),
+        NamedNode("T", TupleNode((LiteralNode(True), LiteralNode(False)))),
+    ))
+    # T is always (True, False); T[0]=True, so Or(B, True) must admit B=False too.
+    constraint = Or(Reference("B", ()), Reference("T", (0,)))
+    assignments = _sat_search(node, constraint)
+    pairs = {(a["B"], a["T"]) for a in assignments}
+    expected = {(True, (True, False)), (False, (True, False))}
+    assert pairs == expected, f"Expected {expected}, got {pairs}"
+
+
+def test_reference_path_into_enum_tuple_as_hard_constraint():
+    """ref("T", (1,)) as hard constraint must be unsatisfiable when T[1] is always False.
+
+    T is always (True, False) so T[1] = False.  Using it as a hard constraint
+    must make the model unsatisfiable.  Without the path fix, _add_constraint
+    sees T = (True, False) which is not False, so it treats it as True (no
+    constraint added) and admits solutions.
+    """
+    node = TupleNode((
+        NamedNode("B", BoolNode()),
+        NamedNode("T", TupleNode((LiteralNode(True), LiteralNode(False)))),
+    ))
+    # T[1] = False always → hard constraint is always False → no solutions.
+    constraint = Reference("T", (1,))
+    assignments = _sat_search(node, constraint)
+    assert assignments == [], f"Expected no solutions, got {assignments}"
