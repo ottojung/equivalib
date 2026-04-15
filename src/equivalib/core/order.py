@@ -40,8 +40,8 @@ def _sort_key(v: object) -> tuple[object, ...]:
     if v is None:
         return (rank,)
     if isinstance(v, bool):
-        # False before True: use 0 for False, 1 for True
-        return (rank, 0 if not v else 1)
+        # False before True: bool maps directly to 0/1 via int().
+        return (rank, int(v))
     if isinstance(v, int):
         return (rank, v)
     if isinstance(v, str):
