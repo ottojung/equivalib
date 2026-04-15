@@ -9,6 +9,7 @@ from equivalib import ValueRange
 from equivalib.core.cache import is_constraint_independent, is_guaranteed_cacheable, is_label_closed
 from equivalib.core.domains import domain_map, _type_aware_intersect
 from equivalib.core.eval import eval_expression, eval_expression_partial, Unknown, _structural_eq
+import equivalib.core.methods as methods
 from equivalib.core.methods import apply_methods
 from equivalib.core.expression import (
     Add,
@@ -1157,7 +1158,7 @@ def test_apply_methods_arbitrary_uses_type_aware_filtering() -> None:
 
 def test_apply_methods_arbitrarish_randomish_preserves_bool_int_distinction(monkeypatch: pytest.MonkeyPatch) -> None:
     # Force deterministic witness selection from distinct projected values.
-    monkeypatch.setattr("equivalib.core.methods.random.choice", lambda seq: seq[-1])
+    monkeypatch.setattr(methods.random, "choice", lambda seq: seq[-1])
     assignments: list[dict[str, object]] = [{"X": True}, {"X": 1}]
     reduced = apply_methods(assignments, {"X": "arbitrarish_randomish"})
     assert reduced == [{"X": 1}]
