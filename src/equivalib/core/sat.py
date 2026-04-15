@@ -277,6 +277,8 @@ def _solve_sat(
     collector = _SolutionCollector(sat_vars, sat_kinds)
     solver = cp_model.CpSolver()
     solver.parameters.enumerate_all_solutions = True
+    # Keep single-threaded so the solution callback is invoked sequentially,
+    # which is required by the ortools callback API.
     solver.parameters.num_workers = 1
     solver.solve(model, collector)
     return collector.solutions
@@ -649,7 +651,7 @@ def _reify_comparison(
         if op == "eq":
             model.add_bool_and([~b])  # always False
         else:  # ne
-            model.add_bool_and([b])        # always True
+            model.add_bool_and([b])  # always True
         return b
 
     # "other"-typed operands.
