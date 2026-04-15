@@ -57,6 +57,7 @@ from equivalib.core.eval import _structural_eq, eval_expression_partial
 _BOOL = "bool"
 _INT = "int"
 _OTHER = "other"
+_ZERO_DIV = "zero_div"  # sentinel: operand is undefined due to division by zero
 
 # Encoded expression: (value, kind, is_const)
 # - value: CP-SAT LinearExpr / BoolVar / IntVar, or a Python constant
@@ -199,11 +200,15 @@ def _enum_backtrack(
         rest = enum_label_list[1:]
         for value in sorted_enum_domains.get(label, []):
             enum_assignment[label] = value
-            # Partial-evaluation pruning: skip if constraint is already False.
+            # Partial-evaluation pruning: skip only if constraint is definitely
+            # False under the current enum assignment. ZeroDivisionError is
+            # treated as Unknown (None) rather than False because a later SAT
+            # assignment may short-circuit the offending sub-expression (e.g.
+            # Or(B=True, Eq(FloorDiv(X, 0), 1)) is True for any X).
             try:
                 partial = eval_expression_partial(constraint, enum_assignment)
             except ZeroDivisionError:
-                partial = False
+                partial = None
             if partial is not False:
                 _enum_backtrack(
                     rest, sorted_enum_domains, sat_kinds, sat_bounds,
@@ -215,7 +220,10 @@ def _enum_backtrack(
     # All enum labels are assigned.
     if not sat_kinds:
         # No CP-SAT labels: evaluate the constraint directly in Python.
-        result = eval_expression_partial(constraint, enum_assignment)
+        try:
+            result = eval_expression_partial(constraint, enum_assignment)
+        except ZeroDivisionError:
+            result = False
         if result is True:
             results.append(dict(enum_assignment))
         return
@@ -507,14 +515,12 @@ def _encode_arith(
         if lc and rc:
             assert isinstance(lv, int) and isinstance(rv, int)
             if rv == 0:
-                # Division by zero: make the model unsatisfiable.
-                model.add_bool_or([])
-                return (0, _INT, True)
+                # Division by zero: propagate sentinel so comparisons evaluate to False.
+                return (0, _ZERO_DIV, True)
             return (lv // rv, _INT, True)
         if rc and rv == 0:
-            # Constant zero divisor with variable dividend: unsatisfiable.
-            model.add_bool_or([])
-            return (0, _INT, True)
+            # Constant zero divisor with variable dividend: always undefined.
+            return (0, _ZERO_DIV, True)
         # Encode Python floor division via Euclidean identity a = b*q + r.
         r_lo, r_hi = _compute_bounds(expr.right, sat_bounds, enum_assignment)
         q_lo, q_hi = _compute_bounds(expr, sat_bounds, enum_assignment)
@@ -533,14 +539,12 @@ def _encode_arith(
         if lc and rc:
             assert isinstance(lv, int) and isinstance(rv, int)
             if rv == 0:
-                # Modulo by zero: make the model unsatisfiable.
-                model.add_bool_or([])
-                return (0, _INT, True)
+                # Modulo by zero: propagate sentinel so comparisons evaluate to False.
+                return (0, _ZERO_DIV, True)
             return (lv % rv, _INT, True)
         if rc and rv == 0:
-            # Constant zero divisor with variable dividend: unsatisfiable.
-            model.add_bool_or([])
-            return (0, _INT, True)
+            # Constant zero divisor with variable dividend: always undefined.
+            return (0, _ZERO_DIV, True)
         # Encode Python floor modulo via Euclidean identity a = b*q + r.
         r_lo, r_hi = _compute_bounds(expr.right, sat_bounds, enum_assignment)
         q_lo, q_hi = _compute_bounds(FloorDiv(expr.left, expr.right), sat_bounds, enum_assignment)
@@ -676,7 +680,10 @@ def _compute_bounds(
         l_lo, l_hi = _compute_bounds(expr.left, sat_bounds, enum_assignment)
         r_lo, r_hi = _compute_bounds(expr.right, sat_bounds, enum_assignment)
         if r_lo > 0:
-            return (l_lo // r_hi, l_hi // r_lo)
+            # All-positive divisors: compute all four corner quotients (floor
+            # division is not monotone when the dividend is negative).
+            quotients = [l_lo // r_lo, l_lo // r_hi, l_hi // r_lo, l_hi // r_hi]
+            return (min(quotients), max(quotients))
         max_abs = max(abs(l_lo), abs(l_hi))
         return (-max_abs, max_abs)
     if isinstance(expr, Mod):
@@ -718,6 +725,12 @@ def _add_comparison(
     """Add a comparison as a hard constraint to ``model``."""
     lv, lk, lc = left
     rv, rk, rc = right
+
+    # Zero-division sentinel: the expression is undefined, so the comparison
+    # is always False (no valid assignment can satisfy it).
+    if _ZERO_DIV in (lk, rk):
+        model.add_bool_or([])  # always unsatisfiable
+        return
 
     # Type mismatch: bool vs int → Eq is always False, Ne is always True.
     if (lk == _BOOL and rk == _INT) or (lk == _INT and rk == _BOOL):
@@ -774,6 +787,11 @@ def _reify_comparison(
 
     counter[0] += 1
     b = model.new_bool_var(f"_cmp{counter[0]}")
+
+    # Zero-division sentinel: the operand is undefined; the comparison is always False.
+    if _ZERO_DIV in (lk, rk):
+        model.add_bool_and([~b])
+        return b
 
     # Type mismatch: bool vs int.
     if (lk == _BOOL and rk == _INT) or (lk == _INT and rk == _BOOL):

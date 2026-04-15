@@ -1550,7 +1550,7 @@ def test_mod_python_semantics_negative_dividend():
     assert result == expected, f"Expected {expected}, got {result}"
 
 
-def test_mod_python_semantics_both_negative():
+def test_mod_python_semantics_negative_dividend_positive_divisor():
     """Mod must use Python % semantics for negative dividend and positive divisor."""
     generate = core_attr("generate")
     Name = core_attr("Name")
@@ -1560,4 +1560,89 @@ def test_mod_python_semantics_both_negative():
     constraint = Eq(Mod(ref("X"), int_const(3)), int_const(1))
     result = generate(tree, constraint, {})
     expected = {v for v in range(-4, 5) if v % 3 == 1}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+# --------------------------------------------------------------------------
+# P1: FloorDiv bounds for negative dividends
+# --------------------------------------------------------------------------
+
+
+def test_floordiv_bounds_negative_dividend_variable_divisor():
+    """FloorDiv bound computation must not invert when both values are negative.
+
+    l in [-5,-3], r in [2,3]: correct quotients include -3 (= -5//2), but the
+    old formula l_lo // r_hi = -5 // 3 = -2 and l_hi // r_lo = -3 // 2 = -2
+    produced (-2, -2) instead of the correct (-3, -2), missing -3 // 2 = -2
+    is fine, but -5 // 2 = -3 should be reachable.  Use a tuple tree so both
+    labels are SAT-encoded (ValueRange) and the quotient var domain must include -3.
+    """
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    FloorDiv = core_attr("FloorDiv")
+    tree = Tuple[
+        Annotated[int, ValueRange(-5, -3), Name("X")],
+        Annotated[int, ValueRange(2, 3), Name("Y")],
+    ]
+    constraint = Eq(FloorDiv(ref("X"), ref("Y")), int_const(-3))
+    result = generate(tree, constraint, {})
+    expected = {(x, y) for x in range(-5, -2) for y in range(2, 4) if x // y == -3}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_floordiv_bounds_negative_both():
+    """FloorDiv with all-negative dividend range and constant divisor bound check."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    FloorDiv = core_attr("FloorDiv")
+    tree = Annotated[int, ValueRange(-5, -1), Name("X")]
+    constraint = Eq(FloorDiv(ref("X"), int_const(2)), int_const(-3))
+    result = generate(tree, constraint, {})
+    expected = {v for v in range(-5, 0) if v // 2 == -3}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+# --------------------------------------------------------------------------
+# Zero-divisor under Or short-circuit: must NOT make model globally unsat
+# --------------------------------------------------------------------------
+
+
+def test_floordiv_by_zero_under_or_does_not_block_valid_solutions():
+    """Or(ref("B"), Eq(FloorDiv(X, 0), 1)) with B=True must yield solutions.
+
+    When FloorDiv(X, 0) is under an Or that can be satisfied via the other
+    branch (B=True), the zero-divisor must NOT make the entire model unsat.
+    """
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Or = core_attr("Or")
+    Eq = core_attr("Eq")
+    FloorDiv = core_attr("FloorDiv")
+    tree = Tuple[
+        Annotated[bool, Name("B")],
+        Annotated[int, ValueRange(0, 2), Name("X")],
+    ]
+    constraint = Or(ref("B"), Eq(FloorDiv(ref("X"), int_const(0)), int_const(1)))
+    result = generate(tree, constraint, {})
+    # B=True satisfies the Or regardless of X; B=False requires FloorDiv(X,0)==1 (impossible)
+    expected = {(True, x) for x in range(0, 3)}
+    assert result == expected, f"Expected {expected}, got {result}"
+
+
+def test_mod_by_zero_under_or_does_not_block_valid_solutions():
+    """Or(ref("B"), Eq(Mod(X, 0), 1)) with B=True must yield solutions."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Or = core_attr("Or")
+    Eq = core_attr("Eq")
+    Mod = core_attr("Mod")
+    tree = Tuple[
+        Annotated[bool, Name("B")],
+        Annotated[int, ValueRange(0, 2), Name("X")],
+    ]
+    constraint = Or(ref("B"), Eq(Mod(ref("X"), int_const(0)), int_const(1)))
+    result = generate(tree, constraint, {})
+    expected = {(True, x) for x in range(0, 3)}
     assert result == expected, f"Expected {expected}, got {result}"
