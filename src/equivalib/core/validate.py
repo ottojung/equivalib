@@ -94,7 +94,8 @@ def validate_methods(node: IRNode, methods: Mapping[Label, Method]) -> None:
     """Raise TypeError or ValueError if any method key or value is invalid.
 
     Raises:
-        TypeError:  if ``methods`` is not a ``Mapping``.
+        TypeError:  if ``methods`` is not a ``Mapping`` or a key is not a
+                    string label.
         ValueError: if a key is not a label in the tree, or a value is not a
                     recognised method string.
     """
@@ -104,6 +105,10 @@ def validate_methods(node: IRNode, methods: Mapping[Label, Method]) -> None:
         )
     known_labels = tree_labels(node)
     for key, method in methods.items():
+        if not isinstance(key, str):
+            raise TypeError(
+                f"Method key must be a string label, got {type(key).__name__!r}."
+            )
         if key not in known_labels:
             raise ValueError(
                 f"Method key {key!r} is not a label in the tree. "
