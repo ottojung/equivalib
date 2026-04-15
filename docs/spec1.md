@@ -480,7 +480,6 @@ such that:
 - `v` is in `projection(L, S)`
 - the selection is deterministic for fixed input
 - `v` is the first element of `projection(L, S)` under canonical value order
-- the selection MAY depend on the full current assignment set `S`, not only on the projection
 
 Canonical value order is:
 
