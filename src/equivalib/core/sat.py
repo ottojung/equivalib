@@ -411,7 +411,7 @@ def _solve_sat(
         def on_solution_callback(self) -> None:
             sol: dict[str, object] = {}
             for name, var in self._variables.items():
-                int_val = self.Value(var)
+                int_val = self.value(var)
                 sol[name] = bool(int_val) if self._kinds[name] == _BOOL else int_val
             self.solutions.append(sol)
 
