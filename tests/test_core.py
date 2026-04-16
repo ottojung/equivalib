@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import importlib
 import random
-from typing import Annotated, Any, Literal, Tuple, Union
+from itertools import combinations_with_replacement, permutations
+from typing import Annotated, Any, Literal, Tuple, Union, cast
 
 import pytest
 
@@ -18,6 +19,8 @@ from equivalib.core.expression import (
     FloorDiv,
     Gt,
     IntegerConstant,
+    Le,
+    Lt,
     Mod,
     Mul,
     Ne,
@@ -1335,8 +1338,295 @@ def test_validate_rejects_deeply_nested_named_node():
 
 
 # -------------------------------------------------------------------------
+# Interesting example helpers
+# -------------------------------------------------------------------------
+
+
+_INTERVAL_RELATION_TOUCH = 0
+_INTERVAL_RELATION_KISS = 1
+_INTERVAL_RELATION_OVERLAP = 2
+_INTERVAL_RELATION_DISJOINT = 3
+_ONE = IntegerConstant(1)
+
+
+def _and_all(*expressions: Any) -> Any:
+    result: Any = BooleanConstant(True)
+    for expression in expressions:
+        result = And(result, expression)
+    return result
+
+
+def _or_all(*expressions: Any) -> Any:
+    result: Any = BooleanConstant(False)
+    for expression in expressions:
+        result = Or(result, expression)
+    return result
+
+
+def _named_int_type(label: str, coordinate_max: int) -> Any:
+    return Annotated[int, ValueRange(0, coordinate_max), CoreName(label)]
+
+
+def _named_interval_type(prefix: str, coordinate_max: int) -> Any:
+    return Tuple[
+        _named_int_type(f"{prefix}0", coordinate_max),
+        _named_int_type(f"{prefix}1", coordinate_max),
+    ]
+
+
+def _interval_tree(count: int, coordinate_max: int = 99) -> Any:
+    if count == 0:
+        return Tuple[()]
+    if count == 1:
+        return Tuple[_named_interval_type("A", coordinate_max)]
+    if count == 2:
+        return Tuple[
+            _named_interval_type("A", coordinate_max),
+            _named_interval_type("B", coordinate_max),
+        ]
+    if count == 3:
+        return Tuple[
+            _named_interval_type("A", coordinate_max),
+            _named_interval_type("B", coordinate_max),
+            _named_interval_type("C", coordinate_max),
+        ]
+    raise ValueError(f"Unsupported interval count: {count!r}")
+
+
+def _integer_tree(count: int, coordinate_max: int = 99) -> Any:
+    if count == 0:
+        return Tuple[()]
+    if count == 1:
+        return Tuple[_named_int_type("A", coordinate_max)]
+    if count == 2:
+        return Tuple[
+            _named_int_type("A", coordinate_max),
+            _named_int_type("B", coordinate_max),
+        ]
+    if count == 3:
+        return Tuple[
+            _named_int_type("A", coordinate_max),
+            _named_int_type("B", coordinate_max),
+            _named_int_type("C", coordinate_max),
+        ]
+    if count == 4:
+        return Tuple[
+            _named_int_type("A", coordinate_max),
+            _named_int_type("B", coordinate_max),
+            _named_int_type("C", coordinate_max),
+            _named_int_type("D", coordinate_max),
+        ]
+    raise ValueError(f"Unsupported integer count: {count!r}")
+
+
+def _interval_is_valid(prefix: str) -> Any:
+    return Le(ref(f"{prefix}0"), ref(f"{prefix}1"))
+
+
+def _interval_relation_expr(left: str, right: str, relation: int) -> Any:
+    left_start = ref(f"{left}0")
+    left_end = ref(f"{left}1")
+    right_start = ref(f"{right}0")
+    right_end = ref(f"{right}1")
+
+    if relation == _INTERVAL_RELATION_TOUCH:
+        return _or_all(Eq(left_end, right_start), Eq(right_end, left_start))
+    if relation == _INTERVAL_RELATION_KISS:
+        return _or_all(
+            Eq(Add(left_end, _ONE), right_start),
+            Eq(Add(right_end, _ONE), left_start),
+        )
+    if relation == _INTERVAL_RELATION_OVERLAP:
+        return _and_all(Lt(left_start, right_end), Lt(right_start, left_end))
+    if relation == _INTERVAL_RELATION_DISJOINT:
+        return _or_all(
+            Lt(Add(left_end, _ONE), right_start),
+            Lt(Add(right_end, _ONE), left_start),
+        )
+    raise ValueError(f"Unknown interval relation: {relation!r}")
+
+
+def _interval_signature_constraint(signature: tuple[int, tuple[int, ...]]) -> Any:
+    count, relations = signature
+    labels = "ABC"[:count]
+    pieces = [_interval_is_valid(label) for label in labels]
+
+    relation_index = 0
+    for left_index in range(count):
+        for right_index in range(left_index + 1, count):
+            pieces.append(
+                _interval_relation_expr(
+                    labels[left_index],
+                    labels[right_index],
+                    relations[relation_index],
+                )
+            )
+            relation_index += 1
+
+    return _and_all(*pieces)
+
+
+def _interval_relation_code(
+    left: tuple[int, int],
+    right: tuple[int, int],
+) -> int:
+    left_start, left_end = left
+    right_start, right_end = right
+
+    if left_end + 1 < right_start or right_end + 1 < left_start:
+        return _INTERVAL_RELATION_DISJOINT
+    if left_end + 1 == right_start or right_end + 1 == left_start:
+        return _INTERVAL_RELATION_KISS
+    if left_end == right_start or right_end == left_start:
+        return _INTERVAL_RELATION_TOUCH
+    if left_start < right_end and right_start < left_end:
+        return _INTERVAL_RELATION_OVERLAP
+    raise AssertionError((left, right))
+
+
+def _canonical_interval_relation_signature(
+    intervals: tuple[tuple[int, int], ...],
+) -> tuple[int, tuple[int, ...]]:
+    count = len(intervals)
+    best: tuple[int, ...] | None = None
+
+    for order in permutations(range(count)):
+        candidate = tuple(
+            _interval_relation_code(intervals[order[left_index]], intervals[order[right_index]])
+            for left_index in range(count)
+            for right_index in range(left_index + 1, count)
+        )
+        if best is None or candidate < best:
+            best = candidate
+
+    return count, best or ()
+
+
+def _independent_interval_relation_signatures(
+    reduced_coordinate_max: int = 10,
+) -> set[tuple[int, tuple[int, ...]]]:
+    intervals = [
+        (start, end) for start in range(reduced_coordinate_max + 1) for end in range(start, reduced_coordinate_max + 1)
+    ]
+    signatures: set[tuple[int, tuple[int, ...]]] = set()
+
+    for count in range(4):
+        signatures.update(
+            _canonical_interval_relation_signature(interval_tuple)
+            for interval_tuple in combinations_with_replacement(intervals, count)
+        )
+
+    return signatures
+
+
+def _generate_interval_relation_representative(
+    signature: tuple[int, tuple[int, ...]],
+) -> tuple[tuple[int, int], ...]:
+    generate = core_attr("generate")
+    count, _ = signature
+    methods = {f"{label}{endpoint}": "arbitrary" for label in "ABC"[:count] for endpoint in (0, 1)}
+    result = generate(_interval_tree(count), _interval_signature_constraint(signature), methods)
+    assert len(result) == 1
+    representative = next(iter(result))
+    assert _canonical_interval_relation_signature(representative) == signature
+    return cast("tuple[tuple[int, int], ...]", representative)
+
+
+def _canonical_integer_equality_signature(
+    values: tuple[int, ...],
+) -> tuple[int, tuple[int, ...]]:
+    count = len(values)
+    best: tuple[int, ...] | None = None
+
+    for order in permutations(range(count)):
+        candidate = tuple(
+            0 if values[order[left_index]] == values[order[right_index]] else 1
+            for left_index in range(count)
+            for right_index in range(left_index + 1, count)
+        )
+        if best is None or candidate < best:
+            best = candidate
+
+    return count, best or ()
+
+
+def _independent_integer_equality_signatures(
+    reduced_coordinate_max: int = 4,
+    max_count: int = 4,
+) -> set[tuple[int, tuple[int, ...]]]:
+    values = list(range(reduced_coordinate_max + 1))
+    signatures: set[tuple[int, tuple[int, ...]]] = set()
+
+    for count in range(max_count + 1):
+        signatures.update(
+            _canonical_integer_equality_signature(value_tuple)
+            for value_tuple in combinations_with_replacement(values, count)
+        )
+
+    return signatures
+
+
+def _integer_equality_signature_constraint(signature: tuple[int, tuple[int, ...]]) -> Any:
+    count, equalities = signature
+    labels = "ABCD"[:count]
+    pieces = []
+
+    equality_index = 0
+    for left_index in range(count):
+        for right_index in range(left_index + 1, count):
+            if equalities[equality_index] == 0:
+                pieces.append(Eq(ref(labels[left_index]), ref(labels[right_index])))
+            else:
+                pieces.append(Ne(ref(labels[left_index]), ref(labels[right_index])))
+            equality_index += 1
+
+    return _and_all(*pieces)
+
+
+def _generate_integer_equality_representative(
+    signature: tuple[int, tuple[int, ...]],
+) -> tuple[int, ...]:
+    generate = core_attr("generate")
+    count, _ = signature
+    methods = {label: "arbitrary" for label in "ABCD"[:count]}
+    result = generate(_integer_tree(count), _integer_equality_signature_constraint(signature), methods)
+    assert len(result) == 1
+    representative = next(iter(result))
+    assert _canonical_integer_equality_signature(representative) == signature
+    return cast("tuple[int, ...]", representative)
+
+
+# -------------------------------------------------------------------------
 # Interesting examples
 # -------------------------------------------------------------------------
+
+
+def test_generate_arbitrary_interval_relation_class_representatives_up_to_three_intervals():
+    expected_signatures = _independent_interval_relation_signatures()
+    assert len(expected_signatures) == 25
+
+    representatives = {
+        _generate_interval_relation_representative(signature) for signature in sorted(expected_signatures)
+    }
+
+    assert len(representatives) == len(expected_signatures)
+    assert {
+        _canonical_interval_relation_signature(representative) for representative in representatives
+    } == expected_signatures
+
+
+def test_generate_arbitrary_integer_equality_class_representatives_up_to_four_values():
+    expected_signatures = _independent_integer_equality_signatures()
+    assert len(expected_signatures) == 12
+
+    representatives = {
+        _generate_integer_equality_representative(signature) for signature in sorted(expected_signatures)
+    }
+
+    assert len(representatives) == len(expected_signatures)
+    assert {
+        _canonical_integer_equality_signature(representative) for representative in representatives
+    } == expected_signatures
 
 
 def test_example13():
