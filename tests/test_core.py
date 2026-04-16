@@ -1170,8 +1170,62 @@ def test_generate_arbitrary_is_stable_across_calls():
 
 def test_apply_methods_arbitrary_uses_type_aware_filtering() -> None:
     assignments: list[dict[str, object]] = [{"X": True}, {"X": 1}]
-    reduced = apply_methods(assignments, {"X": "arbitrary"})
+    reduced = apply_methods(assignments, {"X": "arbitrary"}, ["X"])
     assert reduced == [{"X": True}]
+
+
+# --------------------------------------------------------------------------
+# Alpha conversion: renaming labels consistently must not change the output
+# --------------------------------------------------------------------------
+
+
+def test_alpha_conversion_arbitrary_single_label_is_invariant():
+    """Renaming the only label does not change the result for 'arbitrary'."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    result_x = generate(Annotated[bool, Name("X")], true_expr(), {"X": "arbitrary"})
+    result_y = generate(Annotated[bool, Name("Y")], true_expr(), {"Y": "arbitrary"})
+    assert result_x == result_y
+
+
+def test_alpha_conversion_arbitrary_two_labels_different_names_same_output():
+    """Consistently renaming both labels in a constrained tuple gives the same output."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Ne = core_attr("Ne")
+
+    # Original: X first, Y second in tree, constraint, and methods.
+    tree_xy = Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
+    constraint_xy = Ne(ref("X"), ref("Y"))
+    result_xy = generate(tree_xy, constraint_xy, {"X": "arbitrary", "Y": "arbitrary"})
+
+    # Alpha conversion: rename X -> "B" (second alpha), Y -> "A" (first alpha).
+    # The structural order of labels in the tree now has "B" before "A",
+    # which mirrors the original ordering of X before Y.
+    tree_ba = Tuple[Annotated[bool, Name("B")], Annotated[bool, Name("A")]]
+    constraint_ba = Ne(ref("B"), ref("A"))
+    result_ba = generate(tree_ba, constraint_ba, {"B": "arbitrary", "A": "arbitrary"})
+
+    assert result_xy == result_ba
+
+
+def test_alpha_conversion_mixed_methods_preserved_under_renaming():
+    """'all' + 'arbitrary' result is invariant under consistent label renaming."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Ne = core_attr("Ne")
+
+    # Original: X uses "all", Y uses "arbitrary".
+    tree_xy = Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
+    constraint_xy = Ne(ref("X"), ref("Y"))
+    result_xy = generate(tree_xy, constraint_xy, {"X": "all", "Y": "arbitrary"})
+
+    # Alpha conversion: X -> "B", Y -> "A" (structural order preserved: B before A).
+    tree_ba = Tuple[Annotated[bool, Name("B")], Annotated[bool, Name("A")]]
+    constraint_ba = Ne(ref("B"), ref("A"))
+    result_ba = generate(tree_ba, constraint_ba, {"B": "all", "A": "arbitrary"})
+
+    assert result_xy == result_ba
 
 
 def test_generate_non_empty_for_all_super_methods_when_satisfiable():

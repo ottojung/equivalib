@@ -6,8 +6,6 @@ from typing import Protocol, Union, NoReturn
 
 from equivalib.dynamic import denv
 from equivalib.constant import Constant
-from equivalib.link import Link
-from equivalib.typeform import TypeForm
 from equivalib.comparable import Comparable
 from equivalib.super import Super
 from equivalib.sentence import Sentence
@@ -31,23 +29,22 @@ def generic_collapse(self: Sentence, coll_t: type[Collapser]) -> Sentence:
         for k, v in self.assignments.items():
             if isinstance(v, Super):
                 var = v.get_var()
+                super_ty = self.model.get_super_type(v.name)
 
                 if isinstance(var, list):
-                    ty: TypeForm = Link
                     chosen_name, chosen_value = random.choice(var)
                     val: Union[VarName, Constant] = chosen_name or Constant(chosen_value)
                 else:
                     val = coll.collapse(var)
-                    ty = self.model.get_super_type(v.name)
 
-                if isinstance(ty.over, LT.BoolType):
+                if isinstance(super_ty.over, LT.BoolType):
                     constructor: Union[type[bool], type[int]] = bool
-                elif isinstance(ty.over, LT.BoundedIntType):
+                elif isinstance(super_ty.over, LT.BoundedIntType):
                     constructor = int
                 else:
-                    _x: NoReturn = ty.over
-                    raise ValueError(f"Impossible base type {repr(ty)}.")
+                    _x: NoReturn = super_ty.over
+                    raise ValueError(f"Impossible base type {repr(super_ty)}.")
 
-                struct[k] = Structure(constructor, ty.over, tuple([val]))
+                struct[k] = Structure(constructor, super_ty.over, tuple([val]))
 
     return Sentence.from_structure(struct, last_names)

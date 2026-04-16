@@ -25,6 +25,7 @@ from equivalib.core.types import (
     NamedNode,
     IRNode,
     contains_name,
+    labels_in_order,
 )
 from equivalib.core.domains import _values_node
 from equivalib.core.eval import eval_expression
@@ -136,7 +137,7 @@ def generate(
         return set()
 
     # 7. Apply super-method reductions (S*)
-    reduced = apply_methods(assignments, methods)
+    reduced = apply_methods(assignments, methods, labels_in_order(node))
 
     if not reduced:
         return set()

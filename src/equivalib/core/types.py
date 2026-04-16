@@ -110,6 +110,37 @@ def contains_name(node: IRNode) -> bool:
     return bool(labels(node))
 
 
+def labels_in_order(node: IRNode) -> list[str]:
+    """Return labels in the order they first appear during left-to-right DFS traversal.
+
+    This structural order is used to process super-labels during method
+    application so that alpha conversion (consistent renaming of all
+    occurrences of a label) does not change the generated output.
+    """
+    seen: set[str] = set()
+    result: list[str] = []
+
+    def visit(n: IRNode) -> None:
+        if isinstance(n, (NoneNode, BoolNode, LiteralNode, IntRangeNode)):
+            return
+        if isinstance(n, TupleNode):
+            for item in n.items:
+                visit(item)
+        elif isinstance(n, UnionNode):
+            for opt in n.options:
+                visit(opt)
+        elif isinstance(n, NamedNode):
+            if n.label not in seen:
+                seen.add(n.label)
+                result.append(n.label)
+            visit(n.inner)
+        else:
+            impossible(n)
+
+    visit(node)
+    return result
+
+
 def tree_shape(node: IRNode) -> IRNode:
     """Return a structural descriptor of the node for address validation.
 

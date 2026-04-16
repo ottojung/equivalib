@@ -1,9 +1,10 @@
 """Super-method reduction: from S0 (all satisfying assignments) to S* (final set).
 
 Public API:
-    apply_methods(assignments, methods) -> list[dict]
+    apply_methods(assignments, methods, label_order) -> list[dict]
 
-Processes labels in ascending lexicographic order.
+Processes labels in structural tree order (first-appearance order during
+left-to-right DFS traversal of the input type tree).
 """
 
 from __future__ import annotations
@@ -17,26 +18,39 @@ Label: TypeAlias = str
 Method: TypeAlias = Literal["all", "arbitrary", "uniform_random"]
 
 
-def apply_methods(assignments: list[dict[str, object]], methods: Mapping[Label, Method]) -> list[dict[str, object]]:
+def apply_methods(assignments: list[dict[str, object]], methods: Mapping[Label, Method], label_order: list[str]) -> list[dict[str, object]]:
     """Reduce the satisfying-assignment set ``assignments`` using ``methods``.
 
     Labels without an explicit method default to ``"all"``.
 
     Algorithm:
         1. Start with S := assignments.
-        2. Process each label in lexicographic order.
+        2. Process each label in structural tree order (first-appearance order
+           during left-to-right DFS traversal).  This order is independent of
+           label names, ensuring that consistent renaming of all occurrences of
+           a label (alpha conversion) does not change the output.
         3. For ``"all"``: no filtering.
         4. For others: choose a witness value, then filter S.
     """
     if not assignments:
         return []
 
-    # Collect all labels present in any assignment.
-    all_labels = sorted({label for asgn in assignments for label in asgn})
+    # Use structural order: labels appear in the order they were first seen
+    # during a left-to-right DFS traversal of the type tree.  This guarantees
+    # alpha-conversion invariance: renaming labels consistently cannot change
+    # the processing order and therefore cannot change the output.
+    assignment_labels = {label for asgn in assignments for label in asgn}
+    missing_labels = sorted(assignment_labels.difference(label_order))
+    if missing_labels:
+        raise ValueError(
+            "label_order is missing labels present in assignments: "
+            + ", ".join(repr(label) for label in missing_labels)
+        )
+    ordered_labels = [lbl for lbl in label_order if lbl in assignment_labels]
 
     current = list(assignments)
 
-    for label in all_labels:
+    for label in ordered_labels:
         method = methods.get(label, "all")
 
         if method == "all":

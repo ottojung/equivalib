@@ -12,10 +12,10 @@ from equivalib.sentence import Sentence
 class ArbitraryCollapser(Collapser):
     def __init__(self, ctx: Sentence):
         self.solver = cp_model.CpSolver()
-        self.solver.Solve(ctx.model.model)
+        self.solver.solve(ctx.model.model)
 
     def collapse(self, var: Comparable) -> Constant:
-        return Constant(self.solver.Value(var))
+        return Constant(self.solver.value(var))
 
 
 def arbitrary_collapse(self: Sentence) -> Sentence:

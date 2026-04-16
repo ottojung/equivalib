@@ -11,7 +11,7 @@ representing one satisfying assignment.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from ortools.sat.python import cp_model
 
@@ -66,7 +66,7 @@ _ZERO_DIV = "zero_div"  # sentinel: operand is undefined due to division by zero
 # - defined: True (always defined) or a CP-SAT BoolVar that is 1 iff the
 #            expression is well-defined (used for variable-divisor FloorDiv/Mod
 #            to avoid polluting the model with a global rv!=0 constraint)
-_EncResult = tuple[Any, str, bool, Any]
+_EncResult = tuple[Any, str, bool, Literal[True] | cp_model.IntVar]
 
 
 # ---------------------------------------------------------------------------
@@ -288,7 +288,7 @@ def _enum_backtrack(
     constraint: Expression,
     enum_assignment: dict[str, object],
     results: list[dict[str, object]],
-    base_model: Any,
+    base_model: cp_model.CpModel | None,
     sat_var_indices: dict[str, tuple[str, int]],
 ) -> None:
     """Iterate over enum-label combinations; for each, invoke CP-SAT."""
@@ -327,6 +327,7 @@ def _enum_backtrack(
         return
 
     # Solve via CP-SAT for the sat labels.
+    assert base_model is not None
     sat_solutions = _solve_sat(sat_kinds, sat_bounds, all_domains, constraint, enum_assignment, base_model, sat_var_indices)
     for sat_sol in sat_solutions:
         full = dict(enum_assignment)
@@ -342,7 +343,7 @@ def _build_base_model(
     sat_kinds: dict[str, str],
     sat_bounds: dict[str, tuple[int, int]],
     all_domains: dict[str, list[object]],
-) -> tuple[Any, dict[str, tuple[str, int]]]:
+) -> tuple[cp_model.CpModel, dict[str, tuple[str, int]]]:
     """Create a CP-SAT model with one variable per SAT label.
 
     Returns ``(base_model, sat_var_indices)`` where ``sat_var_indices`` maps
@@ -353,21 +354,21 @@ def _build_base_model(
     Per docs/sat.md, this model is cloned once per enum-label combination in
     ``_solve_sat`` so that variable construction overhead is paid only once.
     """
-    model: Any = cp_model.CpModel()
+    model: cp_model.CpModel = cp_model.CpModel()
     sat_var_indices: dict[str, tuple[str, int]] = {}
     for label, kind in sat_kinds.items():
         if kind == _BOOL:
-            var = model.NewBoolVar(label)
+            var = model.new_bool_var(label)
             dom = all_domains.get(label, [])
             if dom == [True]:
-                model.AddBoolAnd([var])
+                model.add_bool_and([var])
             elif dom == [False]:
-                model.AddBoolAnd([~var])
-            sat_var_indices[label] = (_BOOL, var.Index())
+                model.add_bool_and([~var])
+            sat_var_indices[label] = (_BOOL, var.index)
         else:  # int
             lo, hi = sat_bounds[label]
-            var = model.NewIntVar(lo, hi, label)
-            sat_var_indices[label] = (_INT, var.Index())
+            var = model.new_int_var(lo, hi, label)
+            sat_var_indices[label] = (_INT, var.index)
     return model, sat_var_indices
 
 
@@ -377,7 +378,7 @@ def _solve_sat(
     all_domains: dict[str, list[object]],
     constraint: Expression,
     enum_assignment: dict[str, object],
-    base_model: Any,
+    base_model: cp_model.CpModel,
     sat_var_indices: dict[str, tuple[str, int]],
 ) -> list[dict[str, object]]:
     """Clone the base model, add constraints, and enumerate all solutions.
@@ -386,15 +387,15 @@ def _solve_sat(
     constraints) is cloned so that variable construction happens only once per
     call to ``sat_search``, not once per enum-label combination.
     """
-    model: Any = base_model.clone()
+    model: cp_model.CpModel = base_model.clone()
 
     # Rehydrate sat variable references from proto indices in the cloned model.
-    sat_vars: dict[str, Any] = {}
+    sat_vars: dict[str, cp_model.IntVar] = {}
     for label, (kind, idx) in sat_var_indices.items():
         if kind == _BOOL:
-            sat_vars[label] = model.GetBoolVarFromProtoIndex(idx)
+            sat_vars[label] = model.get_bool_var_from_proto_index(idx)
         else:
-            sat_vars[label] = model.GetIntVarFromProtoIndex(idx)
+            sat_vars[label] = model.get_int_var_from_proto_index(idx)
 
     # Encode the constraint into the cloned model.
     counter = [0]  # mutable counter for unique auxiliary variable names
@@ -411,7 +412,7 @@ def _solve_sat(
         def on_solution_callback(self) -> None:
             sol: dict[str, object] = {}
             for name, var in self._variables.items():
-                int_val = self.Value(var)
+                int_val = self.value(var)
                 sol[name] = bool(int_val) if self._kinds[name] == _BOOL else int_val
             self.solutions.append(sol)
 
@@ -421,7 +422,7 @@ def _solve_sat(
     # Keep single-threaded so the solution callback is invoked sequentially,
     # which is required by the ortools callback API.
     solver.parameters.num_workers = 1
-    solver.Solve(model, collector)
+    solver.solve(model, collector)
     return collector.solutions
 
 
@@ -430,8 +431,8 @@ def _solve_sat(
 # ---------------------------------------------------------------------------
 
 def _add_constraint(
-    model: Any,
-    sat_vars: dict[str, Any],
+    model: cp_model.CpModel,
+    sat_vars: dict[str, cp_model.IntVar],
     sat_kinds: dict[str, str],
     enum_assignment: dict[str, object],
     sat_bounds: dict[str, tuple[int, int]],
@@ -442,21 +443,21 @@ def _add_constraint(
 
     if isinstance(expr, BooleanConstant):
         if not expr.value:
-            model.AddBoolOr([])  # always unsatisfiable
+            model.add_bool_or([])  # always unsatisfiable
         return  # BooleanConstant(True): no constraint needed
 
     if isinstance(expr, Reference):
         label = expr.label
         if label in sat_vars and sat_kinds[label] == _BOOL:
             # Boolean SAT variable used directly as a constraint (must be True).
-            model.AddBoolAnd([sat_vars[label]])
+            model.add_bool_and([sat_vars[label]])
             return
         if label in enum_assignment:
             v: object = enum_assignment[label]
             for idx in expr.path:
                 v = v[idx]  # type: ignore[index]
             if v is False:
-                model.AddBoolOr([])  # constraint is False → unsatisfiable
+                model.add_bool_or([])  # constraint is False → unsatisfiable
             # v is True → no constraint needed
             return
         raise ValueError(f"Reference to unknown label {label!r} in _add_constraint")  # should not reach
@@ -469,7 +470,7 @@ def _add_constraint(
     if isinstance(expr, Or):
         b_left = _reify_constraint(model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr.left, counter)
         b_right = _reify_constraint(model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr.right, counter)
-        model.AddBoolOr([b_left, b_right])
+        model.add_bool_or([b_left, b_right])
         return
 
     if isinstance(expr, (Eq, Ne, Lt, Le, Gt, Ge)):
@@ -486,40 +487,40 @@ def _add_constraint(
 # ---------------------------------------------------------------------------
 
 def _reify_constraint(
-    model: Any,
-    sat_vars: dict[str, Any],
+    model: cp_model.CpModel,
+    sat_vars: dict[str, cp_model.IntVar],
     sat_kinds: dict[str, str],
     enum_assignment: dict[str, object],
     sat_bounds: dict[str, tuple[int, int]],
     expr: Expression,
     counter: list[int],
-) -> Any:  # Returns a CP-SAT BoolVar
+) -> cp_model.IntVar:
     """Return a BoolVar that is 1 iff ``expr`` is satisfied."""
 
     if isinstance(expr, BooleanConstant):
         counter[0] += 1
-        b = model.NewBoolVar(f"_c{counter[0]}")
+        b = model.new_bool_var(f"_c{counter[0]}")
         if expr.value:
-            model.AddBoolAnd([b])
+            model.add_bool_and([b])
         else:
-            model.AddBoolAnd([~b])
+            model.add_bool_and([~b])
         return b
 
     if isinstance(expr, Reference):
         label = expr.label
         counter[0] += 1
-        b = model.NewBoolVar(f"_ref{counter[0]}")
+        b = model.new_bool_var(f"_ref{counter[0]}")
         if label in sat_vars and sat_kinds[label] == _BOOL:
             # Reify the boolean SAT variable directly.
-            model.Add(sat_vars[label] == b)
+            model.add(sat_vars[label] == b)
         elif label in enum_assignment:
             v: object = enum_assignment[label]
             for idx in expr.path:
                 v = v[idx]  # type: ignore[index]
             if v is True:
-                model.AddBoolAnd([b])
+                model.add_bool_and([b])
             else:
-                model.AddBoolAnd([~b])
+                model.add_bool_and([~b])
         else:
             raise ValueError(f"Reference to unknown label {label!r} in _reify_constraint")  # should not reach
         return b
@@ -528,18 +529,18 @@ def _reify_constraint(
         b_left = _reify_constraint(model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr.left, counter)
         b_right = _reify_constraint(model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr.right, counter)
         counter[0] += 1
-        b = model.NewBoolVar(f"_and{counter[0]}")
-        model.AddBoolAnd([b_left, b_right]).OnlyEnforceIf(b)
-        model.AddBoolOr([~b_left, ~b_right]).OnlyEnforceIf(~b)
+        b = model.new_bool_var(f"_and{counter[0]}")
+        model.add_bool_and([b_left, b_right]).only_enforce_if(b)
+        model.add_bool_or([~b_left, ~b_right]).only_enforce_if(~b)
         return b
 
     if isinstance(expr, Or):
         b_left = _reify_constraint(model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr.left, counter)
         b_right = _reify_constraint(model, sat_vars, sat_kinds, enum_assignment, sat_bounds, expr.right, counter)
         counter[0] += 1
-        b = model.NewBoolVar(f"_or{counter[0]}")
-        model.AddBoolOr([b_left, b_right]).OnlyEnforceIf(b)
-        model.AddBoolAnd([~b_left, ~b_right]).OnlyEnforceIf(~b)
+        b = model.new_bool_var(f"_or{counter[0]}")
+        model.add_bool_or([b_left, b_right]).only_enforce_if(b)
+        model.add_bool_and([~b_left, ~b_right]).only_enforce_if(~b)
         return b
 
     if isinstance(expr, (Eq, Ne, Lt, Le, Gt, Ge)):
@@ -554,7 +555,7 @@ def _reify_constraint(
 # Arithmetic expression encoding
 # ---------------------------------------------------------------------------
 
-def _and_defined(model: Any, d1: Any, d2: Any, counter: list[int]) -> Any:
+def _and_defined(model: cp_model.CpModel, d1: Literal[True] | cp_model.IntVar, d2: Literal[True] | cp_model.IntVar, counter: list[int]) -> Literal[True] | cp_model.IntVar:
     """Return a condition (True or BoolVar) representing ``d1 AND d2``.
 
     Used to propagate the ``defined`` status through compound arithmetic:
@@ -568,16 +569,16 @@ def _and_defined(model: Any, d1: Any, d2: Any, counter: list[int]) -> Any:
         return d1
     # Both are BoolVars: create a BoolVar that is true iff both d1 and d2 are true.
     counter[0] += 1
-    b = model.NewBoolVar(f"_def{counter[0]}")
+    b = model.new_bool_var(f"_def{counter[0]}")
     # b ⟺ (d1 AND d2): enforce both directions.
-    model.AddBoolAnd([d1, d2]).OnlyEnforceIf(b)   # b => d1 AND d2
-    model.AddBoolOr([~d1, ~d2, b])                  # d1 AND d2 => b
+    model.add_bool_and([d1, d2]).only_enforce_if(b)   # b => d1 AND d2
+    model.add_bool_or([~d1, ~d2, b])                  # d1 AND d2 => b
     return b
 
 
 def _encode_arith(
-    model: Any,
-    sat_vars: dict[str, Any],
+    model: cp_model.CpModel,
+    sat_vars: dict[str, cp_model.IntVar],
     sat_kinds: dict[str, str],
     enum_assignment: dict[str, object],
     sat_bounds: dict[str, tuple[int, int]],
@@ -665,8 +666,8 @@ def _encode_arith(
         # Both are CP-SAT variables: need auxiliary variable.
         lo, hi = _compute_bounds(expr, sat_bounds, enum_assignment)
         counter[0] += 1
-        aux = model.NewIntVar(lo, hi, f"_mul{counter[0]}")
-        model.AddMultiplicationEquality(aux, [lv, rv])
+        aux = model.new_int_var(lo, hi, f"_mul{counter[0]}")
+        model.add_multiplication_equality(aux, [lv, rv])
         dd = _and_defined(model, ld, rd, counter)
         return (aux, _INT, False, dd)
 
@@ -753,7 +754,7 @@ def _floor_div_remainder_bounds(div_lo: int, div_hi: int) -> tuple[int, int]:
 
 
 def _encode_floor_div_or_mod(
-    model: Any,
+    model: cp_model.CpModel,
     lv: Any,
     rv: Any,
     lc: bool,
@@ -764,7 +765,7 @@ def _encode_floor_div_or_mod(
     q_hi: int,
     counter: list[int],
     tag: str,
-) -> tuple[Any, Any, Any]:
+) -> tuple[cp_model.IntVar, cp_model.IntVar, Literal[True] | cp_model.IntVar]:
     """Encode Python floor-division identity ``a = b*q + r`` in ``model``.
 
     Returns ``(q, r, div_defined)`` where ``q`` and ``r`` are CP-SAT IntVars
@@ -786,19 +787,19 @@ def _encode_floor_div_or_mod(
     """
     safe_r_lo, safe_r_hi = _floor_div_remainder_bounds(r_lo, r_hi)
     counter[0] += 1
-    q = model.NewIntVar(q_lo, q_hi, f"_{tag}_q{counter[0]}")
+    q = model.new_int_var(q_lo, q_hi, f"_{tag}_q{counter[0]}")
     counter[0] += 1
-    r = model.NewIntVar(safe_r_lo, safe_r_hi, f"_{tag}_r{counter[0]}")
+    r = model.new_int_var(safe_r_lo, safe_r_hi, f"_{tag}_r{counter[0]}")
     if rc:
         assert isinstance(rv, int)  # mypy narrowing: rc guarantees rv is a constant int
         if rv > 0:
-            model.Add(r >= 0)
-            model.Add(r < rv)
+            model.add(r >= 0)
+            model.add(r < rv)
         else:
-            model.Add(r > rv)
-            model.Add(r <= 0)
+            model.add(r > rv)
+            model.add(r <= 0)
         # a = b*q + r (linear since b is a constant)
-        model.Add(rv * q + r == lv)
+        model.add(rv * q + r == lv)
         # Constant non-zero divisor: always well-defined (zero was caught earlier).
         return (q, r, True)
     else:
@@ -809,60 +810,60 @@ def _encode_floor_div_or_mod(
         counter[0] += 1
         bq_lo = min(r_lo * q_lo, r_lo * q_hi, r_hi * q_lo, r_hi * q_hi)
         bq_hi = max(r_lo * q_lo, r_lo * q_hi, r_hi * q_lo, r_hi * q_hi)
-        bq = model.NewIntVar(bq_lo, bq_hi, f"_{tag}_bq{counter[0]}")
+        bq = model.new_int_var(bq_lo, bq_hi, f"_{tag}_bq{counter[0]}")
         # bq = rv * q unconditionally; when rv=0 this forces bq=0 for any q.
-        model.AddMultiplicationEquality(bq, [rv, q])
+        model.add_multiplication_equality(bq, [rv, q])
 
         divisor_domain_includes_zero = r_lo <= 0 <= r_hi
         if not divisor_domain_includes_zero:
             # Zero is outside the divisor's domain: use simple unconditional encoding.
-            model.Add(bq + r == lv)
+            model.add(bq + r == lv)
             counter[0] += 1
-            b_pos = model.NewBoolVar(f"_{tag}_bpos{counter[0]}")
-            model.Add(rv >= 1).OnlyEnforceIf(b_pos)
-            model.Add(rv <= -1).OnlyEnforceIf(~b_pos)
-            model.Add(r >= 0).OnlyEnforceIf(b_pos)
-            model.Add(r < rv).OnlyEnforceIf(b_pos)
-            model.Add(r <= 0).OnlyEnforceIf(~b_pos)
-            model.Add(r > rv).OnlyEnforceIf(~b_pos)
+            b_pos = model.new_bool_var(f"_{tag}_bpos{counter[0]}")
+            model.add(rv >= 1).only_enforce_if(b_pos)
+            model.add(rv <= -1).only_enforce_if(~b_pos)
+            model.add(r >= 0).only_enforce_if(b_pos)
+            model.add(r < rv).only_enforce_if(b_pos)
+            model.add(r <= 0).only_enforce_if(~b_pos)
+            model.add(r > rv).only_enforce_if(~b_pos)
             return (q, r, True)  # always defined since 0 is not in domain
 
         # Zero is in the divisor's domain: introduce a ``div_defined`` BoolVar
         # and make all arithmetic constraints conditional on it.
         counter[0] += 1
-        div_defined = model.NewBoolVar(f"_{tag}_defined{counter[0]}")
+        div_defined = model.new_bool_var(f"_{tag}_defined{counter[0]}")
         counter[0] += 1
-        b_pos = model.NewBoolVar(f"_{tag}_bpos{counter[0]}")
+        b_pos = model.new_bool_var(f"_{tag}_bpos{counter[0]}")
         counter[0] += 1
-        b_neg = model.NewBoolVar(f"_{tag}_bneg{counter[0]}")
+        b_neg = model.new_bool_var(f"_{tag}_bneg{counter[0]}")
 
         # b_pos + b_neg == div_defined requires their integer sum to equal div_defined:
         #   div_defined=1 requires b_pos + b_neg = 1 (exactly one is true)
         #   div_defined=0 requires b_pos + b_neg = 0 (both are false)
-        model.Add(b_pos + b_neg == div_defined)
+        model.add(b_pos + b_neg == div_defined)
 
         # Sign constraints (only active when the corresponding flag is set).
-        model.Add(rv >= 1).OnlyEnforceIf(b_pos)
-        model.Add(rv <= -1).OnlyEnforceIf(b_neg)
+        model.add(rv >= 1).only_enforce_if(b_pos)
+        model.add(rv <= -1).only_enforce_if(b_neg)
         # When div_defined=False: rv must be 0.
-        model.Add(rv == 0).OnlyEnforceIf(~div_defined)
+        model.add(rv == 0).only_enforce_if(~div_defined)
 
         # Euclidean identity: only enforced when div_defined (avoids unnecessary
         # constraints that would make rv=0 assignments infeasible).
-        model.Add(bq + r == lv).OnlyEnforceIf(div_defined)
+        model.add(bq + r == lv).only_enforce_if(div_defined)
 
         # Remainder sign: r >= 0 when b > 0; r <= 0 when b < 0.
-        model.Add(r >= 0).OnlyEnforceIf(b_pos)
-        model.Add(r < rv).OnlyEnforceIf(b_pos)
-        model.Add(r <= 0).OnlyEnforceIf(b_neg)
-        model.Add(r > rv).OnlyEnforceIf(b_neg)
+        model.add(r >= 0).only_enforce_if(b_pos)
+        model.add(r < rv).only_enforce_if(b_pos)
+        model.add(r <= 0).only_enforce_if(b_neg)
+        model.add(r > rv).only_enforce_if(b_neg)
 
         # Pin auxiliary variables to a fixed state when div_defined=False.
         # This prevents CP-SAT from enumerating multiple (q, r) combinations for
         # the same label assignment when the divisor is zero (which would cause
         # duplicate entries in sat_search results and bias uniform_random sampling).
-        model.Add(q == 0).OnlyEnforceIf(~div_defined)
-        model.Add(r == 0).OnlyEnforceIf(~div_defined)
+        model.add(q == 0).only_enforce_if(~div_defined)
+        model.add(r == 0).only_enforce_if(~div_defined)
 
         return (q, r, div_defined)
 
@@ -954,7 +955,7 @@ def _op_of(expr: Expression) -> str:
 
 
 def _add_comparison(
-    model: Any,
+    model: cp_model.CpModel,
     left: _EncResult,
     right: _EncResult,
     op: str,
@@ -966,20 +967,20 @@ def _add_comparison(
     # For a hard constraint, the expression must be well-defined.
     # If either operand may be undefined (has a BoolVar ``defined``), require it.
     if ld is not True:
-        model.AddBoolAnd([ld])
+        model.add_bool_and([ld])
     if rd is not True:
-        model.AddBoolAnd([rd])
+        model.add_bool_and([rd])
 
     # Zero-division sentinel: the expression is undefined, so the comparison
     # is always False (no valid assignment can satisfy it).
     if _ZERO_DIV in (lk, rk):
-        model.AddBoolOr([])  # always unsatisfiable
+        model.add_bool_or([])  # always unsatisfiable
         return
 
     # Type mismatch: bool vs int → Eq is always False, Ne is always True.
     if (lk == _BOOL and rk == _INT) or (lk == _INT and rk == _BOOL):
         if op == "eq":
-            model.AddBoolOr([])  # always unsatisfiable
+            model.add_bool_or([])  # always unsatisfiable
         # ne: always satisfied — no constraint needed
         return
 
@@ -989,42 +990,42 @@ def _add_comparison(
             # Both are Python values; use structural equality.
             result = _structural_cmp(lv, rv, op)
             if not result:
-                model.AddBoolOr([])
+                model.add_bool_or([])
         elif op == "eq":
             # One is a CP-SAT variable, other is an "other"-typed Python value:
             # structural type mismatch — can never be equal.
-            model.AddBoolOr([])
+            model.add_bool_or([])
             # ne: always satisfied
         return
 
     # Same kind (both bool or both int).
     if lc and rc:
         if not _const_cmp(lv, rv, op):
-            model.AddBoolOr([])
+            model.add_bool_or([])
         return
 
     # At least one side is a CP-SAT expression.
     if op == "eq":
-        model.Add(lv == rv)
+        model.add(lv == rv)
     elif op == "ne":
-        model.Add(lv != rv)
+        model.add(lv != rv)
     elif op == "lt":
-        model.Add(lv < rv)
+        model.add(lv < rv)
     elif op == "le":
-        model.Add(lv <= rv)
+        model.add(lv <= rv)
     elif op == "gt":
-        model.Add(lv > rv)
+        model.add(lv > rv)
     elif op == "ge":
-        model.Add(lv >= rv)
+        model.add(lv >= rv)
 
 
 def _reify_comparison(
-    model: Any,
+    model: cp_model.CpModel,
     left: _EncResult,
     right: _EncResult,
     op: str,
     counter: list[int],
-) -> Any:  # Returns a CP-SAT BoolVar
+) -> cp_model.IntVar:
     """Return a BoolVar that is 1 iff the comparison holds.
 
     The ``defined`` field of each operand is respected: if either operand is
@@ -1038,11 +1039,11 @@ def _reify_comparison(
     rv, rk, rc, rd = right
 
     counter[0] += 1
-    b = model.NewBoolVar(f"_cmp{counter[0]}")
+    b = model.new_bool_var(f"_cmp{counter[0]}")
 
     # Zero-division sentinel: the operand is undefined; the comparison is always False.
     if _ZERO_DIV in (lk, rk):
-        model.AddBoolAnd([~b])
+        model.add_bool_and([~b])
         return b
 
     # Two-phase defined-condition handling:
@@ -1054,25 +1055,25 @@ def _reify_comparison(
     not_b_and_defined: list[Any] = [~b]
     if ld is not True:
         not_b_and_defined.append(ld)
-        model.AddBoolAnd([ld]).OnlyEnforceIf(b)  # b ⟹ ld
+        model.add_bool_and([ld]).only_enforce_if(b)  # b ⟹ ld
     if rd is not True:
         not_b_and_defined.append(rd)
-        model.AddBoolAnd([rd]).OnlyEnforceIf(b)  # b ⟹ rd
+        model.add_bool_and([rd]).only_enforce_if(b)  # b ⟹ rd
 
     # Type mismatch: bool vs int.
     if (lk == _BOOL and rk == _INT) or (lk == _INT and rk == _BOOL):
         if op == "eq":
-            model.AddBoolAnd([~b])  # always False (undefined ⇒ False too)
+            model.add_bool_and([~b])  # always False (undefined ⇒ False too)
         else:  # ne
             # True only when both operands are defined; an undefined operand
             # (e.g. FloorDiv with a zero-able variable divisor) must yield False
             # so that short-circuiting under Or works correctly.
             defs = [x for x in (ld, rd) if x is not True]
             if defs:
-                model.AddBoolAnd([b]).OnlyEnforceIf(defs)
-                model.AddBoolAnd([~b]).OnlyEnforceIf([~d for d in defs])
+                model.add_bool_and([b]).only_enforce_if(defs)
+                model.add_bool_and([~b]).only_enforce_if([~d for d in defs])
             else:
-                model.AddBoolAnd([b])  # both operands always defined
+                model.add_bool_and([b])  # both operands always defined
         return b
 
     # "other"-typed operands.
@@ -1086,42 +1087,42 @@ def _reify_comparison(
             # True only when both operands are defined (same reasoning as above).
             defs = [x for x in (ld, rd) if x is not True]
             if defs:
-                model.AddBoolAnd([b]).OnlyEnforceIf(defs)
-                model.AddBoolAnd([~b]).OnlyEnforceIf([~d for d in defs])
+                model.add_bool_and([b]).only_enforce_if(defs)
+                model.add_bool_and([~b]).only_enforce_if([~d for d in defs])
             else:
-                model.AddBoolAnd([b])
+                model.add_bool_and([b])
         else:
-            model.AddBoolAnd([~b])  # always False
+            model.add_bool_and([~b])  # always False
         return b
 
     # Same kind, both constants.
     if lc and rc:
         if _const_cmp(lv, rv, op):
-            model.AddBoolAnd([b])
+            model.add_bool_and([b])
         else:
-            model.AddBoolAnd([~b])
+            model.add_bool_and([~b])
         return b
 
     # At least one CP-SAT expression.
     # For the "~b ⟹ ~comparison" direction, only enforce when operands are defined.
     if op == "eq":
-        model.Add(lv == rv).OnlyEnforceIf(b)
-        model.Add(lv != rv).OnlyEnforceIf(not_b_and_defined)
+        model.add(lv == rv).only_enforce_if(b)
+        model.add(lv != rv).only_enforce_if(not_b_and_defined)
     elif op == "ne":
-        model.Add(lv != rv).OnlyEnforceIf(b)
-        model.Add(lv == rv).OnlyEnforceIf(not_b_and_defined)
+        model.add(lv != rv).only_enforce_if(b)
+        model.add(lv == rv).only_enforce_if(not_b_and_defined)
     elif op == "lt":
-        model.Add(lv < rv).OnlyEnforceIf(b)
-        model.Add(lv >= rv).OnlyEnforceIf(not_b_and_defined)
+        model.add(lv < rv).only_enforce_if(b)
+        model.add(lv >= rv).only_enforce_if(not_b_and_defined)
     elif op == "le":
-        model.Add(lv <= rv).OnlyEnforceIf(b)
-        model.Add(lv > rv).OnlyEnforceIf(not_b_and_defined)
+        model.add(lv <= rv).only_enforce_if(b)
+        model.add(lv > rv).only_enforce_if(not_b_and_defined)
     elif op == "gt":
-        model.Add(lv > rv).OnlyEnforceIf(b)
-        model.Add(lv <= rv).OnlyEnforceIf(not_b_and_defined)
+        model.add(lv > rv).only_enforce_if(b)
+        model.add(lv <= rv).only_enforce_if(not_b_and_defined)
     elif op == "ge":
-        model.Add(lv >= rv).OnlyEnforceIf(b)
-        model.Add(lv < rv).OnlyEnforceIf(not_b_and_defined)
+        model.add(lv >= rv).only_enforce_if(b)
+        model.add(lv < rv).only_enforce_if(not_b_and_defined)
     return b
 
 

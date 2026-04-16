@@ -1,13 +1,18 @@
 ## Copyright (C) 2023  Otto Jung
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional, Dict, Tuple, NoReturn
+from typing import TYPE_CHECKING, Optional, Dict, Tuple, NoReturn
 from ortools.sat.python import cp_model
 
 from equivalib.comparable import Comparable
 
 import equivalib.labelled_type as LT
+
+if TYPE_CHECKING:
+    import numpy as np
 
 
 @dataclass
@@ -35,14 +40,14 @@ class SentenceModel:
     def add_variable(self, name: str, t: LT.SuperType) -> None:
         if isinstance(t.over, LT.BoundedIntType):
             low, high = (t.over.range.min, t.over.range.max)
-            var = self.model.NewIntVar(low, high, name)
+            var = self.model.new_int_var(low, high, name)
         elif isinstance(t.over, LT.BoolType):
-            var = self.model.NewBoolVar(name)
+            var = self.model.new_bool_var(name)
         else:
             _x: NoReturn = t.over
             raise ValueError(f"Impossible base type {repr(t)}.")
 
-        var_index: int = var.Index()
+        var_index: int = var.index
         self._names[name] = (t, var_index)
 
 
@@ -50,11 +55,11 @@ class SentenceModel:
         (t, index) = self._names[name]
 
         if isinstance(t.over, LT.BoundedIntType):
-            ret1: cp_model.IntVar = self.model.GetIntVarFromProtoIndex(index)
+            ret1: cp_model.IntVar = self.model.get_int_var_from_proto_index(index)
             return ret1
 
         if isinstance(t.over, LT.BoolType):
-            ret2: cp_model.BoolVarT = self.model.GetBoolVarFromProtoIndex(index)
+            ret2: cp_model.IntVar = self.model.get_bool_var_from_proto_index(index)
             return ret2
 
         _x: NoReturn = t.over
@@ -66,18 +71,18 @@ class SentenceModel:
         return t
 
 
-    def add(self, expr: object) -> None:
-        self.model.Add(expr)
+    def add(self, expr: cp_model.BoundedLinearExpression | bool | np.bool_) -> None:
+        self.model.add(expr)
 
 
     def check_satisfiability(self) -> bool:
         solver = cp_model.CpSolver()
-        status = solver.Solve(self.model)
+        status = solver.solve(self.model)
         return status in (cp_model.OPTIMAL, cp_model.FEASIBLE)
 
 
     @property
-    def model(self):
+    def model(self) -> cp_model.CpModel:
         if self._model is None:
             self._model = cp_model.CpModel()
 

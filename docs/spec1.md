@@ -448,7 +448,11 @@ S0 = Sat(tree, constraint)
 
 If `S0` is empty, the result is `{}`.
 
-Otherwise, let `S := S0` and process every super label in ascending lexicographic order of the label string.
+Otherwise, let `S := S0` and process every super label in **structural tree order**: the order in which labels first appear during a left-to-right depth-first traversal of `tree`.
+
+For example, in `Tuple[Annotated[bool, Name("A")], Annotated[bool, Name("B")]]`, label `"A"` is encountered before `"B"`, so `"A"` is processed first regardless of alphabetic or any other ordering.
+
+This ordering is based on the *position* of the label in the tree, not on its string name.  This guarantees **alpha-conversion invariance**: consistently renaming all occurrences of a label cannot change the processing order, and therefore cannot change the output set.
 
 For any current assignment set `S` and label `L`, define:
 
@@ -541,7 +545,115 @@ This definition implies the key invariant:
 
 Methods may change completeness, determinism, and distribution, but they MUST NOT introduce emptiness when satisfying assignments already exist.
 
-## Examples
+## Precise Input→Output Semantics
+
+### High-level description
+
+`generate(tree, constraint, methods)` returns the set of all concrete Python values of the type denoted by `tree` that can be produced by at least one satisfying assignment after applying the chosen witness-selection methods.
+
+Intuitively:
+
+1. The tree defines the *shape* of the output and the *domains* of named labels.
+2. The constraint filters which combinations of label values are admissible.
+3. Each method decides whether a label contributes all of its admissible variation to the output (`"all"`) or is collapsed to a single canonical witness (`"arbitrary"`, `"uniform_random"`).
+4. The output is the union of all concrete values produced by every remaining admissible assignment.
+
+Named labels are the variables of the system.  Unnamed subtrees always expand exhaustively.
+
+### Mathematical formulation
+
+**Input:**
+
+- `tree` — a `TypeTree` expression (from the TypeTree grammar in this document)
+- `constraint` — an `Expression` AST node
+- `methods` — a partial map from `Label` to `Method`; missing labels default to `"all"`
+
+**Output:**
+
+- A finite set `R ⊆ 𝒱`, where `𝒱` is the set of all runtime Python values
+
+**Notation:** let `𝒱(t)` denote `values(t)` (the denotation of an unnamed tree `t`).
+
+**Step 1 — Labels and domains.**
+
+Let `L = labels(tree)` be the set of labels in the tree.
+
+For each label `ℓ ∈ L`, let:
+
+```text
+domain(ℓ) = ⋂ { values(occurrence-domain(ℓ, i)) | i is an occurrence of ℓ in tree }
+```
+
+where `occurrence-domain(ℓ, i)` is the tree obtained by stripping `Name(ℓ)` from the `i`-th named occurrence.
+
+**Step 2 — Satisfying assignments.**
+
+A *candidate assignment* is a total function `σ : L → 𝒱` such that:
+
+- for every `ℓ ∈ L`: `σ(ℓ) ∈ domain(ℓ)`
+- `eval(constraint, σ) = True`
+
+Let `S0` be the set of all candidate assignments:
+
+```text
+S0 = { σ : L → 𝒱 | (∀ ℓ ∈ L. σ(ℓ) ∈ domain(ℓ)) ∧ eval(constraint, σ) = True }
+```
+
+If `S0 = ∅` then `R = ∅` and generation is complete.
+
+**Step 3 — Method application.**
+
+Let `super_labels` be the labels with a non-`"all"` method, ordered by their first-appearance position in `tree` (structural tree order).
+
+Let `S := S0`.
+
+For each `ℓ ∈ super_labels` in structural order:
+
+```text
+v  = method_select(method(ℓ), ℓ, S)
+S  = { σ ∈ S | σ(ℓ) = v }
+```
+
+where `method_select` is defined by the method:
+
+- `"arbitrary"`: `v` is the canonical minimum of `{ σ(ℓ) | σ ∈ S }` under canonical value order
+- `"uniform_random"`: `v` is sampled from `{ σ(ℓ) | σ ∈ S }` weighted by how many assignments support each value
+
+Let `S*` be the value of `S` after all super labels have been processed.
+
+**Step 4 — Concretization.**
+
+```text
+R = ⋃ { concretize(tree, σ) | σ ∈ S* }
+```
+
+**Structural order (alpha-conversion invariance).**
+
+Super labels are processed in the order they first appear during a left-to-right depth-first traversal of `tree`.  This order is a property of the *tree structure*, not of the label strings.  Therefore:
+
+> Consistently renaming all occurrences of any label (alpha conversion) MUST NOT change the output set `R` for deterministic selection methods such as `"all"` and `"arbitrary"`.
+>
+> For `"uniform_random"`, alpha conversion MUST NOT change the set of possible outputs or the sampling distribution induced by the same implementation. It does not require identical sampled outputs across runs unless the RNG seed and implementation-defined iteration order are held fixed.
+
+A compliant implementation MUST guarantee this invariance at the appropriate semantic level for the selected method.
+
+**Full formula.**
+
+Combining all steps:
+
+```text
+generate(tree, constraint, methods)
+  = ⋃ { concretize(tree, σ)
+        | σ ∈ reduce_by_methods(Sat(tree, constraint), methods, structural_order(tree)) }
+```
+
+where:
+
+- `Sat(tree, constraint)` is the set of all admissible assignments as defined in Step 2
+- `reduce_by_methods` applies each super label's method in structural tree order as defined in Step 3
+- `concretize` is defined in the "Concretization Under an Assignment" section
+
+
 
 The `"all"` examples below are exact.
 
