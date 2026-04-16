@@ -166,6 +166,40 @@ The solution callback approach collects every satisfying assignment in a single 
 
 A compliant implementation MUST enable `enumerate_all_solutions` when computing the complete satisfying-assignment set `Sat(tree, constraint)`.
 
+## Selective Enumeration Based on Methods
+
+A compliant implementation MUST NOT enumerate all solutions when full enumeration is unnecessary.
+
+Full enumeration (via `enumerate_all_solutions`) is only required when at least one SAT label has method `"all"` or method `"uniform_random"`:
+
+- **`"all"`**: every satisfying assignment for that label must appear in the output; skipping any solution would be incorrect.
+- **`"uniform_random"`**: the probability of selecting a value must be proportional to the number of satisfying assignments supporting it; all solutions must be counted for correct weighting.
+
+When every SAT label has method `"arbitrary"`, full enumeration MUST NOT be performed.  Instead, the implementation MUST find the canonical-minimum satisfying assignment via sequential minimization:
+
+1. For each SAT label in structural tree order:
+   a. Clone the working model and add a `minimize(label_var)` objective.
+   b. Call `solver.Solve(opt_model)`.  If the result is not `OPTIMAL`, return no solutions.
+   c. Read the optimal value; record it in the assignment.
+   d. Add an equality constraint fixing the label to that value in the working model.
+2. Return the single assignment.
+
+This is correct because:
+- `minimize(bool_var)` returns `0` (`False`), which is canonical-first for booleans.
+- `minimize(int_var)` returns the smallest integer value, which is canonical-first for integers.
+- Sequential fixing ensures each subsequent label is minimized within the set of solutions already compatible with all earlier choices, exactly mirroring the `apply_methods("arbitrary")` sequential-filter logic.
+
+The sequential-minimization path requires at most `n` solver calls (one per SAT label), each solving an optimization problem, which is significantly faster than enumerating all `O(2^n)` satisfying assignments.
+
+The condition for choosing the mode is:
+
+```python
+needs_all_solutions = any(
+    methods.get(label, "all") != "arbitrary"
+    for label in sat_labels
+)
+```
+
 ## Incremental Constraint Addition
 
 The legacy adoption pattern adds one constraint at a time during dataclass field construction and re-solves after each addition.
@@ -242,7 +276,8 @@ This reduces model size and solver runtime.
 | Check satisfiability via `CpSolver().Solve(model)` and `OPTIMAL`/`FEASIBLE` | MUST |
 | Clone models for branches instead of mutating shared state | MUST |
 | Persist variable proto indices across solver calls within a branch | MUST |
-| Use solution callback with `enumerate_all_solutions` for full enumeration | MUST |
+| Use solution callback with `enumerate_all_solutions` only when any SAT label has method `"all"` or `"uniform_random"` | MUST |
+| Use sequential minimization (not full enumeration) when all SAT labels have method `"arbitrary"` | MUST |
 | Select `"arbitrary"` witness by canonical value order, not solver callback order | MUST |
 | Encode `And`/`Or` as CP-SAT constraints; encode arithmetic (`Neg`, `Add`, etc.) as linear expressions | MUST |
 | Collect all constraints before solving instead of re-solving per comparison | SHOULD |
@@ -252,3 +287,4 @@ This reduces model size and solver runtime.
 | Apply `num_workers > 1` without breaking determinism guarantees | MUST NOT |
 | Rebuild variables from scratch after model cloning | MUST NOT |
 | Use any solver other than `ortools` as the primary backend | MUST NOT |
+| Enumerate all solutions when all SAT labels have method `"arbitrary"` | MUST NOT |
