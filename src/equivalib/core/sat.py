@@ -503,6 +503,12 @@ def _solve_sat(
             opt_model.minimize(opt_var)
             solver = cp_model.CpSolver()
             status = solver.solve(opt_model)
+            # For a minimization problem with no time/memory limits, CP-SAT
+            # returns OPTIMAL when the minimum is proven (the only success
+            # status without resource constraints).  FEASIBLE would mean
+            # optimality was not proven (i.e. the solver was interrupted), in
+            # which case the value may not be the true minimum and accepting it
+            # could violate the canonical-order requirement of "arbitrary".
             if status != cp_model.OPTIMAL:
                 return []
             optimal_val = solver.value(opt_var)

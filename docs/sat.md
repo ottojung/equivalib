@@ -179,7 +179,7 @@ When every SAT label has method `"arbitrary"`, full enumeration MUST NOT be perf
 
 1. For each SAT label in structural tree order:
    a. Clone the working model and add a `minimize(label_var)` objective.
-   b. Call `solver.Solve(opt_model)`.  If the result is not `OPTIMAL`, return no solutions.
+   b. Call `solver.Solve(opt_model)`.  The implementation MUST check for `OPTIMAL` status (not `FEASIBLE`) because the value MUST be the proven minimum to satisfy the canonical-order requirement of `"arbitrary"`.  `FEASIBLE` would indicate the solver was interrupted before proving optimality and the value may not be the true minimum.  If the result is not `OPTIMAL`, return no solutions.
    c. Read the optimal value; record it in the assignment.
    d. Add an equality constraint fixing the label to that value in the working model.
 2. Return the single assignment.
