@@ -508,15 +508,11 @@ def _solve_sat(
             optimal_val = solver.value(opt_var)
             if kind == _BOOL:
                 assignment[label] = bool(optimal_val)
-                # Fix this label's value in the working model for subsequent labels.
-                if optimal_val == 0:
-                    model.add_bool_and([~var])
-                else:
-                    model.add_bool_and([var])
             else:
                 assignment[label] = optimal_val
-                model.add(var == optimal_val)
-        return [assignment] if assignment else []
+            # Fix this label's value in the working model for subsequent labels.
+            model.add(var == optimal_val)
+        return [assignment]
 
 
 # ---------------------------------------------------------------------------
