@@ -1979,8 +1979,8 @@ def test_sat_search_enum_label_uniform_random_forces_full_enumeration():
     ))
     constraint = BooleanConstant(True)
 
-    # uniform_random on the enum label → full SAT enumeration per branch
-    full_results = _sat_search(node, constraint, {"X": "uniform_random", "E": "uniform_random"})
+    # uniform_random on the enum label alone → full SAT enumeration per branch
+    full_results = _sat_search(node, constraint, {"X": "arbitrary", "E": "uniform_random"})
     # arbitrary on all labels → sequential minimization per branch
     arb_results = _sat_search(node, constraint, {"X": "arbitrary", "E": "arbitrary"})
 
