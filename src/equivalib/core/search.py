@@ -25,12 +25,14 @@ def search(
 
     Delegates to the CP-SAT backend (``sat_search``) which encodes
     boolean and integer-range labels as CP-SAT variables.  When
-    ``methods`` indicates that all SAT labels use ``"arbitrary"``, only
-    the canonical-minimum satisfying assignment is found (via sequential
-    minimization) rather than enumerating all solutions.  Full
-    enumeration is performed when any SAT label requires it (method
-    ``"all"`` or ``"uniform_random"``).  Labels with other domain types
-    (string/None/tuple literals, mixed unions) are enumerated in Python
-    with partial-evaluation pruning.
+    ``methods`` indicates that every label (SAT and enum alike) uses
+    ``"arbitrary"``, only the canonical-minimum satisfying assignment is
+    found (via sequential minimization) rather than enumerating all
+    solutions.  Full enumeration is performed when any label — SAT or
+    enum — has method ``"all"`` or ``"uniform_random"``, because
+    ``"uniform_random"`` weighting requires correct per-value
+    multiplicity counts from the full satisfying-assignment set.
+    Labels with other domain types (string/None/tuple literals, mixed
+    unions) are enumerated in Python with partial-evaluation pruning.
     """
     return sat_search(node, constraint, methods)

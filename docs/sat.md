@@ -170,12 +170,12 @@ A compliant implementation MUST enable `enumerate_all_solutions` when computing 
 
 A compliant implementation MUST NOT enumerate all solutions when full enumeration is unnecessary.
 
-Full enumeration (via `enumerate_all_solutions`) is only required when at least one SAT label has method `"all"` or method `"uniform_random"`:
+Full enumeration (via `enumerate_all_solutions`) is only required when at least one label (SAT *or* enum) has method `"all"` or method `"uniform_random"`:
 
 - **`"all"`**: every satisfying assignment for that label must appear in the output; skipping any solution would be incorrect.
-- **`"uniform_random"`**: the probability of selecting a value must be proportional to the number of satisfying assignments supporting it; all solutions must be counted for correct weighting.
+- **`"uniform_random"`**: the probability of selecting a value must be proportional to the number of satisfying assignments supporting it; all solutions must be counted for correct weighting.  This applies regardless of whether the `"uniform_random"` label is a SAT label or an enum label — an enum label can be supported by different numbers of SAT solutions for each of its values, and collapsing those SAT solutions to a single canonical-minimum per enum branch would give every enum value equal weight, corrupting the distribution.
 
-When every SAT label has method `"arbitrary"`, full enumeration MUST NOT be performed.  Instead, the implementation MUST find the canonical-minimum satisfying assignment via sequential minimization:
+When every label in the problem (both SAT labels and enum labels) has method `"arbitrary"`, full enumeration MUST NOT be performed.  Instead, the implementation MUST find the canonical-minimum satisfying assignment via sequential minimization:
 
 1. For each SAT label in structural tree order:
    a. Clone the working model and add a `minimize(label_var)` objective.
@@ -194,9 +194,10 @@ The sequential-minimization path requires at most `n` solver calls (one per SAT 
 The condition for choosing the mode is:
 
 ```python
+all_labels = list(sat_labels) + enum_labels
 needs_all_solutions = any(
     methods.get(label, "all") != "arbitrary"
-    for label in sat_labels
+    for label in all_labels
 )
 ```
 

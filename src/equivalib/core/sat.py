@@ -205,13 +205,26 @@ def sat_search(
     results: list[dict[str, object]] = []
 
     # Determine whether full enumeration is needed.
-    # Full enumeration is required when any SAT label has method "all" (the
-    # default) or "uniform_random".  When every SAT label has method
-    # "arbitrary", the canonical-minimum satisfying assignment can be found
-    # via sequential minimization without enumerating all solutions.
+    # Full enumeration is required when any label (SAT *or* enum) has method
+    # "all" (the default) or "uniform_random".
+    #
+    # For "all": every satisfying assignment must appear in the output.
+    #
+    # For "uniform_random": the probability of selecting a value must be
+    # proportional to the number of satisfying assignments supporting it.
+    # This multiplicity comes from the full SAT enumeration — even if the
+    # "uniform_random" label is an enum label, each enum value may be
+    # supported by a *different* number of SAT solutions, so collapsing SAT
+    # solutions to a single canonical-minimum assignment per enum branch would
+    # give each enum value equal weight regardless of how many SAT solutions
+    # support it, corrupting the distribution.
+    #
+    # Only when every label across the whole problem uses "arbitrary" can we
+    # safely skip full enumeration and use sequential minimization instead.
+    all_labels = list(sat_kinds) + enum_labels
     needs_all_solutions: bool = any(
         methods.get(label, "all") != "arbitrary"
-        for label in sat_kinds
+        for label in all_labels
     )
 
     # Compute SAT labels in structural (first-DFS-appearance) order so that
