@@ -179,7 +179,7 @@ When every label in the problem (both SAT labels and enum labels) has method `"a
 
 1. For each SAT label in structural tree order:
    a. Clone the working model and add a `minimize(label_var)` objective.
-   b. Call `solver.Solve(opt_model)`.  The implementation MUST check for `OPTIMAL` status (not `FEASIBLE`) because the value MUST be the proven minimum to satisfy the canonical-order requirement of `"arbitrary"`.  `FEASIBLE` would indicate the solver was interrupted before proving optimality and the value may not be the true minimum.  If the result is not `OPTIMAL`, return no solutions.
+   b. Call `solver.solve(opt_model)`.  The implementation MUST check for `OPTIMAL` status (not `FEASIBLE`) because the value MUST be the proven minimum to satisfy the canonical-order requirement of `"arbitrary"`.  `FEASIBLE` would indicate the solver was interrupted before proving optimality and the value may not be the true minimum.  If the result is not `OPTIMAL`, return no solutions.
    c. Read the optimal value; record it in the assignment.
    d. Add an equality constraint fixing the label to that value in the working model.
 2. Return the single assignment.
@@ -189,7 +189,7 @@ This is correct because:
 - `minimize(int_var)` returns the smallest integer value, which is canonical-first for integers.
 - Sequential fixing ensures each subsequent label is minimized within the set of solutions already compatible with all earlier choices, exactly mirroring the `apply_methods("arbitrary")` sequential-filter logic.
 
-The sequential-minimization path requires at most `n` solver calls (one per SAT label), each solving an optimization problem, which is significantly faster than enumerating all `O(2^n)` satisfying assignments.
+The sequential-minimization path requires at most `n_sat` solver calls per enum branch (one per SAT label), each solving an optimization problem, which is significantly faster than enumerating all `O(2^n_sat)` satisfying assignments per branch.  When there are no enum labels, the entire problem yields a single canonical-minimum assignment in at most `n_sat` solver calls.
 
 The condition for choosing the mode is:
 
@@ -277,8 +277,8 @@ This reduces model size and solver runtime.
 | Check satisfiability via `CpSolver().Solve(model)` and `OPTIMAL`/`FEASIBLE` | MUST |
 | Clone models for branches instead of mutating shared state | MUST |
 | Persist variable proto indices across solver calls within a branch | MUST |
-| Use solution callback with `enumerate_all_solutions` only when any SAT label has method `"all"` or `"uniform_random"` | MUST |
-| Use sequential minimization (not full enumeration) when all SAT labels have method `"arbitrary"` | MUST |
+| Use solution callback with `enumerate_all_solutions` only when any label has method `"all"` or `"uniform_random"` | MUST |
+| Use sequential minimization (not full enumeration) when all labels have method `"arbitrary"` | MUST |
 | Select `"arbitrary"` witness by canonical value order, not solver callback order | MUST |
 | Encode `And`/`Or` as CP-SAT constraints; encode arithmetic (`Neg`, `Add`, etc.) as linear expressions | MUST |
 | Collect all constraints before solving instead of re-solving per comparison | SHOULD |
@@ -288,4 +288,4 @@ This reduces model size and solver runtime.
 | Apply `num_workers > 1` without breaking determinism guarantees | MUST NOT |
 | Rebuild variables from scratch after model cloning | MUST NOT |
 | Use any solver other than `ortools` as the primary backend | MUST NOT |
-| Enumerate all solutions when all SAT labels have method `"arbitrary"` | MUST NOT |
+| Enumerate all solutions when all labels have method `"arbitrary"` | MUST NOT |

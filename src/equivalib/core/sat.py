@@ -152,12 +152,12 @@ def sat_search(
 ) -> list[dict[str, object]]:
     """Return satisfying assignments using CP-SAT for bool/int-range labels.
 
-    When ``methods`` indicates that all SAT labels use ``"arbitrary"``,
-    the solver finds the canonical-minimum satisfying assignment via
-    sequential minimization (one solver call per label) instead of
-    enumerating all solutions.  Full enumeration is only performed when
-    at least one SAT label requires it (method ``"all"`` or
-    ``"uniform_random"``).
+    When ``methods`` indicates that every label (SAT and enum alike)
+    uses ``"arbitrary"``, SAT solution enumeration per enum branch is
+    replaced by sequential minimization (one solver call per SAT label)
+    instead of enumerating all CP-SAT solutions.  Full enumeration is
+    performed when any label — SAT or enum — has method ``"all"`` or
+    ``"uniform_random"``.
 
     Boolean and integer-range labels are encoded as CP-SAT variables.
     All other labels (string/None/tuple literals, mixed unions) are enumerated
