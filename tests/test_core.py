@@ -1569,7 +1569,7 @@ def _independent_integer_equality_signatures(
 def _integer_equality_signature_constraint(signature: tuple[int, tuple[int, ...]]) -> Any:
     count, equalities = signature
     labels = "ABCD"[:count]
-    pieces = []
+    pieces: list[Union[Eq, Ne]] = []
 
     equality_index = 0
     for left_index in range(count):
