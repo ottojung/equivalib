@@ -131,7 +131,7 @@ def generate(
         return cast("set[GenerateT]", set(_values_node(node)))
 
     # 6. Exact satisfying-assignment search (S0)
-    assignments = search(node, constraint)
+    assignments = search(node, constraint, methods)
 
     if not assignments:
         return set()

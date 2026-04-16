@@ -16,6 +16,7 @@ from equivalib.core.expression import (
     BooleanConstant,
     Eq,
     FloorDiv,
+    Gt,
     IntegerConstant,
     Mod,
     Mul,
@@ -29,7 +30,7 @@ from equivalib.core.name import Name as CoreName
 from equivalib.core.normalize import normalize
 from equivalib.core.order import canonical_first, canonical_sorted
 from equivalib.core.sat import sat_search as _sat_search
-from equivalib.core.types import BoolNode, IntRangeNode, LiteralNode, NamedNode, TupleNode, UnionNode
+from equivalib.core.types import BoolNode, IntRangeNode, LiteralNode, NamedNode, TupleNode, UnionNode, labels_in_order
 from equivalib.core.validate import validate_expression, validate_methods, validate_tree
 
 
@@ -1952,3 +1953,76 @@ def test_reference_path_into_enum_tuple_as_hard_constraint():
     constraint = Reference("T", (1,))
     assignments = _sat_search(node, constraint)
     assert assignments == [], f"Expected no solutions, got {assignments}"
+
+
+# --------------------------------------------------------------------------
+# P1: needs_all_solutions / sequential minimization correctness
+# --------------------------------------------------------------------------
+
+
+def test_sat_search_enum_label_uniform_random_forces_full_enumeration():
+    """uniform_random on an enum label must trigger full SAT enumeration.
+
+    When an enum label uses "uniform_random", the multiplicity of SAT solutions
+    supporting each enum value must be preserved for correct weighting.
+    Sequential minimization collapses each enum branch to a single SAT solution,
+    losing multiplicity information.  Full enumeration must be triggered.
+
+    Tree: X (bool SAT) × E ("a"|"b" enum).
+    Constraint: True.
+    Full enumeration → 2 SAT solutions (X=False, X=True) × 2 enum values = 4 total.
+    Sequential minimization → 1 SAT solution (X=False) × 2 enum values = 2 total.
+    """
+    node = TupleNode((
+        NamedNode("X", BoolNode()),
+        NamedNode("E", UnionNode((LiteralNode("a"), LiteralNode("b")))),
+    ))
+    constraint = BooleanConstant(True)
+
+    # uniform_random on the enum label alone → full SAT enumeration per branch
+    full_results = _sat_search(node, constraint, {"X": "arbitrary", "E": "uniform_random"})
+    # arbitrary on all labels → sequential minimization per branch
+    arb_results = _sat_search(node, constraint, {"X": "arbitrary", "E": "arbitrary"})
+
+    # Full enumeration: 2 enum values × 2 bool values = 4
+    assert len(full_results) == 4, (
+        f"Expected 4 solutions with uniform_random, got {len(full_results)}: {full_results}"
+    )
+    # Sequential minimization: 2 enum values × 1 bool value (canonical-min = False) = 2
+    assert len(arb_results) == 2, (
+        f"Expected 2 solutions with arbitrary, got {len(arb_results)}: {arb_results}"
+    )
+    # The canonical minimum for X is False, so both arbitrary results have X=False
+    assert all(r["X"] is False for r in arb_results), (
+        f"Expected X=False in all arbitrary results, got {arb_results}"
+    )
+
+
+def test_sat_search_arbitrary_matches_full_enumeration_plus_apply_methods():
+    """all-"arbitrary" path must produce the same result as full enumeration + apply_methods.
+
+    The sequential-minimization path is an optimisation that must be semantically
+    equivalent to enumerating all solutions and then applying apply_methods with
+    all-"arbitrary" methods.
+    """
+    node = TupleNode((
+        NamedNode("X", BoolNode()),
+        NamedNode("Y", IntRangeNode(0, 3)),
+    ))
+    # Constraint: X == (Y > 1), i.e. X iff Y > 1
+    constraint = Eq(Reference("X", ()), Gt(Reference("Y", ()), IntegerConstant(1)))
+
+    label_order = list(labels_in_order(node))
+
+    # Full enumeration (no methods argument → defaults to "all" for all labels)
+    all_solutions = _sat_search(node, constraint)
+    # Apply "arbitrary" to the full solution set
+    expected = apply_methods(all_solutions, {"X": "arbitrary", "Y": "arbitrary"}, label_order)
+
+    # Sequential minimization path (all-"arbitrary")
+    arb_solutions = _sat_search(node, constraint, {"X": "arbitrary", "Y": "arbitrary"})
+
+    assert arb_solutions == expected, (
+        f"sequential minimization produced {arb_solutions}, "
+        f"but full-enum + apply_methods produced {expected}"
+    )

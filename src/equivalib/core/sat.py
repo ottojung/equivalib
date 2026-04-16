@@ -3,7 +3,7 @@
 Implements the SAT specification from docs/sat.md.
 
 Public API:
-    sat_search(node, constraint) -> list[dict]
+    sat_search(node, constraint, methods) -> list[dict]
 
 Each element in the returned list is a dict mapping label -> value,
 representing one satisfying assignment.
@@ -11,7 +11,7 @@ representing one satisfying assignment.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, Mapping
 
 from ortools.sat.python import cp_model
 
@@ -46,6 +46,7 @@ from equivalib.core.types import (
     LiteralNode,
     IRNode,
     labels as tree_labels,
+    labels_in_order,
 )
 from equivalib.core.domains import _values_node_tagged, _untag_value
 from equivalib.core.order import canonical_key, canonical_sorted
@@ -144,13 +145,26 @@ def _sat_compute_domains(
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def sat_search(node: IRNode, constraint: Expression) -> list[dict[str, object]]:
-    """Return all satisfying assignments using CP-SAT for bool/int-range labels.
+def sat_search(
+    node: IRNode,
+    constraint: Expression,
+    methods: Mapping[str, str] | None = None,
+) -> list[dict[str, object]]:
+    """Return satisfying assignments using CP-SAT for bool/int-range labels.
+
+    When ``methods`` indicates that every label (SAT and enum alike)
+    uses ``"arbitrary"``, SAT solution enumeration per enum branch is
+    replaced by sequential minimization (one solver call per SAT label)
+    instead of enumerating all CP-SAT solutions.  Full enumeration is
+    performed when any label — SAT or enum — has method ``"all"`` or
+    ``"uniform_random"``.
 
     Boolean and integer-range labels are encoded as CP-SAT variables.
     All other labels (string/None/tuple literals, mixed unions) are enumerated
     in Python via backtracking, with CP-SAT invoked for the remaining labels.
     """
+    if methods is None:
+        methods = {}
     # Classify labels into CP-SAT-encodable (bool / int-range) and enum.
     # (Done first so we know which labels are int SAT before computing domains.)
     sat_kinds, enum_label_set = _classify_labels(node)
@@ -190,6 +204,34 @@ def sat_search(node: IRNode, constraint: Expression) -> list[dict[str, object]]:
 
     results: list[dict[str, object]] = []
 
+    # Determine whether full enumeration is needed.
+    # Full enumeration is required when any label (SAT *or* enum) has method
+    # "all" (the default) or "uniform_random".
+    #
+    # For "all": every satisfying assignment must appear in the output.
+    #
+    # For "uniform_random": the probability of selecting a value must be
+    # proportional to the number of satisfying assignments supporting it.
+    # This multiplicity comes from the full SAT enumeration — even if the
+    # "uniform_random" label is an enum label, each enum value may be
+    # supported by a *different* number of SAT solutions, so collapsing SAT
+    # solutions to a single canonical-minimum assignment per enum branch would
+    # give each enum value equal weight regardless of how many SAT solutions
+    # support it, corrupting the distribution.
+    #
+    # Only when every label across the whole problem uses "arbitrary" can we
+    # safely skip full enumeration and use sequential minimization instead.
+    all_labels = list(sat_kinds) + enum_labels
+    needs_all_solutions: bool = any(
+        methods.get(label, "all") != "arbitrary"
+        for label in all_labels
+    )
+
+    # Compute SAT labels in structural (first-DFS-appearance) order so that
+    # sequential minimization follows the same order as apply_methods.
+    all_labels_ordered = labels_in_order(node)
+    sat_labels_in_order = [lbl for lbl in all_labels_ordered if lbl in sat_kinds]
+
     if sat_kinds:
         # Build the base CP-SAT model once (SAT variables + domain-tightening
         # constraints for bool labels with narrowed domains).  Each enum
@@ -212,6 +254,8 @@ def sat_search(node: IRNode, constraint: Expression) -> list[dict[str, object]]:
         results,
         base_model,
         sat_var_indices,
+        needs_all_solutions,
+        sat_labels_in_order,
     )
 
     # Sort results in canonical label order so that downstream consumers
@@ -290,6 +334,8 @@ def _enum_backtrack(
     results: list[dict[str, object]],
     base_model: cp_model.CpModel | None,
     sat_var_indices: dict[str, tuple[str, int]],
+    needs_all_solutions: bool,
+    sat_labels_in_order: list[str],
 ) -> None:
     """Iterate over enum-label combinations; for each, invoke CP-SAT."""
     if enum_label_list:
@@ -311,6 +357,7 @@ def _enum_backtrack(
                     rest, sorted_enum_domains, sat_kinds, sat_bounds,
                     all_domains, constraint, enum_assignment, results,
                     base_model, sat_var_indices,
+                    needs_all_solutions, sat_labels_in_order,
                 )
             del enum_assignment[label]
         return
@@ -328,7 +375,7 @@ def _enum_backtrack(
 
     # Solve via CP-SAT for the sat labels.
     assert base_model is not None
-    sat_solutions = _solve_sat(sat_kinds, sat_bounds, all_domains, constraint, enum_assignment, base_model, sat_var_indices)
+    sat_solutions = _solve_sat(sat_kinds, sat_bounds, all_domains, constraint, enum_assignment, base_model, sat_var_indices, needs_all_solutions, sat_labels_in_order)
     for sat_sol in sat_solutions:
         full = dict(enum_assignment)
         full.update(sat_sol)
@@ -380,8 +427,22 @@ def _solve_sat(
     enum_assignment: dict[str, object],
     base_model: cp_model.CpModel,
     sat_var_indices: dict[str, tuple[str, int]],
+    needs_all_solutions: bool,
+    sat_labels_in_order: list[str],
 ) -> list[dict[str, object]]:
-    """Clone the base model, add constraints, and enumerate all solutions.
+    """Clone the base model, add constraints, and find satisfying solutions.
+
+    When ``needs_all_solutions`` is True (any label — SAT or enum — has
+    method ``"all"`` or ``"uniform_random"``), all solutions are enumerated
+    via a solution callback as per docs/sat.md.
+
+    When ``needs_all_solutions`` is False (every label across the whole
+    problem has method ``"arbitrary"``), the canonical-minimum satisfying
+    assignment is found via sequential minimization: SAT labels are processed
+    in structural order, each is minimized and then fixed before moving to
+    the next.  This avoids full enumeration while producing the same result
+    as enumerating all solutions and applying ``apply_methods`` with
+    all-``"arbitrary"`` methods.
 
     Cloning per docs/sat.md: the base model (SAT variables + domain-tightening
     constraints) is cloned so that variable construction happens only once per
@@ -401,29 +462,79 @@ def _solve_sat(
     counter = [0]  # mutable counter for unique auxiliary variable names
     _add_constraint(model, sat_vars, sat_kinds, enum_assignment, sat_bounds, constraint, counter)
 
-    # Enumerate all solutions with a solution callback.
-    class _SolutionCollector(cp_model.CpSolverSolutionCallback):
-        def __init__(self, variables: dict[str, Any], kinds: dict[str, str]) -> None:
-            super().__init__()
-            self._variables = variables
-            self._kinds = kinds
-            self.solutions: list[dict[str, object]] = []
+    if needs_all_solutions:
+        # Enumerate all solutions with a solution callback.
+        class _SolutionCollector(cp_model.CpSolverSolutionCallback):
+            def __init__(self, variables: dict[str, Any], kinds: dict[str, str]) -> None:
+                super().__init__()
+                self._variables = variables
+                self._kinds = kinds
+                self.solutions: list[dict[str, object]] = []
 
-        def on_solution_callback(self) -> None:
-            sol: dict[str, object] = {}
-            for name, var in self._variables.items():
-                int_val = self.value(var)
-                sol[name] = bool(int_val) if self._kinds[name] == _BOOL else int_val
-            self.solutions.append(sol)
+            def on_solution_callback(self) -> None:
+                sol: dict[str, object] = {}
+                for name, var in self._variables.items():
+                    int_val = self.value(var)
+                    sol[name] = bool(int_val) if self._kinds[name] == _BOOL else int_val
+                self.solutions.append(sol)
 
-    collector = _SolutionCollector(sat_vars, sat_kinds)
-    solver = cp_model.CpSolver()
-    solver.parameters.enumerate_all_solutions = True
-    # Keep single-threaded so the solution callback is invoked sequentially,
-    # which is required by the ortools callback API.
-    solver.parameters.num_workers = 1
-    solver.solve(model, collector)
-    return collector.solutions
+        collector = _SolutionCollector(sat_vars, sat_kinds)
+        solver = cp_model.CpSolver()
+        solver.parameters.enumerate_all_solutions = True
+        # Keep single-threaded so the solution callback is invoked sequentially,
+        # which is required by the ortools callback API.
+        solver.parameters.num_workers = 1
+        solver.solve(model, collector)
+        return collector.solutions
+    else:
+        # Sequential minimization: find the canonical-minimum satisfying
+        # assignment without full enumeration.
+        #
+        # For each SAT label in structural order:
+        #   1. Clone the working model and set a minimize objective on that label.
+        #   2. Solve to find the optimal (smallest) value for that label.
+        #   3. Fix the label to that value in the working model.
+        #
+        # This is correct because:
+        #   - minimize(bool_var) returns 0 (False), which is canonical-first.
+        #   - minimize(int_var) returns the minimum integer, which is
+        #     canonical-first for integers.
+        #   - Sequential fixing ensures later labels are minimized within the
+        #     set of solutions already compatible with all previous choices,
+        #     mirroring the apply_methods("arbitrary") sequential-filter logic.
+        assignment: dict[str, object] = {}
+        for label in sat_labels_in_order:
+            var = sat_vars[label]
+            # Clone the working model and add a minimize objective.
+            opt_model = model.clone()
+            _, idx = sat_var_indices[label]
+            kind = sat_kinds[label]
+            opt_var: cp_model.IntVar = (
+                opt_model.get_bool_var_from_proto_index(idx)
+                if kind == _BOOL
+                else opt_model.get_int_var_from_proto_index(idx)
+            )
+            opt_model.minimize(opt_var)
+            solver = cp_model.CpSolver()
+            # Single-threaded for determinism: same requirement as enumeration.
+            solver.parameters.num_workers = 1
+            status = solver.solve(opt_model)
+            # For a minimization problem with no time/memory limits, CP-SAT
+            # returns OPTIMAL when the minimum is proven (the only success
+            # status without resource constraints).  FEASIBLE would mean
+            # optimality was not proven (i.e. the solver was interrupted), in
+            # which case the value may not be the true minimum and accepting it
+            # could violate the canonical-order requirement of "arbitrary".
+            if status != cp_model.OPTIMAL:
+                return []
+            optimal_val = solver.value(opt_var)
+            if kind == _BOOL:
+                assignment[label] = bool(optimal_val)
+            else:
+                assignment[label] = optimal_val
+            # Fix this label's value in the working model for subsequent labels.
+            model.add(var == optimal_val)
+        return [assignment]
 
 
 # ---------------------------------------------------------------------------
