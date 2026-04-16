@@ -432,16 +432,17 @@ def _solve_sat(
 ) -> list[dict[str, object]]:
     """Clone the base model, add constraints, and find satisfying solutions.
 
-    When ``needs_all_solutions`` is True (any SAT label has method ``"all"``
-    or ``"uniform_random"``), all solutions are enumerated via a solution
-    callback as per docs/sat.md.
+    When ``needs_all_solutions`` is True (any label — SAT or enum — has
+    method ``"all"`` or ``"uniform_random"``), all solutions are enumerated
+    via a solution callback as per docs/sat.md.
 
-    When ``needs_all_solutions`` is False (all SAT labels have method
-    ``"arbitrary"``), the canonical-minimum satisfying assignment is found
-    via sequential minimization: labels are processed in structural order,
-    each is minimized and then fixed before moving to the next.  This avoids
-    full enumeration while producing the same result as enumerating all
-    solutions and applying ``apply_methods`` with all-``"arbitrary"`` methods.
+    When ``needs_all_solutions`` is False (every label across the whole
+    problem has method ``"arbitrary"``), the canonical-minimum satisfying
+    assignment is found via sequential minimization: SAT labels are processed
+    in structural order, each is minimized and then fixed before moving to
+    the next.  This avoids full enumeration while producing the same result
+    as enumerating all solutions and applying ``apply_methods`` with
+    all-``"arbitrary"`` methods.
 
     Cloning per docs/sat.md: the base model (SAT variables + domain-tightening
     constraints) is cloned so that variable construction happens only once per
@@ -515,6 +516,8 @@ def _solve_sat(
             )
             opt_model.minimize(opt_var)
             solver = cp_model.CpSolver()
+            # Single-threaded for determinism: same requirement as enumeration.
+            solver.parameters.num_workers = 1
             status = solver.solve(opt_model)
             # For a minimization problem with no time/memory limits, CP-SAT
             # returns OPTIMAL when the minimum is proven (the only success
