@@ -1339,6 +1339,16 @@ def test_validate_rejects_deeply_nested_named_node():
 # -------------------------------------------------------------------------
 
 
+def test_example13():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    tree = Tuple[Annotated[bool, Name("X")], Annotated[Union[Literal["a"], Literal["b"]], Name("E")]]
+    constraint = BooleanConstant(True)
+    assert generate(tree, constraint, {"X": "arbitrary", "E": "arbitrary"}) == {
+        (False, "a"),
+    }
+
+
 def test_example12():
     generate = core_attr("generate")
     Name = core_attr("Name")
@@ -1493,8 +1503,13 @@ def test_mod_with_negative_constant_divisor():
     # Use a Literal union so X is an enum label (Python eval, not CP-SAT).
     tree = Annotated[
         Union[
-            Literal[-3], Literal[-2], Literal[-1],
-            Literal[0], Literal[1], Literal[2], Literal[3],
+            Literal[-3],
+            Literal[-2],
+            Literal[-1],
+            Literal[0],
+            Literal[1],
+            Literal[2],
+            Literal[3],
         ],
         Name("X"),
     ]
@@ -1517,8 +1532,17 @@ def test_mod_bounds_do_not_exclude_negative_remainders():
     # Literal union: X is an enum label; Python % applies (handles negative divisor).
     tree = Annotated[
         Union[
-            Literal[-5], Literal[-4], Literal[-3], Literal[-2], Literal[-1],
-            Literal[0], Literal[1], Literal[2], Literal[3], Literal[4], Literal[5],
+            Literal[-5],
+            Literal[-4],
+            Literal[-3],
+            Literal[-2],
+            Literal[-1],
+            Literal[0],
+            Literal[1],
+            Literal[2],
+            Literal[3],
+            Literal[4],
+            Literal[5],
         ],
         Name("X"),
     ]
@@ -1925,10 +1949,12 @@ def test_reference_path_into_enum_tuple_in_reify_constraint():
     treated the tuple as a non-True value and forced the branch to False,
     incorrectly dropping B=False.
     """
-    node = TupleNode((
-        NamedNode("B", BoolNode()),
-        NamedNode("T", TupleNode((LiteralNode(True), LiteralNode(False)))),
-    ))
+    node = TupleNode(
+        (
+            NamedNode("B", BoolNode()),
+            NamedNode("T", TupleNode((LiteralNode(True), LiteralNode(False)))),
+        )
+    )
     # T is always (True, False); T[0]=True, so Or(B, True) must admit B=False too.
     constraint = Or(Reference("B", ()), Reference("T", (0,)))
     assignments = _sat_search(node, constraint)
@@ -1945,10 +1971,12 @@ def test_reference_path_into_enum_tuple_as_hard_constraint():
     sees T = (True, False) which is not False, so it treats it as True (no
     constraint added) and admits solutions.
     """
-    node = TupleNode((
-        NamedNode("B", BoolNode()),
-        NamedNode("T", TupleNode((LiteralNode(True), LiteralNode(False)))),
-    ))
+    node = TupleNode(
+        (
+            NamedNode("B", BoolNode()),
+            NamedNode("T", TupleNode((LiteralNode(True), LiteralNode(False)))),
+        )
+    )
     # T[1] = False always → hard constraint is always False → no solutions.
     constraint = Reference("T", (1,))
     assignments = _sat_search(node, constraint)
@@ -1973,10 +2001,12 @@ def test_sat_search_enum_label_uniform_random_forces_full_enumeration():
     Full enumeration → 2 SAT solutions (X=False, X=True) × 2 enum values = 4 total.
     Sequential minimization → 1 SAT solution (X=False) × 2 enum values = 2 total.
     """
-    node = TupleNode((
-        NamedNode("X", BoolNode()),
-        NamedNode("E", UnionNode((LiteralNode("a"), LiteralNode("b")))),
-    ))
+    node = TupleNode(
+        (
+            NamedNode("X", BoolNode()),
+            NamedNode("E", UnionNode((LiteralNode("a"), LiteralNode("b")))),
+        )
+    )
     constraint = BooleanConstant(True)
 
     # uniform_random on the enum label alone → full SAT enumeration per branch
@@ -1985,17 +2015,11 @@ def test_sat_search_enum_label_uniform_random_forces_full_enumeration():
     arb_results = _sat_search(node, constraint, {"X": "arbitrary", "E": "arbitrary"})
 
     # Full enumeration: 2 enum values × 2 bool values = 4
-    assert len(full_results) == 4, (
-        f"Expected 4 solutions with uniform_random, got {len(full_results)}: {full_results}"
-    )
+    assert len(full_results) == 4, f"Expected 4 solutions with uniform_random, got {len(full_results)}: {full_results}"
     # Sequential minimization: 2 enum values × 1 bool value (canonical-min = False) = 2
-    assert len(arb_results) == 2, (
-        f"Expected 2 solutions with arbitrary, got {len(arb_results)}: {arb_results}"
-    )
+    assert len(arb_results) == 2, f"Expected 2 solutions with arbitrary, got {len(arb_results)}: {arb_results}"
     # The canonical minimum for X is False, so both arbitrary results have X=False
-    assert all(r["X"] is False for r in arb_results), (
-        f"Expected X=False in all arbitrary results, got {arb_results}"
-    )
+    assert all(r["X"] is False for r in arb_results), f"Expected X=False in all arbitrary results, got {arb_results}"
 
 
 def test_sat_search_arbitrary_matches_full_enumeration_plus_apply_methods():
@@ -2005,10 +2029,12 @@ def test_sat_search_arbitrary_matches_full_enumeration_plus_apply_methods():
     equivalent to enumerating all solutions and then applying apply_methods with
     all-"arbitrary" methods.
     """
-    node = TupleNode((
-        NamedNode("X", BoolNode()),
-        NamedNode("Y", IntRangeNode(0, 3)),
-    ))
+    node = TupleNode(
+        (
+            NamedNode("X", BoolNode()),
+            NamedNode("Y", IntRangeNode(0, 3)),
+        )
+    )
     # Constraint: X == (Y > 1), i.e. X iff Y > 1
     constraint = Eq(Reference("X", ()), Gt(Reference("Y", ()), IntegerConstant(1)))
 
@@ -2023,6 +2049,5 @@ def test_sat_search_arbitrary_matches_full_enumeration_plus_apply_methods():
     arb_solutions = _sat_search(node, constraint, {"X": "arbitrary", "Y": "arbitrary"})
 
     assert arb_solutions == expected, (
-        f"sequential minimization produced {arb_solutions}, "
-        f"but full-enum + apply_methods produced {expected}"
+        f"sequential minimization produced {arb_solutions}, but full-enum + apply_methods produced {expected}"
     )
