@@ -54,7 +54,7 @@ def generate_field_values(ctx: Sentence, t: LabelledType) -> Iterator[GFieldT]:
             yield Structure(tuple, t, tuple(prod))
 
     elif isinstance(t, LT.BoundedIntType):
-        low, high = (t.lo, t.hi)
+        low, high = (t.range.min, t.range.max)
         for i in range(low, high + 1):
             yield Structure(int, t, (Constant(i), ))
 

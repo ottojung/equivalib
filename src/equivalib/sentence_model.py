@@ -39,7 +39,7 @@ class SentenceModel:
 
     def add_variable(self, name: str, t: LT.SuperType) -> None:
         if isinstance(t.over, LT.BoundedIntType):
-            low, high = (t.over.lo, t.over.hi)
+            low, high = (t.over.range.min, t.over.range.max)
             var = self.model.new_int_var(low, high, name)
         elif isinstance(t.over, LT.BoolType):
             var = self.model.new_bool_var(name)
