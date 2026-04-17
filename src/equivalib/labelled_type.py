@@ -2,8 +2,6 @@
 from dataclasses import dataclass
 from typing import Union, Tuple
 
-from equivalib.value_range import ValueRange
-
 
 @dataclass(frozen=True)
 class BoolType:
@@ -17,7 +15,8 @@ class LiteralType:
 
 @dataclass(frozen=True)
 class BoundedIntType:
-    range: ValueRange
+    lo: int
+    hi: int
 
 
 @dataclass(frozen=True)
