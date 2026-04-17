@@ -527,7 +527,7 @@ def test_generate_rejects_non_boolean_top_level_constraint():
     Add = core_attr("Add")
     Name = core_attr("Name")
     generate = core_attr("generate")
-    with pytest.raises((TypeError, ValueError)):
+    with pytest.raises(TypeError):
         generate(Annotated[int, Name("X")], Add(ref("X"), int_const(1)), {"X": "all"})
 
 

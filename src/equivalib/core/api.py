@@ -89,7 +89,12 @@ def generate(
     # 1. Normalize
     node = normalize(tree)
 
-    # 2. Infer and fill integer bounds from the constraint
+    # 2. Validate expression against the (still-unfilled) tree so that
+    #    malformed or non-boolean constraints raise TypeError/ValueError
+    #    before bounds inference has a chance to emit a misleading error.
+    validate_expression(constraint, node)
+
+    # 3. Infer and fill integer bounds from the constraint
     bounds = infer_int_bounds(node, constraint)
     if bounds:
         # Contradictory bounds (lo > hi) -> no solutions possible
@@ -98,14 +103,11 @@ def generate(
                 return set()
         node = fill_int_bounds(node, bounds)
 
-    # 3. Validate tree
+    # 4. Validate tree (requires bounds to have been filled)
     validate_tree(node)
 
-    # 4. Validate methods
+    # 5. Validate methods
     validate_methods(node, methods)
-
-    # 5. Validate expression
-    validate_expression(constraint, node)
 
     # 6. Fast path: no named nodes
     if not contains_name(node):

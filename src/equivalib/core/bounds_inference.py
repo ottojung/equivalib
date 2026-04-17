@@ -51,9 +51,16 @@ def _collect_unbounded_int_labels(node: IRNode) -> frozenset[str]:
 
 def _flatten_and(expr: Expression) -> list[Expression]:
     """Return all top-level AND conjuncts from a constraint."""
-    if isinstance(expr, And):
-        return _flatten_and(expr.left) + _flatten_and(expr.right)
-    return [expr]
+    result: list[Expression] = []
+    stack: list[Expression] = [expr]
+    while stack:
+        current = stack.pop()
+        if isinstance(current, And):
+            stack.append(current.right)
+            stack.append(current.left)
+        else:
+            result.append(current)
+    return result
 
 
 def _try_extract_bound(
