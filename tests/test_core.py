@@ -484,6 +484,33 @@ def test_generate_rejects_constraint_on_missing_label():
         generate(Annotated[bool, Name("X")], Eq(ref("Y"), bool_const(True)), {})
 
 
+def test_generate_cyclic_strict_lt_yields_empty_set():
+    """X < Y and Y < X is contradictory: generate() should return {} without hanging."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    And = core_attr("And")
+    Lt = core_attr("Lt")
+    tree = Tuple[Annotated[int, Name("X")], Annotated[int, Name("Y")]]
+    constraint = And(
+        And(_int_bounds("X", 0, 9), _int_bounds("Y", 0, 9)),
+        And(Lt(ref("X"), ref("Y")), Lt(ref("Y"), ref("X"))),
+    )
+    assert generate(tree, constraint, {"X": "all", "Y": "all"}) == set()
+
+
+def test_generate_self_lt_yields_empty_set():
+    """X < X is always false: generate() should return {} without hanging."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    And = core_attr("And")
+    Lt = core_attr("Lt")
+    tree = Annotated[int, Name("X")]
+    constraint = And(_int_bounds("X", 0, 9), Lt(ref("X"), ref("X")))
+    assert generate(tree, constraint, {"X": "all"}) == set()
+
+
+
+
 def test_generate_rejects_unknown_method_label():
     generate = core_attr("generate")
     Name = core_attr("Name")

@@ -39,6 +39,7 @@ from equivalib.core.expression import (
 from equivalib.core.types import (
     BoolNode,
     IntRangeNode,
+    UnboundedIntNode,
     TupleNode,
     UnionNode,
     NamedNode,
@@ -96,7 +97,7 @@ def _sat_compute_domains(
     other_occurrences: dict[str, list[frozenset[object]]] = {}
 
     def _walk(n: IRNode) -> None:
-        if isinstance(n, (NoneNode, BoolNode, LiteralNode, IntRangeNode)):
+        if isinstance(n, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode)):
             return
         if isinstance(n, TupleNode):
             for item in n.items:
@@ -293,7 +294,7 @@ def _classify_labels(node: IRNode) -> tuple[dict[str, str], set[str]]:
 
 def _collect_label_kinds(node: IRNode, out: dict[str, str]) -> None:
     """Walk the tree and record the inner-node kind for every NamedNode."""
-    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode)):
+    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode)):
         return
     if isinstance(node, TupleNode):
         for item in node.items:

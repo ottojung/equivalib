@@ -179,6 +179,18 @@ def infer_int_bounds(
     for label, v in direct_hi.items():
         hi[label] = min(hi[label], v)
 
+    # Detect self-referential strict contradiction X < X before entering the loop.
+    for (x, y) in rel_lt:
+        if x == y:
+            return {label: (1, 0) for label in int_labels}
+
+    # Propagate bounds to a fixed point.
+    # We use a Bellman-Ford-style iteration bound: in a cycle-free graph with n
+    # labelled integers, bounds stabilise in at most n rounds.  If propagation
+    # is still changing after n+1 rounds, the rel_lt graph contains a cycle
+    # (e.g. X < Y < X), which is a contradiction for integers.
+    max_iters = len(int_labels) + 1
+    iteration = 0
     changed = True
     while changed:
         changed = False
@@ -213,6 +225,17 @@ def infer_int_bounds(
                 lo[y] = new_lo
                 hi[y] = new_hi
                 changed = True
+
+        # Short-circuit as soon as any bounds become contradictory (lo > hi).
+        # Both lo and hi are finite at this point (−∞ < anything < +∞ always).
+        if any(lo[label] > hi[label] for label in int_labels):
+            return {label: (int(lo[label]), int(hi[label])) for label in int_labels}
+
+        iteration += 1
+        if iteration > max_iters:
+            # Still changing after n+1 rounds: propagation cycle detected,
+            # which means the constraint is contradictory (e.g. X < Y < X).
+            return {label: (1, 0) for label in int_labels}
 
     missing: list[str] = []
     for label in sorted(int_labels):

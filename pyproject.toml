@@ -67,6 +67,7 @@ ignore = [
     "PLR0911",  # too-many-return-statements
     "PLR0912",  # too-many-branches
     "PLR0913",  # too-many-arguments
+    "PLR0915",  # too-many-statements
     "PLR2004",  # magic-value-comparison
     "PLC2801",  # unnecessary-dunder-call
     "PLW1641",  # eq-without-hash

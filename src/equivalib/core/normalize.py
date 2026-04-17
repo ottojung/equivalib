@@ -15,7 +15,6 @@ from equivalib.core.types import (
     BoolNode,
     LiteralNode,
     UnboundedIntNode,
-    IntRangeNode,
     TupleNode,
     UnionNode,
     NamedNode,
