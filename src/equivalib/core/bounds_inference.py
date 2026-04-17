@@ -49,6 +49,44 @@ def _collect_unbounded_int_labels(node: IRNode) -> frozenset[str]:
     return frozenset()
 
 
+def _has_cycle_in_rel_lt(
+    rel_lt: list[tuple[str, str]], int_labels: frozenset[str]
+) -> bool:
+    """Return True if the strict-inequality graph contains a directed cycle.
+
+    This detects contradictions such as X < Y and Y < X even when no finite
+    bounds are present (where the Bellman-Ford propagation loop would make no
+    progress and fall through to the "missing bounds" error instead).
+    """
+    graph: dict[str, list[str]] = {label: [] for label in int_labels}
+    for x, y in rel_lt:
+        if x in graph and y in int_labels:
+            graph[x].append(y)
+
+    WHITE, GRAY, BLACK = 0, 1, 2
+    color: dict[str, int] = {label: WHITE for label in int_labels}
+
+    for start in int_labels:
+        if color[start] != WHITE:
+            continue
+        stack: list[tuple[str, object]] = [(start, iter(graph[start]))]
+        color[start] = GRAY
+        while stack:
+            node, neighbors = stack[-1]
+            try:
+                neighbor = next(neighbors)  # type: ignore[call-overload]
+                if color.get(neighbor, BLACK) == GRAY:
+                    return True
+                if color.get(neighbor, BLACK) == WHITE:
+                    color[neighbor] = GRAY
+                    stack.append((neighbor, iter(graph[neighbor])))
+            except StopIteration:
+                color[node] = BLACK
+                stack.pop()
+
+    return False
+
+
 def _flatten_and(expr: Expression) -> list[Expression]:
     """Return all top-level AND conjuncts from a constraint."""
     result: list[Expression] = []
@@ -179,18 +217,14 @@ def infer_int_bounds(
     for label, v in direct_hi.items():
         hi[label] = min(hi[label], v)
 
-    # Detect self-referential strict contradiction X < X before entering the loop.
-    for (x, y) in rel_lt:
-        if x == y:
-            return {label: (1, 0) for label in int_labels}
+    # Detect cycles in the strict-inequality graph (e.g. X < Y < X, or X < X).
+    # Cycles are contradictions for integers, and must be caught before the
+    # fixed-point loop because the loop makes no progress when no finite bounds
+    # are present to propagate.
+    if any(x == y for (x, y) in rel_lt) or _has_cycle_in_rel_lt(rel_lt, int_labels):
+        return {label: (1, 0) for label in int_labels}
 
     # Propagate bounds to a fixed point.
-    # We use a Bellman-Ford-style iteration bound: in a cycle-free graph with n
-    # labelled integers, bounds stabilise in at most n rounds.  If propagation
-    # is still changing after n+1 rounds, the rel_lt graph contains a cycle
-    # (e.g. X < Y < X), which is a contradiction for integers.
-    max_iters = len(int_labels) + 1
-    iteration = 0
     changed = True
     while changed:
         changed = False
@@ -230,12 +264,6 @@ def infer_int_bounds(
         # Some unrelated labels may still have ±∞ bounds here, so return an
         # explicit unsatisfiable sentinel instead of converting all bounds to int.
         if any(lo[label] > hi[label] for label in int_labels):
-            return {label: (1, 0) for label in int_labels}
-
-        iteration += 1
-        if iteration > max_iters:
-            # Still changing after n+1 rounds: propagation cycle detected,
-            # which means the constraint is contradictory (e.g. X < Y < X).
             return {label: (1, 0) for label in int_labels}
 
     missing: list[str] = []

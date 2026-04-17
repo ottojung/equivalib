@@ -510,19 +510,33 @@ def test_generate_self_lt_yields_empty_set():
 
 
 def test_generate_contradiction_with_unbounded_sibling_yields_empty_set():
-    """Contradiction on X while Y still has no bounds must not raise OverflowError."""
+    """Contradiction on X while Y truly has no direct bounds must not raise OverflowError."""
     generate = core_attr("generate")
     Name = core_attr("Name")
     And = core_attr("And")
     Ge = core_attr("Ge")
     Le = core_attr("Le")
     tree = Tuple[Annotated[int, Name("X")], Annotated[int, Name("Y")]]
-    # X has contradictory bounds (5 <= X <= 4); Y gets bounds only from X < Y,
-    # meaning Y has no direct bounds when the contradiction is detected.
+    # X has contradictory bounds (5 <= X <= 4); Y has no direct bounds at all —
+    # only a relative constraint X < Y.  The contradiction on X must trigger the
+    # early-return sentinel without attempting int(±inf) on Y's bounds.
     constraint = And(
-        And(_int_bounds("Y", 0, 9), And(Ge(ref("X"), int_const(5)), Le(ref("X"), int_const(4)))),
+        And(Ge(ref("X"), int_const(5)), Le(ref("X"), int_const(4))),
         core_attr("Lt")(ref("X"), ref("Y")),
     )
+    assert generate(tree, constraint, {"X": "all", "Y": "all"}) == set()
+
+
+def test_generate_cyclic_no_finite_bounds_yields_empty_set():
+    """X < Y and Y < X with no finite bounds must be detected as a contradiction via DFS."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    And = core_attr("And")
+    Lt = core_attr("Lt")
+    tree = Tuple[Annotated[int, Name("X")], Annotated[int, Name("Y")]]
+    # No direct (finite) bounds on X or Y — Bellman-Ford propagation never
+    # fires, so the cycle must be detected upfront by the DFS graph check.
+    constraint = And(Lt(ref("X"), ref("Y")), Lt(ref("Y"), ref("X")))
     assert generate(tree, constraint, {"X": "all", "Y": "all"}) == set()
 
 
