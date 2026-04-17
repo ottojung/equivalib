@@ -94,7 +94,12 @@ def generate(
     #    before bounds inference has a chance to emit a misleading error.
     validate_expression(constraint, node)
 
-    # 3. Infer and fill integer bounds from the constraint
+    # 3. Validate methods against the unfilled tree so that invalid method
+    #    keys/values are always reported, even when bounds are contradictory
+    #    and generate() would otherwise return early with an empty set.
+    validate_methods(node, methods)
+
+    # 4. Infer and fill integer bounds from the constraint
     bounds = infer_int_bounds(node, constraint)
     if bounds:
         # Contradictory bounds (lo > hi) -> no solutions possible
@@ -103,11 +108,8 @@ def generate(
                 return set()
         node = fill_int_bounds(node, bounds)
 
-    # 4. Validate tree (requires bounds to have been filled)
+    # 5. Validate tree (requires bounds to have been filled)
     validate_tree(node)
-
-    # 5. Validate methods
-    validate_methods(node, methods)
 
     # 6. Fast path: no named nodes
     if not contains_name(node):

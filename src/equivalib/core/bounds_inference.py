@@ -27,7 +27,22 @@ from equivalib.core.types import (
     UnionNode,
 )
 
-_INF = float("inf")
+def _max_bound(a: int | None, b: int | None) -> int | None:
+    """Return the tighter lower bound (max), treating None as −∞."""
+    if a is None:
+        return b
+    if b is None:
+        return a
+    return max(a, b)
+
+
+def _min_bound(a: int | None, b: int | None) -> int | None:
+    """Return the tighter upper bound (min), treating None as +∞."""
+    if a is None:
+        return b
+    if b is None:
+        return a
+    return min(a, b)
 
 
 def _collect_unbounded_int_labels(node: IRNode) -> frozenset[str]:
@@ -104,8 +119,8 @@ def _flatten_and(expr: Expression) -> list[Expression]:
 def _try_extract_bound(
     expr: Expression,
     int_labels: frozenset[str],
-    direct_lo: dict[str, float],
-    direct_hi: dict[str, float],
+    direct_lo: dict[str, int],
+    direct_hi: dict[str, int],
     rel_lt: list[tuple[str, str]],
     rel_le: list[tuple[str, str]],
     rel_eq: list[tuple[str, str]],
@@ -122,11 +137,11 @@ def _try_extract_bound(
         if is_plain_ref(expr.left) and is_int_const(expr.right):
             label = expr.left.label  # type: ignore[union-attr]
             n = expr.right.value  # type: ignore[union-attr]
-            direct_lo[label] = max(direct_lo.get(label, -_INF), n)
+            direct_lo[label] = n if label not in direct_lo else max(direct_lo[label], n)
         elif is_int_const(expr.left) and is_plain_ref(expr.right):
             label = expr.right.label  # type: ignore[union-attr]
             n = expr.left.value  # type: ignore[union-attr]
-            direct_hi[label] = min(direct_hi.get(label, _INF), n)
+            direct_hi[label] = n if label not in direct_hi else min(direct_hi[label], n)
         elif is_plain_ref(expr.left) and is_plain_ref(expr.right):
             lx = expr.left.label  # type: ignore[union-attr]
             ry = expr.right.label  # type: ignore[union-attr]
@@ -136,11 +151,11 @@ def _try_extract_bound(
         if is_plain_ref(expr.left) and is_int_const(expr.right):
             label = expr.left.label  # type: ignore[union-attr]
             n = expr.right.value  # type: ignore[union-attr]
-            direct_hi[label] = min(direct_hi.get(label, _INF), n)
+            direct_hi[label] = n if label not in direct_hi else min(direct_hi[label], n)
         elif is_int_const(expr.left) and is_plain_ref(expr.right):
             label = expr.right.label  # type: ignore[union-attr]
             n = expr.left.value  # type: ignore[union-attr]
-            direct_lo[label] = max(direct_lo.get(label, -_INF), n)
+            direct_lo[label] = n if label not in direct_lo else max(direct_lo[label], n)
         elif is_plain_ref(expr.left) and is_plain_ref(expr.right):
             lx = expr.left.label  # type: ignore[union-attr]
             ry = expr.right.label  # type: ignore[union-attr]
@@ -150,11 +165,11 @@ def _try_extract_bound(
         if is_plain_ref(expr.left) and is_int_const(expr.right):
             label = expr.left.label  # type: ignore[union-attr]
             n = expr.right.value  # type: ignore[union-attr]
-            direct_lo[label] = max(direct_lo.get(label, -_INF), n + 1)
+            direct_lo[label] = n + 1 if label not in direct_lo else max(direct_lo[label], n + 1)
         elif is_int_const(expr.left) and is_plain_ref(expr.right):
             label = expr.right.label  # type: ignore[union-attr]
             n = expr.left.value  # type: ignore[union-attr]
-            direct_hi[label] = min(direct_hi.get(label, _INF), n - 1)
+            direct_hi[label] = n - 1 if label not in direct_hi else min(direct_hi[label], n - 1)
         elif is_plain_ref(expr.left) and is_plain_ref(expr.right):
             lx = expr.left.label  # type: ignore[union-attr]
             ry = expr.right.label  # type: ignore[union-attr]
@@ -164,11 +179,11 @@ def _try_extract_bound(
         if is_plain_ref(expr.left) and is_int_const(expr.right):
             label = expr.left.label  # type: ignore[union-attr]
             n = expr.right.value  # type: ignore[union-attr]
-            direct_hi[label] = min(direct_hi.get(label, _INF), n - 1)
+            direct_hi[label] = n - 1 if label not in direct_hi else min(direct_hi[label], n - 1)
         elif is_int_const(expr.left) and is_plain_ref(expr.right):
             label = expr.right.label  # type: ignore[union-attr]
             n = expr.left.value  # type: ignore[union-attr]
-            direct_lo[label] = max(direct_lo.get(label, -_INF), n + 1)
+            direct_lo[label] = n + 1 if label not in direct_lo else max(direct_lo[label], n + 1)
         elif is_plain_ref(expr.left) and is_plain_ref(expr.right):
             lx = expr.left.label  # type: ignore[union-attr]
             ry = expr.right.label  # type: ignore[union-attr]
@@ -178,13 +193,13 @@ def _try_extract_bound(
         if is_plain_ref(expr.left) and is_int_const(expr.right):
             label = expr.left.label  # type: ignore[union-attr]
             n = expr.right.value  # type: ignore[union-attr]
-            direct_lo[label] = max(direct_lo.get(label, -_INF), n)
-            direct_hi[label] = min(direct_hi.get(label, _INF), n)
+            direct_lo[label] = n if label not in direct_lo else max(direct_lo[label], n)
+            direct_hi[label] = n if label not in direct_hi else min(direct_hi[label], n)
         elif is_int_const(expr.left) and is_plain_ref(expr.right):
             label = expr.right.label  # type: ignore[union-attr]
             n = expr.left.value  # type: ignore[union-attr]
-            direct_lo[label] = max(direct_lo.get(label, -_INF), n)
-            direct_hi[label] = min(direct_hi.get(label, _INF), n)
+            direct_lo[label] = n if label not in direct_lo else max(direct_lo[label], n)
+            direct_hi[label] = n if label not in direct_hi else min(direct_hi[label], n)
         elif is_plain_ref(expr.left) and is_plain_ref(expr.right):
             lx = expr.left.label  # type: ignore[union-attr]
             ry = expr.right.label  # type: ignore[union-attr]
@@ -200,11 +215,13 @@ def infer_int_bounds(
     if not int_labels:
         return {}
 
-    lo: dict[str, float] = {label: -_INF for label in int_labels}
-    hi: dict[str, float] = {label: _INF for label in int_labels}
+    # None means "unbounded" (lo: −∞, hi: +∞). Using int|None avoids float
+    # arithmetic entirely, which preserves precision for large integer constants.
+    lo: dict[str, int | None] = {label: None for label in int_labels}
+    hi: dict[str, int | None] = {label: None for label in int_labels}
 
-    direct_lo: dict[str, float] = {}
-    direct_hi: dict[str, float] = {}
+    direct_lo: dict[str, int] = {}
+    direct_hi: dict[str, int] = {}
     rel_lt: list[tuple[str, str]] = []
     rel_le: list[tuple[str, str]] = []
     rel_eq: list[tuple[str, str]] = []
@@ -213,9 +230,9 @@ def infer_int_bounds(
         _try_extract_bound(conjunct, int_labels, direct_lo, direct_hi, rel_lt, rel_le, rel_eq)
 
     for label, v in direct_lo.items():
-        lo[label] = max(lo[label], v)
+        lo[label] = _max_bound(lo[label], v)
     for label, v in direct_hi.items():
-        hi[label] = min(hi[label], v)
+        hi[label] = _min_bound(hi[label], v)
 
     # Detect cycles in the strict-inequality graph (e.g. X < Y < X, or X < X).
     # Cycles are contradictions for integers, and must be caught before the
@@ -229,48 +246,56 @@ def infer_int_bounds(
     while changed:
         changed = False
         for (x, y) in rel_lt:
-            if hi[y] != _INF:
-                new_x_hi = hi[y] - 1
-                if new_x_hi < hi[x]:
+            hi_y = hi[y]
+            if hi_y is not None:
+                new_x_hi = hi_y - 1
+                hi_x = hi[x]
+                if hi_x is None or new_x_hi < hi_x:
                     hi[x] = new_x_hi
                     changed = True
-            if lo[x] != -_INF:
-                new_y_lo = lo[x] + 1
-                if new_y_lo > lo[y]:
+            lo_x = lo[x]
+            if lo_x is not None:
+                new_y_lo = lo_x + 1
+                lo_y = lo[y]
+                if lo_y is None or new_y_lo > lo_y:
                     lo[y] = new_y_lo
                     changed = True
 
         for (x, y) in rel_le:
-            if hi[y] < hi[x]:
-                hi[x] = hi[y]
+            new_hx = _min_bound(hi[x], hi[y])
+            if new_hx != hi[x]:
+                hi[x] = new_hx
                 changed = True
-            if lo[x] > lo[y]:
-                lo[y] = lo[x]
+            new_ly = _max_bound(lo[y], lo[x])
+            if new_ly != lo[y]:
+                lo[y] = new_ly
                 changed = True
 
         for (x, y) in rel_eq:
-            new_lo = max(lo[x], lo[y])
-            new_hi = min(hi[x], hi[y])
-            if new_lo > lo[x] or new_hi < hi[x]:
+            new_lo = _max_bound(lo[x], lo[y])
+            new_hi = _min_bound(hi[x], hi[y])
+            if new_lo != lo[x] or new_hi != hi[x]:
                 lo[x] = new_lo
                 hi[x] = new_hi
                 changed = True
-            if new_lo > lo[y] or new_hi < hi[y]:
+            if new_lo != lo[y] or new_hi != hi[y]:
                 lo[y] = new_lo
                 hi[y] = new_hi
                 changed = True
 
         # Short-circuit as soon as any bounds become contradictory (lo > hi).
-        # Some unrelated labels may still have ±∞ bounds here, so return an
-        # explicit unsatisfiable sentinel instead of converting all bounds to int.
-        if any(lo[label] > hi[label] for label in int_labels):
-            return {label: (1, 0) for label in int_labels}
+        # Some unrelated labels may still have no bounds here, so return an
+        # explicit unsatisfiable sentinel instead of propagating further.
+        for label in int_labels:
+            lo_v, hi_v = lo[label], hi[label]
+            if lo_v is not None and hi_v is not None and lo_v > hi_v:
+                return {label: (1, 0) for label in int_labels}
 
     missing: list[str] = []
     for label in sorted(int_labels):
-        if lo[label] == -_INF:
+        if lo[label] is None:
             missing.append(f"lower bound for {label!r}")
-        if hi[label] == _INF:
+        if hi[label] is None:
             missing.append(f"upper bound for {label!r}")
 
     if missing:
@@ -281,7 +306,14 @@ def infer_int_bounds(
             "(e.g. And(Ge(ref('X'), IntegerConstant(0)), Le(ref('X'), IntegerConstant(9))))."
         )
 
-    return {label: (int(lo[label]), int(hi[label])) for label in int_labels}
+    # At this point all bounds are confirmed non-None (missing is empty).
+    result: dict[str, tuple[int, int]] = {}
+    for label in int_labels:
+        lo_v = lo[label]
+        hi_v = hi[label]
+        assert lo_v is not None and hi_v is not None  # guaranteed by missing-check above
+        result[label] = (lo_v, hi_v)
+    return result
 
 
 def fill_int_bounds(node: IRNode, bounds: dict[str, tuple[int, int]]) -> IRNode:
