@@ -227,9 +227,10 @@ def infer_int_bounds(
                 changed = True
 
         # Short-circuit as soon as any bounds become contradictory (lo > hi).
-        # Both lo and hi are finite at this point (−∞ < anything < +∞ always).
+        # Some unrelated labels may still have ±∞ bounds here, so return an
+        # explicit unsatisfiable sentinel instead of converting all bounds to int.
         if any(lo[label] > hi[label] for label in int_labels):
-            return {label: (int(lo[label]), int(hi[label])) for label in int_labels}
+            return {label: (1, 0) for label in int_labels}
 
         iteration += 1
         if iteration > max_iters:

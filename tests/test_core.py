@@ -509,6 +509,23 @@ def test_generate_self_lt_yields_empty_set():
     assert generate(tree, constraint, {"X": "all"}) == set()
 
 
+def test_generate_contradiction_with_unbounded_sibling_yields_empty_set():
+    """Contradiction on X while Y still has no bounds must not raise OverflowError."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    And = core_attr("And")
+    Ge = core_attr("Ge")
+    Le = core_attr("Le")
+    tree = Tuple[Annotated[int, Name("X")], Annotated[int, Name("Y")]]
+    # X has contradictory bounds (5 <= X <= 4); Y gets bounds only from X < Y,
+    # meaning Y has no direct bounds when the contradiction is detected.
+    constraint = And(
+        And(_int_bounds("Y", 0, 9), And(Ge(ref("X"), int_const(5)), Le(ref("X"), int_const(4)))),
+        core_attr("Lt")(ref("X"), ref("Y")),
+    )
+    assert generate(tree, constraint, {"X": "all", "Y": "all"}) == set()
+
+
 def test_generate_rejects_unknown_method_label():
     generate = core_attr("generate")
     Name = core_attr("Name")
