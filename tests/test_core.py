@@ -509,8 +509,6 @@ def test_generate_self_lt_yields_empty_set():
     assert generate(tree, constraint, {"X": "all"}) == set()
 
 
-
-
 def test_generate_rejects_unknown_method_label():
     generate = core_attr("generate")
     Name = core_attr("Name")
