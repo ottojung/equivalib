@@ -19,6 +19,7 @@ from equivalib.core.types import (
     NoneNode,
     BoolNode,
     LiteralNode,
+    UnboundedIntNode,
     IntRangeNode,
     TupleNode,
     UnionNode,
@@ -27,6 +28,7 @@ from equivalib.core.types import (
     contains_name,
     labels_in_order,
 )
+from equivalib.core.bounds_inference import infer_int_bounds, fill_int_bounds
 from equivalib.core.domains import _values_node
 from equivalib.core.eval import eval_expression
 from equivalib.core.search import search
@@ -42,17 +44,7 @@ _DEFAULT_CONSTRAINT: Expression = BooleanExpression(True)
 # ---------------------------------------------------------------------------
 
 def concretize(node: IRNode, assignment: Mapping[str, object]) -> frozenset[object]:
-    """Return the set of all runtime values that ``node`` can produce under ``assignment``.
-
-    Rules:
-        - ``NamedNode(label, inner)`` collapses atomically to ``{assignment[label]}``.
-        - Unnamed leaves (``BoolNode``, ``IntRangeNode``, ``LiteralNode``, ``NoneNode``)
-          expand to their full denotation, just as ``_values_node`` would.
-        - ``TupleNode`` produces the cartesian product of its children's expansions.
-        - ``UnionNode`` produces the set union of its children's expansions.
-
-    Returns a ``frozenset`` of hashable runtime values.
-    """
+    """Return the set of all runtime values that ``node`` can produce under ``assignment``."""
     if isinstance(node, NamedNode):
         return frozenset({assignment[node.label]})
     if isinstance(node, NoneNode):
@@ -61,10 +53,11 @@ def concretize(node: IRNode, assignment: Mapping[str, object]) -> frozenset[obje
         return frozenset({node.value})
     if isinstance(node, BoolNode):
         return frozenset({True, False})
+    if isinstance(node, UnboundedIntNode):
+        raise ValueError("UnboundedIntNode should have been filled before concretize is called.")
     if isinstance(node, IntRangeNode):
         return frozenset(range(node.min_value, node.max_value + 1))
     if isinstance(node, TupleNode):
-        # Cartesian product of all children's expansions.
         result: frozenset[object] = frozenset({()})
         for item in node.items:
             item_vals = concretize(item, assignment)
@@ -89,62 +82,55 @@ def generate(
     constraint: Expression = _DEFAULT_CONSTRAINT,
     methods: Optional[Mapping[Label, Method]] = None,
 ) -> set[GenerateT]:
-    """Generate all runtime values of type ``tree`` satisfying ``constraint``.
-
-    Args:
-        tree:       A Python type expression (TypeTree).
-        constraint: An Expression AST.  Defaults to BooleanExpression(True).
-        methods:    Optional mapping from label string to method string.
-                    Absent labels default to ``"all"``.  ``None`` is treated
-                    the same as an empty mapping.
-
-    Returns:
-        A set of runtime values.
-
-    Raises:
-        ValueError: on invalid tree, methods, or expression.
-        TypeError:  if ``constraint`` is not an Expression AST node.
-    """
+    """Generate all runtime values of type ``tree`` satisfying ``constraint``."""
     if methods is None:
         methods = {}
 
     # 1. Normalize
     node = normalize(tree)
 
-    # 2. Validate tree
-    validate_tree(node)
-
-    # 3. Validate methods
-    validate_methods(node, methods)
-
-    # 4. Validate expression
+    # 2. Validate expression against the (still-unfilled) tree so that
+    #    malformed or non-boolean constraints raise TypeError/ValueError
+    #    before bounds inference has a chance to emit a misleading error.
     validate_expression(constraint, node)
 
-    # 5. Fast path: no named nodes → evaluate the (constant) constraint first,
-    #    then return the full denotation if satisfied.
+    # 3. Validate methods against the unfilled tree so that invalid method
+    #    keys/values are always reported, even when bounds are contradictory
+    #    and generate() would otherwise return early with an empty set.
+    validate_methods(node, methods)
+
+    # 4. Infer and fill integer bounds from the constraint
+    bounds = infer_int_bounds(node, constraint)
+    if bounds:
+        # Contradictory bounds (lo > hi) -> no solutions possible
+        for _label, (lo, hi) in bounds.items():
+            if lo > hi:
+                return set()
+        node = fill_int_bounds(node, bounds)
+
+    # 5. Validate tree (requires bounds to have been filled)
+    validate_tree(node)
+
+    # 6. Fast path: no named nodes
     if not contains_name(node):
-        # For unnamed trees there are no labels, so the constraint must be
-        # a constant boolean expression.  Evaluate it with an empty assignment.
         satisfied = eval_expression(constraint, {})
         if satisfied is not True:
             return set()
         return cast("set[GenerateT]", set(_values_node(node)))
 
-    # 6. Exact satisfying-assignment search (S0)
+    # 7. Exact satisfying-assignment search (S0)
     assignments = search(node, constraint, methods)
 
     if not assignments:
         return set()
 
-    # 7. Apply super-method reductions (S*)
+    # 8. Apply super-method reductions (S*)
     reduced = apply_methods(assignments, methods, labels_in_order(node))
 
     if not reduced:
         return set()
 
-    # 8. Concretize each assignment into runtime values.
-    # ``concretize`` returns a frozenset (possibly multi-valued for unnamed
-    # leaves in mixed trees), so we union the results together.
+    # 9. Concretize each assignment into runtime values.
     result: set[object] = set()
     for asgn in reduced:
         result.update(concretize(node, asgn))

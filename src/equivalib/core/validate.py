@@ -15,6 +15,7 @@ from equivalib.core.types import (
     BoolNode,
     LiteralNode,
     IntRangeNode,
+    UnboundedIntNode,
     TupleNode,
     UnionNode,
     NamedNode,
@@ -87,6 +88,11 @@ def _check_node(node: IRNode) -> None:
             )
         _check_node(node.inner)
         return
+    if isinstance(node, UnboundedIntNode):
+        raise ValueError(
+            "UnboundedIntNode found during tree validation - "
+            "integer bounds were not filled before validation."
+        )
     impossible(node)
 
 
@@ -157,7 +163,7 @@ def _collect_label_shapes(node: IRNode) -> LabelShapes:
 
 
 def _walk_for_shapes(node: IRNode, result: LabelShapes) -> None:
-    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode)):
+    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode)):
         return
     if isinstance(node, TupleNode):
         for item in node.items:
@@ -329,6 +335,8 @@ def _shape_type(shape: IRNode) -> str:
         if len(option_types) == 1:
             return option_types.pop()
         return "any"
+    if isinstance(shape, UnboundedIntNode):
+        return "numeric"
     # NoneNode, TupleNode, etc. are opaque in expression context.
     return "any"
 

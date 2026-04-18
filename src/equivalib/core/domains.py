@@ -14,6 +14,7 @@ from equivalib.core.types import (
     BoolNode,
     LiteralNode,
     IntRangeNode,
+    UnboundedIntNode,
     TupleNode,
     UnionNode,
     NamedNode,
@@ -65,6 +66,11 @@ def _values_node(node: IRNode) -> frozenset[object]:
         # For domain computation purposes, return the denotation of the inner
         # node (ignoring the name).
         return _values_node(node.inner)
+    if isinstance(node, UnboundedIntNode):
+        raise ValueError(
+            "UnboundedIntNode has no denotation; integer bounds were not filled "
+            "before computing values."
+        )
     impossible(node)
 
 
@@ -136,6 +142,11 @@ def _values_node_tagged(node: IRNode) -> frozenset[object]:
         return result
     if isinstance(node, NamedNode):
         return _values_node_tagged(node.inner)
+    if isinstance(node, UnboundedIntNode):
+        raise ValueError(
+            "UnboundedIntNode has no denotation; integer bounds were not filled "
+            "before computing values."
+        )
     impossible(node)
 
 
@@ -191,7 +202,7 @@ def _collect_occurrences_tagged(
     out: dict[str, list[frozenset[object]]],
 ) -> None:
     """Populate ``out`` with per-label tagged occurrence frozensets."""
-    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode)):
+    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode)):
         return
     if isinstance(node, TupleNode):
         for item in node.items:
