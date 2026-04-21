@@ -130,7 +130,7 @@ def _normalize_annotated(base: object, metadata: list[object], extensions: dict[
                 "An 'int' in Annotated requires a Name(...) annotation. "
                 "Use Annotated[int, Name('X')] and supply bounds via the constraint parameter."
             )
-        inner: IRNode = UnboundedIntNode()
+        inner = UnboundedIntNode()
     else:
         inner = normalize(base, ext)
 

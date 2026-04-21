@@ -10,6 +10,22 @@ from typing import Mapping, Optional, Type, TypeVar, cast
 
 from equivalib.core.expression import (
     And,
+    BooleanConstant,
+    IntegerConstant,
+    Reference,
+    Neg,
+    Add,
+    Sub,
+    Mul,
+    FloorDiv,
+    Mod,
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    Or,
     BooleanExpression,
     Expression,
     impossible,
@@ -41,6 +57,12 @@ GenerateT = TypeVar("GenerateT")
 _DEFAULT_CONSTRAINT: Expression = BooleanExpression(True)
 
 _REQUIRED_EXTENSION_METHODS = ("initialize", "enumerate_all", "arbitrary", "uniform_random")
+
+_EXPR_TYPES = (
+    BooleanConstant, IntegerConstant, Reference,
+    Neg, Add, Sub, Mul, FloorDiv, Mod,
+    Eq, Ne, Lt, Le, Gt, Ge, And, Or,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -170,16 +192,6 @@ def generate(
         extra = ext_obj.initialize(tree, constraint)  # type: ignore[union-attr]
         if extra is not None:
             # Validate: must be an Expression AST node.
-            from equivalib.core.expression import (
-                BooleanConstant, IntegerConstant, Reference,
-                Neg, Add, Sub, Mul, FloorDiv, Mod,
-                Eq, Ne, Lt, Le, Gt, Ge, And as _And, Or,
-            )
-            _EXPR_TYPES = (
-                BooleanConstant, IntegerConstant, Reference,
-                Neg, Add, Sub, Mul, FloorDiv, Mod,
-                Eq, Ne, Lt, Le, Gt, Ge, _And, Or,
-            )
             if not isinstance(extra, _EXPR_TYPES):
                 raise TypeError(
                     f"Extension initialize() must return an Expression AST node or None, "
