@@ -3,11 +3,11 @@ from __future__ import annotations
 import importlib
 import inspect
 from dataclasses import dataclass
-from typing import Annotated, Any, Collection, Iterator, Literal, Sequence, Tuple, Union
+from typing import Annotated, Any, Collection, Iterator, Literal, Sequence, Tuple, Union, cast
 
 import pytest
 
-from equivalib.core.expression import And, BooleanConstant, Eq, Ge, IntegerConstant, Le, Lt, Ne, Reference
+from equivalib.core.expression import And, Eq, Ge, Le, Lt, Ne
 from equivalib.core.name import Name as CoreName
 
 
@@ -39,6 +39,18 @@ def _int_bounds(label: str, lo: int, hi: int) -> Any:
     return And(Ge(ref(label), int_const(lo)), Le(ref(label), int_const(hi)))
 
 
+def as_annotated(value: object, metadata: object) -> object:
+    return Annotated.__getitem__((value, metadata))
+
+
+def as_tuple(*items: object) -> object:
+    return Tuple.__getitem__(items)
+
+
+def as_union(*options: object) -> object:
+    return Union.__getitem__(options)
+
+
 def generate_with_extensions(
     tree: object,
     constraint: Any | None = None,
@@ -50,7 +62,7 @@ def generate_with_extensions(
         constraint = true_expr()
     if methods is None:
         methods = {}
-    return generate(tree, constraint, methods, extensions=extensions)
+    return cast(set[object], generate(tree, constraint, methods, extensions=extensions))
 
 
 @dataclass(frozen=True)
@@ -228,7 +240,7 @@ class RegexExtension(RecordingExtension):
         snapshot = None if values is None else tuple(values)
         self.arbitrary_calls.append((owner, snapshot))
         if values is not None:
-            candidates = list(values)
+            candidates = [cast(str, value) for value in values]
             if not candidates:
                 raise ValueError("No admissible regex values.")
             return sorted(candidates)[0]
@@ -244,13 +256,14 @@ class RegexExtension(RecordingExtension):
     ) -> object:
         snapshot = None if weighted_values is None else tuple(weighted_values)
         self.uniform_calls.append((owner, snapshot))
-        if self._regex_values(owner) is None:
+        regex_values = self._regex_values(owner)
+        if regex_values is None:
             raise ValueError("infinite regex domain")
         if weighted_values is not None:
             best_weight = max(weight for _, weight in weighted_values)
-            best_values = [value for value, weight in weighted_values if weight == best_weight]
+            best_values = [cast(str, value) for value, weight in weighted_values if weight == best_weight]
             return sorted(best_values)[-1]
-        return self._regex_values(owner)[-1]
+        return regex_values[-1]
 
 
 def make_palette_extension(initialize_return: Any = None) -> RecordingExtension:
@@ -345,7 +358,7 @@ def test_initialize_called_for_unused_registered_extension():
 @EXT_XFAIL
 def test_initialize_receives_original_tree_and_constraint():
     extension = make_palette_extension()
-    tree = Tuple[Annotated[int, CoreName("X")], WARM]
+    tree = as_tuple(Annotated[int, CoreName("X")], WARM)
     constraint = _int_bounds("X", 0, 1)
     generate_with_extensions(tree, constraint, extensions={Palette: extension})
     assert extension.initialize_calls == [(tree, constraint)]
@@ -420,19 +433,19 @@ def test_extension_matches_plain_custom_leaf():
 
 @EXT_XFAIL
 def test_extension_matches_annotated_custom_leaf():
-    tree = Annotated[WARM, CoreName("P")]
+    tree = as_annotated(WARM, CoreName("P"))
     assert generate_with_extensions(tree, extensions={Palette: make_palette_extension()}) == {"red", "orange"}
 
 
 @EXT_XFAIL
 def test_extension_matches_union_branch():
-    tree = Union[WARM, Literal["fallback"]]
+    tree = as_union(WARM, Literal["fallback"])
     assert generate_with_extensions(tree, extensions={Palette: make_palette_extension()}) == {"red", "orange", "fallback"}
 
 
 @EXT_XFAIL
 def test_extension_matches_tuple_element():
-    tree = Tuple[WARM, Literal[1]]
+    tree = as_tuple(WARM, Literal[1])
     assert generate_with_extensions(tree, extensions={Palette: make_palette_extension()}) == {("red", 1), ("orange", 1)}
 
 
@@ -462,7 +475,7 @@ def test_extension_may_return_runtime_type_different_from_syntax_head():
 
 @EXT_XFAIL
 def test_two_distinct_palette_leaves_use_per_occurrence_domains():
-    tree = Tuple[WARM, COOL]
+    tree = as_tuple(WARM, COOL)
     assert generate_with_extensions(tree, extensions={Palette: make_palette_extension()}) == {
         ("red", "blue"),
         ("red", "green"),
@@ -488,7 +501,7 @@ def test_unnamed_extension_leaf_uses_enumerate_all():
 @EXT_XFAIL
 def test_named_extension_all_uses_enumerate_all():
     extension = make_palette_extension()
-    tree = Annotated[WARM, CoreName("P")]
+    tree = as_annotated(WARM, CoreName("P"))
     assert generate_with_extensions(tree, extensions={Palette: extension}) == {"red", "orange"}
     assert extension.enumerate_calls == [WARM]
 
@@ -496,7 +509,7 @@ def test_named_extension_all_uses_enumerate_all():
 @EXT_XFAIL
 def test_named_extension_arbitrary_uses_extension_hook():
     extension = make_palette_extension()
-    tree = Annotated[WARM, CoreName("P")]
+    tree = as_annotated(WARM, CoreName("P"))
     assert generate_with_extensions(tree, methods={"P": "arbitrary"}, extensions={Palette: extension}) == {"red"}
     assert extension.arbitrary_calls
 
@@ -504,14 +517,14 @@ def test_named_extension_arbitrary_uses_extension_hook():
 @EXT_XFAIL
 def test_named_extension_uniform_random_uses_extension_hook():
     extension = make_palette_extension()
-    tree = Annotated[WARM, CoreName("P")]
+    tree = as_annotated(WARM, CoreName("P"))
     assert generate_with_extensions(tree, methods={"P": "uniform_random"}, extensions={Palette: extension}) == {"orange"}
     assert extension.uniform_calls
 
 
 @EXT_XFAIL
 def test_mixed_tree_uses_extension_and_default_bool_together():
-    tree = Tuple[WARM, bool]
+    tree = as_tuple(WARM, bool)
     assert generate_with_extensions(tree, extensions={Palette: make_palette_extension()}) == {
         ("red", False),
         ("red", True),
@@ -522,7 +535,10 @@ def test_mixed_tree_uses_extension_and_default_bool_together():
 
 @EXT_XFAIL
 def test_repeated_named_extension_occurrences_share_one_value():
-    tree = Tuple[Annotated[WARM, CoreName("P")], Annotated[WARM, CoreName("P")]]
+    tree = as_tuple(
+        as_annotated(WARM, CoreName("P")),
+        as_annotated(WARM, CoreName("P")),
+    )
     assert generate_with_extensions(tree, extensions={Palette: make_palette_extension()}) == {
         ("red", "red"),
         ("orange", "orange"),
@@ -531,13 +547,19 @@ def test_repeated_named_extension_occurrences_share_one_value():
 
 @EXT_XFAIL
 def test_repeated_named_extension_occurrences_intersect_domains():
-    tree = Tuple[Annotated[WARM, CoreName("P")], Annotated[PRIMARY, CoreName("P")]]
+    tree = as_tuple(
+        as_annotated(WARM, CoreName("P")),
+        as_annotated(PRIMARY, CoreName("P")),
+    )
     assert generate_with_extensions(tree, extensions={Palette: make_palette_extension()}) == {("red", "red")}
 
 
 @EXT_XFAIL
 def test_different_named_extension_labels_remain_independent():
-    tree = Tuple[Annotated[WARM, CoreName("X")], Annotated[PRIMARY, CoreName("Y")]]
+    tree = as_tuple(
+        as_annotated(WARM, CoreName("X")),
+        as_annotated(PRIMARY, CoreName("Y")),
+    )
     assert generate_with_extensions(tree, extensions={Palette: make_palette_extension()}) == {
         ("red", "red"),
         ("red", "blue"),
@@ -548,7 +570,10 @@ def test_different_named_extension_labels_remain_independent():
 
 @EXT_XFAIL
 def test_arbitrary_extension_result_is_singleton_subset_of_all():
-    tree = Tuple[Annotated[WARM, CoreName("X")], Annotated[WARM, CoreName("Y")]]
+    tree = as_tuple(
+        as_annotated(WARM, CoreName("X")),
+        as_annotated(WARM, CoreName("Y")),
+    )
     constraint = Ne(ref("X"), ref("Y"))
     all_results = generate_with_extensions(tree, constraint, extensions={Palette: make_palette_extension()})
     witness = generate_with_extensions(
@@ -563,7 +588,10 @@ def test_arbitrary_extension_result_is_singleton_subset_of_all():
 
 @EXT_XFAIL
 def test_uniform_random_extension_result_is_singleton_subset_of_all():
-    tree = Tuple[Annotated[WARM, CoreName("X")], Annotated[WARM, CoreName("Y")]]
+    tree = as_tuple(
+        as_annotated(WARM, CoreName("X")),
+        as_annotated(WARM, CoreName("Y")),
+    )
     constraint = Ne(ref("X"), ref("Y"))
     all_results = generate_with_extensions(tree, constraint, extensions={Palette: make_palette_extension()})
     witness = generate_with_extensions(
@@ -589,7 +617,10 @@ def test_arbitrary_extension_may_override_default_bool_witness_policy():
 
 @EXT_XFAIL
 def test_extension_eq_constraint_works():
-    tree = Tuple[Annotated[WARM, CoreName("X")], Annotated[PRIMARY, CoreName("Y")]]
+    tree = as_tuple(
+        as_annotated(WARM, CoreName("X")),
+        as_annotated(PRIMARY, CoreName("Y")),
+    )
     assert generate_with_extensions(tree, Eq(ref("X"), ref("Y")), extensions={Palette: make_palette_extension()}) == {
         ("red", "red"),
     }
@@ -597,7 +628,10 @@ def test_extension_eq_constraint_works():
 
 @EXT_XFAIL
 def test_extension_ne_constraint_works():
-    tree = Tuple[Annotated[WARM, CoreName("X")], Annotated[PRIMARY, CoreName("Y")]]
+    tree = as_tuple(
+        as_annotated(WARM, CoreName("X")),
+        as_annotated(PRIMARY, CoreName("Y")),
+    )
     assert generate_with_extensions(tree, Ne(ref("X"), ref("Y")), extensions={Palette: make_palette_extension()}) == {
         ("red", "blue"),
         ("orange", "red"),
@@ -607,21 +641,24 @@ def test_extension_ne_constraint_works():
 
 @EXT_XFAIL
 def test_extension_ordering_constraint_is_rejected_by_default():
-    tree = Tuple[Annotated[WARM, CoreName("X")], Annotated[PRIMARY, CoreName("Y")]]
+    tree = as_tuple(
+        as_annotated(WARM, CoreName("X")),
+        as_annotated(PRIMARY, CoreName("Y")),
+    )
     with pytest.raises(TypeError, match="numeric|ordering"):
         generate_with_extensions(tree, Lt(ref("X"), ref("Y")), extensions={Palette: make_palette_extension()})
 
 
 @EXT_XFAIL
 def test_extension_arithmetic_constraint_is_rejected_by_default():
-    tree = Annotated[WARM, CoreName("X")]
+    tree = as_annotated(WARM, CoreName("X"))
     with pytest.raises(TypeError, match="numeric|Arithmetic"):
         generate_with_extensions(tree, Eq(core_attr("Add")(ref("X"), int_const(1)), int_const(1)), extensions={Palette: make_palette_extension()})
 
 
 @EXT_XFAIL
 def test_extension_labels_are_atomic_for_addressing():
-    tree = Annotated[WARM, CoreName("X")]
+    tree = as_annotated(WARM, CoreName("X"))
     with pytest.raises(ValueError, match="path|tuple|address"):
         generate_with_extensions(tree, Eq(ref("X", (0,)), ref("X")), extensions={Palette: make_palette_extension()})
 
@@ -643,19 +680,19 @@ def test_regex_finite_exhaustive_generation():
 
 @EXT_XFAIL
 def test_regex_finite_named_all_generation():
-    tree = Annotated[FINITE_REGEX, CoreName("R")]
+    tree = as_annotated(FINITE_REGEX, CoreName("R"))
     assert generate_with_extensions(tree, extensions={Regex: RegexExtension()}) == {"ab", "cd"}
 
 
 @EXT_XFAIL
 def test_regex_finite_arbitrary_generation():
-    tree = Annotated[FINITE_REGEX, CoreName("R")]
+    tree = as_annotated(FINITE_REGEX, CoreName("R"))
     assert generate_with_extensions(tree, methods={"R": "arbitrary"}, extensions={Regex: RegexExtension()}) == {"ab"}
 
 
 @EXT_XFAIL
 def test_regex_finite_uniform_random_generation():
-    tree = Annotated[FINITE_REGEX, CoreName("R")]
+    tree = as_annotated(FINITE_REGEX, CoreName("R"))
     assert generate_with_extensions(tree, methods={"R": "uniform_random"}, extensions={Regex: RegexExtension()}) == {"cd"}
 
 
@@ -667,20 +704,20 @@ def test_regex_infinite_exhaustive_generation_raises():
 
 @EXT_XFAIL
 def test_regex_infinite_uniform_random_raises():
-    tree = Annotated[INFINITE_REGEX, CoreName("R")]
+    tree = as_annotated(INFINITE_REGEX, CoreName("R"))
     with pytest.raises(ValueError, match="infinite"):
         generate_with_extensions(tree, methods={"R": "uniform_random"}, extensions={Regex: RegexExtension()})
 
 
 @EXT_XFAIL
 def test_regex_infinite_arbitrary_returns_witness():
-    tree = Annotated[INFINITE_REGEX, CoreName("R")]
+    tree = as_annotated(INFINITE_REGEX, CoreName("R"))
     assert generate_with_extensions(tree, methods={"R": "arbitrary"}, extensions={Regex: RegexExtension()}) == {""}
 
 
 @EXT_XFAIL
 def test_two_distinct_regex_leaves_preserve_per_occurrence_patterns():
-    tree = Tuple[FINITE_REGEX, FINITE_REGEX_2]
+    tree = as_tuple(FINITE_REGEX, FINITE_REGEX_2)
     assert generate_with_extensions(tree, extensions={Regex: RegexExtension()}) == {
         ("ab", "cat"),
         ("ab", "dog"),
