@@ -2,12 +2,14 @@
 
 Entry point:
     normalize(t) -> IRNode
+    normalize_with_extensions(t, extensions) -> IRNode
 """
 
 from __future__ import annotations
 
 import typing
 import types
+from typing import Mapping
 
 from equivalib.core.name import Name
 from equivalib.core.types import (
@@ -18,6 +20,7 @@ from equivalib.core.types import (
     TupleNode,
     UnionNode,
     NamedNode,
+    ExtensionLeafNode,
     IRNode,
 )
 
@@ -27,16 +30,47 @@ def normalize(t: object) -> IRNode:
 
     Raises ``ValueError`` for unsupported or malformed type expressions.
     """
+    return _normalize(t, None)
+
+
+def normalize_with_extensions(t: object, extensions: Mapping[type, object] | None) -> IRNode:
+    """Normalize ``t`` into an IR node, honouring registered extensions.
+
+    Extension-owned type values produce ``ExtensionLeafNode`` nodes instead of
+    raising an unsupported-type error.
+    """
+    return _normalize(t, extensions)
+
+
+def _lookup_extension(t: object, extensions: Mapping[type, object]) -> tuple[type, str] | None:
+    """Return (extension_type, kind) if *t* is owned by a registered extension, else None."""
+    # Rule 1: t is a type object and a direct key.
+    if isinstance(t, type) and t in extensions:
+        kind = "bool" if t is bool else ("int" if t is int else "opaque")
+        return t, kind
+    # Rule 2: type(t) is a key.
+    if not isinstance(t, type) and type(t) in extensions:
+        return type(t), "opaque"
+    return None
+
+
+def _normalize(t: object, extensions: Mapping[type, object] | None) -> IRNode:
+    """Core normalize implementation shared by ``normalize`` and ``normalize_with_extensions``."""
     origin = typing.get_origin(t)
     args = typing.get_args(t)
 
     if origin is typing.Annotated:
-        return _normalize_annotated(args[0], list(args[1:]))
+        return _normalize_annotated(args[0], list(args[1:]), extensions)
 
     if t is type(None) or t is None:
         return NoneNode()
 
     if t is bool:
+        if extensions is not None:
+            hit = _lookup_extension(t, extensions)
+            if hit is not None:
+                ext_type, kind = hit
+                return ExtensionLeafNode(owner=t, extension_type=ext_type, kind=kind)
         return BoolNode()
 
     if t is int:
@@ -58,18 +92,34 @@ def normalize(t: object) -> IRNode:
         return UnionNode(tuple(LiteralNode(v) for v in args))
 
     if origin is tuple:
-        return TupleNode(tuple(normalize(a) for a in args))
+        return TupleNode(tuple(_normalize(a, extensions) for a in args))
 
     if origin is typing.Union or origin is types.UnionType:
         options: list[IRNode] = []
         for a in args:
-            options.append(normalize(a))
+            options.append(_normalize(a, extensions))
         return UnionNode(tuple(options))
 
-    raise ValueError(f"Unsupported type expression: {t!r}")
+    # Check for extension-owned instance values (e.g. WARM, FINITE_REGEX).
+    if extensions is not None:
+        hit = _lookup_extension(t, extensions)
+        if hit is not None:
+            ext_type, kind = hit
+            return ExtensionLeafNode(owner=t, extension_type=ext_type, kind=kind)
+        # Custom (non-typing) value with no registered extension.
+        raise ValueError(
+            f"No extension registered for {t!r}: unsupported type expression. "
+            "Register a matching extension or use a built-in type."
+        )
+
+    raise ValueError(
+        f"Unsupported type expression: {t!r} — "
+        "no extension is registered for this type. "
+        "Register a matching extension or use a built-in supported type."
+    )
 
 
-def _normalize_annotated(base: object, metadata: list[object]) -> IRNode:
+def _normalize_annotated(base: object, metadata: list[object], extensions: Mapping[type, object] | None) -> IRNode:
     """Normalize an ``Annotated[base, *metadata]`` expression."""
     names = [m for m in metadata if isinstance(m, Name)]
     unknown = [m for m in metadata if not isinstance(m, Name)]
@@ -102,7 +152,7 @@ def _normalize_annotated(base: object, metadata: list[object]) -> IRNode:
             )
         inner: IRNode = UnboundedIntNode()
     else:
-        inner = normalize(base)
+        inner = _normalize(base, extensions)
 
     if name is not None:
         return NamedNode(name.label, inner)

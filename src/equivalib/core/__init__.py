@@ -44,12 +44,14 @@ from equivalib.core.expression import (
 from equivalib.core.api import generate
 from equivalib.core.domains import values
 from equivalib.core.cache import mentioned_labels
+from equivalib.core.extensions import Extension
 
 __all__ = [
     "generate",
     "values",
     "Name",
     "Expression",
+    "Extension",
     "BooleanExpression",
     "BooleanConstant",
     "IntegerConstant",

@@ -1,7 +1,7 @@
 """Satisfying-assignment search — delegates to the CP-SAT backend.
 
 Public API:
-    search(node, constraint, methods) -> list[dict]
+    search(node, constraint, methods, override_domains) -> list[dict]
 
 Each element in the returned list is a dict mapping label -> value,
 representing one satisfying assignment.
@@ -20,6 +20,7 @@ def search(
     node: IRNode,
     constraint: Expression,
     methods: Mapping[str, str] | None = None,
+    override_domains: dict[str, list[object]] | None = None,
 ) -> list[dict[str, object]]:
     """Return a list of satisfying assignments.
 
@@ -35,5 +36,8 @@ def search(
     multiplicity counts from the full satisfying-assignment set.
     Labels with other domain types (string/None/tuple literals, mixed
     unions) are enumerated in Python with partial-evaluation pruning.
+
+    ``override_domains`` contains pre-computed domain lists for
+    extension-owned labels (keyed by label name).
     """
-    return sat_search(node, constraint, methods)
+    return sat_search(node, constraint, methods, override_domains)

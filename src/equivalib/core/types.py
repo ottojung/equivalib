@@ -83,7 +83,16 @@ class NamedNode:
     inner: "IRNode"
 
 
-IRNode = Union[NoneNode, BoolNode, LiteralNode, UnboundedIntNode, IntRangeNode, TupleNode, UnionNode, NamedNode]
+@dataclass(frozen=True)
+class ExtensionLeafNode:
+    """Represents an extension-owned leaf (custom type or built-in override)."""
+
+    owner: object  # The original leaf value/type (e.g., WARM, bool)
+    extension_type: type  # The key in the extensions dict (e.g., Palette, bool)
+    kind: str  # "opaque", "bool", or "int"
+
+
+IRNode = Union[NoneNode, BoolNode, LiteralNode, UnboundedIntNode, IntRangeNode, TupleNode, UnionNode, NamedNode, ExtensionLeafNode]
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +102,7 @@ IRNode = Union[NoneNode, BoolNode, LiteralNode, UnboundedIntNode, IntRangeNode, 
 
 def labels(node: IRNode) -> frozenset[str]:
     """Return all labels used within ``node``."""
-    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode)):
+    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode, ExtensionLeafNode)):
         return frozenset()
     if isinstance(node, TupleNode):
         result: frozenset[str] = frozenset()
@@ -126,7 +135,7 @@ def labels_in_order(node: IRNode) -> list[str]:
     result: list[str] = []
 
     def visit(n: IRNode) -> None:
-        if isinstance(n, (NoneNode, BoolNode, LiteralNode, IntRangeNode)):
+        if isinstance(n, (NoneNode, BoolNode, LiteralNode, IntRangeNode, ExtensionLeafNode)):
             return
         if isinstance(n, UnboundedIntNode):
             return
@@ -154,7 +163,7 @@ def tree_shape(node: IRNode) -> IRNode:
     The shape of a ``NamedNode`` is the shape of its inner node (not of the
     NamedNode itself), because address paths look through the name.
     """
-    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode)):
+    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode, ExtensionLeafNode)):
         return node
     if isinstance(node, TupleNode):
         return TupleNode(tuple(tree_shape(i) for i in node.items))

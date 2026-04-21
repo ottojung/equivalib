@@ -45,11 +45,12 @@ from equivalib.core.types import (
     NamedNode,
     NoneNode,
     LiteralNode,
+    ExtensionLeafNode,
     IRNode,
     labels as tree_labels,
     labels_in_order,
 )
-from equivalib.core.domains import _values_node_tagged, _untag_value
+from equivalib.core.domains import _values_node_tagged, _untag_value, _tag_value
 from equivalib.core.order import canonical_key, canonical_sorted
 from equivalib.core.eval import _structural_eq, eval_expression_partial
 
@@ -78,6 +79,7 @@ _EncResult = tuple[Any, str, bool, Literal[True] | cp_model.IntVar]
 def _sat_compute_domains(
     node: IRNode,
     int_sat_labels: set[str],
+    override_domains: dict[str, list[object]] | None = None,
 ) -> tuple[dict[str, tuple[int, int]], dict[str, list[object]]]:
     """Compute bounds for int SAT labels and full domains for all other labels.
 
@@ -86,6 +88,10 @@ def _sat_compute_domains(
     enumeration.  For all other labels (bool, enum), the complete domain list
     is returned via tagged-frozenset intersection (same semantics as
     ``domain_map``).
+
+    ``override_domains`` contains pre-computed (intersected) domains for
+    extension-owned labels; when a NamedNode's inner is an ``ExtensionLeafNode``,
+    the domain is taken from ``override_domains`` rather than from the tree.
 
     Returns:
         int_bounds:    ``{label: (lo, hi)}`` for every label in
@@ -99,6 +105,9 @@ def _sat_compute_domains(
     def _walk(n: IRNode) -> None:
         if isinstance(n, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode)):
             return
+        if isinstance(n, ExtensionLeafNode):
+            # Unnamed extension leaf — no label to record, skip.
+            return
         if isinstance(n, TupleNode):
             for item in n.items:
                 _walk(item)
@@ -107,18 +116,27 @@ def _sat_compute_domains(
                 _walk(opt)
         elif isinstance(n, NamedNode):
             label = n.label
-            if label in int_sat_labels and isinstance(n.inner, IntRangeNode):
+            if isinstance(n.inner, ExtensionLeafNode):
+                # Domain comes from override_domains (pre-computed by generate).
+                # Do NOT recurse into ExtensionLeafNode.
+                if override_domains and label in override_domains:
+                    tagged_vals = frozenset(_tag_value(v) for v in override_domains[label])
+                    if label not in other_occurrences:
+                        other_occurrences[label] = []
+                    other_occurrences[label].append(tagged_vals)
+            elif label in int_sat_labels and isinstance(n.inner, IntRangeNode):
                 # Direct bounds extraction: no range enumeration.
                 lo, hi = n.inner.min_value, n.inner.max_value
                 if label not in int_occurrences:
                     int_occurrences[label] = []
                 int_occurrences[label].append((lo, hi))
+                _walk(n.inner)
             else:
                 tagged_vals = _values_node_tagged(n.inner)
                 if label not in other_occurrences:
                     other_occurrences[label] = []
                 other_occurrences[label].append(tagged_vals)
-            _walk(n.inner)
+                _walk(n.inner)
         else:
             impossible(n)
 
@@ -150,6 +168,7 @@ def sat_search(
     node: IRNode,
     constraint: Expression,
     methods: Mapping[str, str] | None = None,
+    override_domains: dict[str, list[object]] | None = None,
 ) -> list[dict[str, object]]:
     """Return satisfying assignments using CP-SAT for bool/int-range labels.
 
@@ -163,12 +182,24 @@ def sat_search(
     Boolean and integer-range labels are encoded as CP-SAT variables.
     All other labels (string/None/tuple literals, mixed unions) are enumerated
     in Python via backtracking, with CP-SAT invoked for the remaining labels.
+
+    ``override_domains`` maps label → pre-computed domain list for
+    extension-owned labels (ExtensionLeafNode).  These labels are always
+    treated as enum (non-SAT) labels regardless of their kind field.
     """
     if methods is None:
         methods = {}
+    if override_domains is None:
+        override_domains = {}
+
     # Classify labels into CP-SAT-encodable (bool / int-range) and enum.
     # (Done first so we know which labels are int SAT before computing domains.)
     sat_kinds, enum_label_set = _classify_labels(node)
+
+    # Extension-owned labels must always be treated as enum, not SAT.
+    for label in list(override_domains):
+        sat_kinds.pop(label, None)
+        enum_label_set.add(label)
 
     # Restrict to labels that actually appear in the tree.
     tree_label_set = tree_labels(node)
@@ -179,7 +210,7 @@ def sat_search(
     # For int SAT labels: direct (lo, hi) bounds from IntRangeNode (no range materialisation).
     # For enum and bool labels: full tagged-frozenset intersection (same as domain_map).
     int_sat_labels = {lbl for lbl, knd in sat_kinds.items() if knd == _INT}
-    int_bounds, other_domains = _sat_compute_domains(node, int_sat_labels)
+    int_bounds, other_domains = _sat_compute_domains(node, int_sat_labels, override_domains)
 
     # Early exit: empty domain for any label → no satisfying assignments.
     for label, (lo, hi) in int_bounds.items():
@@ -294,7 +325,7 @@ def _classify_labels(node: IRNode) -> tuple[dict[str, str], set[str]]:
 
 def _collect_label_kinds(node: IRNode, out: dict[str, str]) -> None:
     """Walk the tree and record the inner-node kind for every NamedNode."""
-    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode)):
+    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode, ExtensionLeafNode)):
         return
     if isinstance(node, TupleNode):
         for item in node.items:
@@ -315,7 +346,8 @@ def _collect_label_kinds(node: IRNode, out: dict[str, str]) -> None:
                 out[node.label] = _OTHER  # conflicting kinds across occurrences
         else:
             out[node.label] = new_kind
-        _collect_label_kinds(inner, out)
+        if not isinstance(inner, ExtensionLeafNode):
+            _collect_label_kinds(inner, out)
     else:
         impossible(node)
 

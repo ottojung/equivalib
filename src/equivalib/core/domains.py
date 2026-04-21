@@ -18,6 +18,7 @@ from equivalib.core.types import (
     TupleNode,
     UnionNode,
     NamedNode,
+    ExtensionLeafNode,
     IRNode,
     contains_name,
 )
@@ -39,8 +40,12 @@ def values(t: object) -> set[object]:
     return set(_values_node(node))
 
 
-def _values_node(node: IRNode) -> frozenset[object]:
-    """Return the finite denotation of ``node`` (IR-level, internal)."""
+def _values_node(node: IRNode, extensions: object = None) -> frozenset[object]:
+    """Return the finite denotation of ``node`` (IR-level, internal).
+
+    When *extensions* is provided (a mapping of type → Extension), extension-owned
+    leaf nodes are expanded by calling their ``enumerate_all`` method.
+    """
     if isinstance(node, NoneNode):
         return frozenset({None})
     if isinstance(node, BoolNode):
@@ -49,10 +54,17 @@ def _values_node(node: IRNode) -> frozenset[object]:
         return frozenset({node.value})
     if isinstance(node, IntRangeNode):
         return frozenset(range(node.min_value, node.max_value + 1))
+    if isinstance(node, ExtensionLeafNode):
+        if extensions is None:
+            raise ValueError(
+                f"ExtensionLeafNode encountered without extensions mapping: {node.owner!r}."
+            )
+        ext = extensions[node.extension_type]  # type: ignore[index]
+        return frozenset(ext.enumerate_all(node.owner))
     if isinstance(node, TupleNode):
         result: frozenset[object] = frozenset({()})
         for item in node.items:
-            item_vals = _values_node(item)
+            item_vals = _values_node(item, extensions)
             result = frozenset(
                 existing + (v,) for existing in result for v in item_vals  # type: ignore[operator]
             )
@@ -60,12 +72,12 @@ def _values_node(node: IRNode) -> frozenset[object]:
     if isinstance(node, UnionNode):
         result = frozenset()
         for opt in node.options:
-            result = result | _values_node(opt)
+            result = result | _values_node(opt, extensions)
         return result
     if isinstance(node, NamedNode):
         # For domain computation purposes, return the denotation of the inner
         # node (ignoring the name).
-        return _values_node(node.inner)
+        return _values_node(node.inner, extensions)
     if isinstance(node, UnboundedIntNode):
         raise ValueError(
             "UnboundedIntNode has no denotation; integer bounds were not filled "
@@ -202,7 +214,7 @@ def _collect_occurrences_tagged(
     out: dict[str, list[frozenset[object]]],
 ) -> None:
     """Populate ``out`` with per-label tagged occurrence frozensets."""
-    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode)):
+    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode, ExtensionLeafNode)):
         return
     if isinstance(node, TupleNode):
         for item in node.items:

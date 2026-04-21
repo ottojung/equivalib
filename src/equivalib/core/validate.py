@@ -19,6 +19,7 @@ from equivalib.core.types import (
     TupleNode,
     UnionNode,
     NamedNode,
+    ExtensionLeafNode,
     IRNode,
     labels as tree_labels,
     contains_name,
@@ -63,6 +64,8 @@ def _check_node(node: IRNode) -> None:
     if isinstance(node, BoolNode):
         return
     if isinstance(node, LiteralNode):
+        return
+    if isinstance(node, ExtensionLeafNode):
         return
     if isinstance(node, IntRangeNode):
         if node.min_value > node.max_value:
@@ -163,7 +166,7 @@ def _collect_label_shapes(node: IRNode) -> LabelShapes:
 
 
 def _walk_for_shapes(node: IRNode, result: LabelShapes) -> None:
-    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode)):
+    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode, ExtensionLeafNode)):
         return
     if isinstance(node, TupleNode):
         for item in node.items:
@@ -337,6 +340,12 @@ def _shape_type(shape: IRNode) -> str:
         return "any"
     if isinstance(shape, UnboundedIntNode):
         return "numeric"
+    if isinstance(shape, ExtensionLeafNode):
+        if shape.kind == "bool":
+            return "bool"
+        if shape.kind == "int":
+            return "numeric"
+        return "any"
     # NoneNode, TupleNode, etc. are opaque in expression context.
     return "any"
 
