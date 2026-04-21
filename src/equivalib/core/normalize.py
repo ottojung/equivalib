@@ -114,7 +114,7 @@ def _normalize(t: object, extensions: Mapping[type, object] | None) -> IRNode:
 
     raise ValueError(
         f"Unsupported type expression: {t!r} — "
-        "no extension is registered for this type. "
+        "this appears to be a custom value with no registered extension. "
         "Register a matching extension or use a built-in supported type."
     )
 

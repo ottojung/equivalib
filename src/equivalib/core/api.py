@@ -130,7 +130,7 @@ def _collect_ext_label_info(
 
             try:
                 domain_list = list(extension.enumerate_all(owner))
-            except Exception as exc:  # noqa: BLE001
+            except ValueError as exc:
                 # Enumeration failed (e.g. infinite domain).
                 if label not in ext_label_first:
                     ext_label_first[label] = (owner, ext_type)

@@ -64,29 +64,30 @@ def validate_extensions(extensions: object) -> None:
                 )
 
 
+from equivalib.core.expression import (
+    BooleanConstant, IntegerConstant, Reference, Neg,
+    Add, Sub, Mul, FloorDiv, Mod,
+    Eq, Ne, Lt, Le, Gt, Ge, And, Or,
+)
+
+_ALL_EXPRESSION_TYPES = (
+    BooleanConstant, IntegerConstant, Reference, Neg,
+    Add, Sub, Mul, FloorDiv, Mod,
+    Eq, Ne, Lt, Le, Gt, Ge, And, Or,
+)
+_BOOL_EXPRESSION_TYPES = (BooleanConstant, Reference, Eq, Ne, Lt, Le, Gt, Ge, And, Or)
+
+
 def _is_expression_node(obj: object) -> bool:
     """Return True if *obj* is any recognized Expression AST node."""
-    from equivalib.core.expression import (  # noqa: PLC0415
-        BooleanConstant, IntegerConstant, Reference, Neg,
-        Add, Sub, Mul, FloorDiv, Mod,
-        Eq, Ne, Lt, Le, Gt, Ge, And, Or,
-    )
-    return isinstance(obj, (
-        BooleanConstant, IntegerConstant, Reference, Neg,
-        Add, Sub, Mul, FloorDiv, Mod,
-        Eq, Ne, Lt, Le, Gt, Ge, And, Or,
-    ))
+    return isinstance(obj, _ALL_EXPRESSION_TYPES)
 
 
 def _is_boolean_expr(obj: object) -> bool:
     """Return True if *obj* is structurally a boolean-valued Expression."""
-    from equivalib.core.expression import (  # noqa: PLC0415
-        BooleanConstant, Reference,
-        Eq, Ne, Lt, Le, Gt, Ge, And, Or,
-    )
     # Reference may or may not be boolean - we accept it (label type is
     # checked later during validate_expression with the full tree context).
-    return isinstance(obj, (BooleanConstant, Reference, Eq, Ne, Lt, Le, Gt, Ge, And, Or))
+    return isinstance(obj, _BOOL_EXPRESSION_TYPES)
 
 
 def run_initialize(
