@@ -12,6 +12,8 @@ within software testing. This tool is designed to support the complex
 task of identifying and delineating equivalence classes and their
 corresponding test cases in a rigorous yet intuitive manner.
 
+The current core generation engine is specified in [docs/spec1.md](docs/spec1.md).
+
 # Licensing
 
 The distribution of Equivalib falls under the GNU General Public

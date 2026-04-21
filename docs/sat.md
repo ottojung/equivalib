@@ -6,6 +6,7 @@ This document specifies how a compliant implementation of equivalib MUST use a S
 
 [docs/spec1.md](spec1.md) defines the observable semantics of the `generate` function.
 [docs/caching.md](caching.md) defines caching guarantees for constraint-independent subtrees.
+[docs/extensions.md](extensions.md) defines the planned extension mechanism for custom leaves and built-in overrides.
 This document defines the required solver backend and the required patterns for using it.
 
 Integrating a SAT/CP solver has the purpose of efficiently evaluating constraints.
@@ -51,6 +52,8 @@ The bounds `low` and `high` are the inclusive minimum and maximum of the domain,
 
 A compliant implementation MUST NOT encode super labels as unconstrained Python objects during constraint evaluation.
 Encoding a label as a plain Python value and then enumerating its domain in pure Python is only permitted for non-super labels, or for guaranteed-cacheable subtrees as defined in [docs/caching.md](caching.md).
+
+In the planned extension design from [docs/extensions.md](extensions.md), extension-owned leaves remain solver-external in the first iteration unless a later extension contract explicitly adds solver-native support.
 
 ## Constraint Encoding
 

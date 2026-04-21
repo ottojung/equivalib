@@ -4,6 +4,9 @@
 
 This document specifies the core semantics of the library as a single generation interface over finite type trees, named values, and one boolean constraint.
 
+This document defines the built-in core leaf language.
+The planned extension mechanism for custom leaves and built-in overrides is specified separately in [extensions.md](extensions.md).
+
 The core is defined by observable behavior.
 
 It does not require any specific internal architecture. A compliant implementation MAY use staged expansion, direct search, dynamic programming, or some other implementation strategy.
@@ -30,6 +33,8 @@ The core MUST support:
 - boolean constraint ASTs over labels and addresses
 - one public generation function
 
+Optional extension-owned leaves are outside the scope of this base document and are specified in [extensions.md](extensions.md).
+
 The core does not specify:
 
 - compilation from any other representation
@@ -54,6 +59,8 @@ Expression: TypeAlias = Union[
 
 generate(tree: Type[T], constraint: Expression = BooleanExpression(True), methods: Optional[Mapping[Label, Method]] = None) -> Set[T]
 ```
+
+The extension-aware superset of this interface adds an optional `extensions` registry; see [extensions.md](extensions.md).
 
 Here `T` is the runtime type denoted by `tree`.
 
@@ -81,6 +88,8 @@ means:
 generate(tree, BooleanExpression(True), None)
 ```
 
+When the extension-aware surface is used, omitted examples in this document should also be read as omitting the `extensions` argument.
+
 ## TypeTree
 
 ### Canonical syntax
@@ -100,6 +109,8 @@ metadata :=
     ValueRange(min, max)
   | Name(label)
 ```
+
+The extension-aware surface may add additional extension-owned leaves to this grammar; see [extensions.md](extensions.md).
 
 The canonical constraints on `Annotated[...]` are:
 

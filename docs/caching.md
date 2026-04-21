@@ -3,6 +3,7 @@
 ## Overview
 
 This document describes the caching model for the core generation engine defined in [docs/spec1.md](docs/spec1.md).
+The planned extension mechanism that may introduce extension-owned leaves is specified in [extensions.md](extensions.md).
 
 Generation is extensional: the same subtree under the same relevant context always denotes the same value set. Caching is therefore semantically natural, not just an optimization trick.
 
@@ -58,6 +59,8 @@ For a guaranteed-cacheable subtree, the minimum correct cache key is a function 
 - the methods restricted to the labels of that subtree
 
 Implementations MAY cache broader classes of subtrees if they can prove semantic equivalence for those broader cases.
+
+For extension-owned leaves, this document's guarantees still apply only when the requested extension operation itself is well-defined and finite for the relevant method.
 
 ## Immediate corollaries
 
