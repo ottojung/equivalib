@@ -18,6 +18,7 @@ from equivalib.core.types import (
     TupleNode,
     UnionNode,
     NamedNode,
+    ExtensionNode,
     IRNode,
     contains_name,
 )
@@ -39,8 +40,9 @@ def values(t: object) -> set[object]:
     return set(_values_node(node))
 
 
-def _values_node(node: IRNode) -> frozenset[object]:
+def _values_node(node: IRNode, extensions: dict[type, object] | None = None) -> frozenset[object]:
     """Return the finite denotation of ``node`` (IR-level, internal)."""
+    ext = extensions or {}
     if isinstance(node, NoneNode):
         return frozenset({None})
     if isinstance(node, BoolNode):
@@ -49,10 +51,18 @@ def _values_node(node: IRNode) -> frozenset[object]:
         return frozenset({node.value})
     if isinstance(node, IntRangeNode):
         return frozenset(range(node.min_value, node.max_value + 1))
+    if isinstance(node, ExtensionNode):
+        ext_obj = ext.get(node.key)
+        if ext_obj is None:
+            raise ValueError(
+                f"No extension registered for key {node.key!r}. "
+                "Pass the extension via the extensions= argument to generate()."
+            )
+        return frozenset(ext_obj.enumerate_all(node.owner))
     if isinstance(node, TupleNode):
         result: frozenset[object] = frozenset({()})
         for item in node.items:
-            item_vals = _values_node(item)
+            item_vals = _values_node(item, ext)
             result = frozenset(
                 existing + (v,) for existing in result for v in item_vals  # type: ignore[operator]
             )
@@ -60,12 +70,12 @@ def _values_node(node: IRNode) -> frozenset[object]:
     if isinstance(node, UnionNode):
         result = frozenset()
         for opt in node.options:
-            result = result | _values_node(opt)
+            result = result | _values_node(opt, ext)
         return result
     if isinstance(node, NamedNode):
         # For domain computation purposes, return the denotation of the inner
         # node (ignoring the name).
-        return _values_node(node.inner)
+        return _values_node(node.inner, ext)
     if isinstance(node, UnboundedIntNode):
         raise ValueError(
             "UnboundedIntNode has no denotation; integer bounds were not filled "
@@ -108,13 +118,14 @@ def _untag_value(tagged: object) -> object:
     return v
 
 
-def _values_node_tagged(node: IRNode) -> frozenset[object]:
+def _values_node_tagged(node: IRNode, extensions: dict[type, object] | None = None) -> frozenset[object]:
     """Return the finite denotation of ``node`` as a frozenset of tagged values.
 
     Uses ``_tag_value`` recursively so that bool/int-equal values (``True``
     vs ``1``, ``(True,)`` vs ``(1,)`` etc.) are preserved as distinct elements.
     This avoids Python's set-level conflation of ``True == 1``.
     """
+    ext = extensions or {}
     if isinstance(node, NoneNode):
         return frozenset({_tag_value(None)})
     if isinstance(node, BoolNode):
@@ -123,12 +134,20 @@ def _values_node_tagged(node: IRNode) -> frozenset[object]:
         return frozenset({_tag_value(node.value)})
     if isinstance(node, IntRangeNode):
         return frozenset(_tag_value(i) for i in range(node.min_value, node.max_value + 1))
+    if isinstance(node, ExtensionNode):
+        ext_obj = ext.get(node.key)
+        if ext_obj is None:
+            raise ValueError(
+                f"No extension registered for key {node.key!r}. "
+                "Pass the extension via the extensions= argument to generate()."
+            )
+        return frozenset(_tag_value(v) for v in ext_obj.enumerate_all(node.owner))
     if isinstance(node, TupleNode):
         # Build a frozenset of row-tuples made from tagged element values.
         # Each row is then wrapped in a tuple tag to form a tagged-tuple value.
         tagged_rows: frozenset[tuple[object, ...]] = frozenset({()})
         for item in node.items:
-            item_tagged_vals = _values_node_tagged(item)
+            item_tagged_vals = _values_node_tagged(item, ext)
             tagged_rows = frozenset(
                 existing + (tv,) for existing in tagged_rows for tv in item_tagged_vals
             )
@@ -138,10 +157,10 @@ def _values_node_tagged(node: IRNode) -> frozenset[object]:
         # already tagged: (bool, True) and (int, 1) are distinct.
         result: frozenset[object] = frozenset()
         for opt in node.options:
-            result = result | _values_node_tagged(opt)
+            result = result | _values_node_tagged(opt, ext)
         return result
     if isinstance(node, NamedNode):
-        return _values_node_tagged(node.inner)
+        return _values_node_tagged(node.inner, ext)
     if isinstance(node, UnboundedIntNode):
         raise ValueError(
             "UnboundedIntNode has no denotation; integer bounds were not filled "
@@ -202,7 +221,7 @@ def _collect_occurrences_tagged(
     out: dict[str, list[frozenset[object]]],
 ) -> None:
     """Populate ``out`` with per-label tagged occurrence frozensets."""
-    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode)):
+    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode, ExtensionNode)):
         return
     if isinstance(node, TupleNode):
         for item in node.items:

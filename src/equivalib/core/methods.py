@@ -18,10 +18,19 @@ Label: TypeAlias = str
 Method: TypeAlias = Literal["all", "arbitrary", "uniform_random"]
 
 
-def apply_methods(assignments: list[dict[str, object]], methods: Mapping[Label, Method], label_order: list[str]) -> list[dict[str, object]]:
+def apply_methods(
+    assignments: list[dict[str, object]],
+    methods: Mapping[Label, Method],
+    label_order: list[str],
+    extension_hooks: dict[str, tuple[object, object]] | None = None,
+) -> list[dict[str, object]]:
     """Reduce the satisfying-assignment set ``assignments`` using ``methods``.
 
     Labels without an explicit method default to ``"all"``.
+
+    ``extension_hooks`` maps label -> ``(ext_obj, owner)`` for extension-owned
+    labels so that ``arbitrary`` and ``uniform_random`` delegate to the
+    extension's own hook rather than the default canonical policy.
 
     Algorithm:
         1. Start with S := assignments.
@@ -34,6 +43,8 @@ def apply_methods(assignments: list[dict[str, object]], methods: Mapping[Label, 
     """
     if not assignments:
         return []
+
+    hooks = extension_hooks or {}
 
     # Use structural order: labels appear in the order they were first seen
     # during a left-to-right DFS traversal of the type tree.  This guarantees
@@ -62,7 +73,10 @@ def apply_methods(assignments: list[dict[str, object]], methods: Mapping[Label, 
             # No values: can't select a witness, return empty.
             return []
 
-        witness = _choose_witness(method, label, projection)
+        if label in hooks and method in ("arbitrary", "uniform_random"):
+            witness = _choose_witness_ext(method, label, projection, hooks[label])
+        else:
+            witness = _choose_witness(method, label, projection)
         current = [
             a for a in current if label in a and _structural_eq(a[label], witness)
         ]
@@ -73,6 +87,30 @@ def apply_methods(assignments: list[dict[str, object]], methods: Mapping[Label, 
 def _project(label: str, assignments: list[dict[str, object]]) -> list[object]:
     """Return the list of values taken by ``label`` across ``assignments`` (with multiplicity)."""
     return [a[label] for a in assignments if label in a]
+
+
+def _choose_witness_ext(method: str, label: str, projection: list[object], hook: tuple[object, object]) -> object:
+    """Choose a witness using the extension hook for ``method``."""
+    ext_obj, owner = hook
+    distinct: list[object] = []
+    seen_tags: set[object] = set()
+    for value in projection:
+        tagged = _tag_value(value)
+        if tagged not in seen_tags:
+            seen_tags.add(tagged)
+            distinct.append(value)
+
+    if method == "arbitrary":
+        candidate = ext_obj.arbitrary(owner, None)  # type: ignore[union-attr]
+    elif method == "uniform_random":
+        candidate = ext_obj.uniform_random(owner, None)  # type: ignore[union-attr]
+    else:
+        raise ValueError(f"Unknown method {method!r} for label {label!r}.")
+
+    if _tag_value(candidate) in seen_tags:
+        return candidate
+    # Candidate is not admissible; fall back to canonical first.
+    return canonical_first(distinct)
 
 
 def _choose_witness(method: str, label: str, projection: list[object]) -> object:

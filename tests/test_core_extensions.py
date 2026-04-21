@@ -40,7 +40,7 @@ def _int_bounds(label: str, lo: int, hi: int) -> Any:
 
 
 def as_annotated(value: object, metadata: object) -> object:
-    return Annotated.__getitem__((value, metadata))
+    return Annotated.__class_getitem__((value, metadata))
 
 
 def as_tuple(*items: object) -> object:
@@ -284,53 +284,44 @@ def make_palette_extension(initialize_return: Any = None) -> RecordingExtension:
 # ---------------------------------------------------------------------------
 
 
-@EXT_XFAIL
 def test_generate_signature_mentions_extensions_keyword():
     params = inspect.signature(core_attr("generate")).parameters
     assert "extensions" in params
 
 
-@EXT_XFAIL
 def test_core_exports_extension_protocol():
     assert core_attr("Extension")
 
 
-@EXT_XFAIL
 def test_generate_accepts_extensions_none():
     assert generate_with_extensions(Literal[True], extensions=None) == {True}
 
 
-@EXT_XFAIL
 def test_generate_rejects_non_mapping_extensions():
     with pytest.raises(TypeError, match="extensions.*Mapping|Mapping.*extensions"):
         generate_with_extensions(Literal[True], extensions=[object()])
 
 
-@EXT_XFAIL
 def test_generate_rejects_instance_extension_key():
     with pytest.raises(TypeError, match="extension.*key.*type|type.*extension.*key"):
         generate_with_extensions(WARM, extensions={WARM: make_palette_extension()})
 
 
-@EXT_XFAIL
 def test_generate_rejects_extension_without_initialize():
     with pytest.raises(TypeError, match="initialize"):
         generate_with_extensions(WARM, extensions={Palette: MissingInitializeExtension()})
 
 
-@EXT_XFAIL
 def test_generate_rejects_extension_without_enumerate_all():
     with pytest.raises(TypeError, match="enumerate_all"):
         generate_with_extensions(WARM, extensions={Palette: MissingEnumerateAllExtension()})
 
 
-@EXT_XFAIL
 def test_generate_rejects_extension_without_uniform_random():
     with pytest.raises(TypeError, match="uniform_random"):
         generate_with_extensions(WARM, extensions={Palette: MissingUniformRandomExtension()})
 
 
-@EXT_XFAIL
 def test_generate_rejects_extension_without_arbitrary():
     with pytest.raises(TypeError, match="arbitrary"):
         generate_with_extensions(WARM, extensions={Palette: MissingArbitraryExtension()})
@@ -341,21 +332,18 @@ def test_generate_rejects_extension_without_arbitrary():
 # ---------------------------------------------------------------------------
 
 
-@EXT_XFAIL
 def test_initialize_called_for_used_extension():
     extension = make_palette_extension()
     generate_with_extensions(WARM, extensions={Palette: extension})
     assert len(extension.initialize_calls) == 1
 
 
-@EXT_XFAIL
 def test_initialize_called_for_unused_registered_extension():
     extension = make_palette_extension()
     generate_with_extensions(Literal[True], extensions={Palette: extension})
     assert len(extension.initialize_calls) == 1
 
 
-@EXT_XFAIL
 def test_initialize_receives_original_tree_and_constraint():
     extension = make_palette_extension()
     tree = as_tuple(Annotated[int, CoreName("X")], WARM)
@@ -364,21 +352,18 @@ def test_initialize_receives_original_tree_and_constraint():
     assert extension.initialize_calls == [(tree, constraint)]
 
 
-@EXT_XFAIL
 def test_initialize_none_adds_no_constraint():
     extension = make_palette_extension(initialize_return=None)
     tree = Annotated[int, CoreName("X")]
     assert generate_with_extensions(tree, _int_bounds("X", 1, 2), extensions={Palette: extension}) == {1, 2}
 
 
-@EXT_XFAIL
 def test_initialize_returned_constraint_is_anded_with_original():
     extension = make_palette_extension(initialize_return=Le(ref("X"), int_const(1)))
     tree = Annotated[int, CoreName("X")]
     assert generate_with_extensions(tree, _int_bounds("X", 0, 2), extensions={Palette: extension}) == {0, 1}
 
 
-@EXT_XFAIL
 def test_multiple_initialize_constraints_are_all_anded():
     lo_extension = make_palette_extension(initialize_return=Ge(ref("X"), int_const(1)))
     hi_extension = RegexExtension(initialize_return=Le(ref("X"), int_const(1)))
@@ -386,21 +371,18 @@ def test_multiple_initialize_constraints_are_all_anded():
     assert generate_with_extensions(tree, _int_bounds("X", 0, 2), extensions={Palette: lo_extension, Regex: hi_extension}) == {1}
 
 
-@EXT_XFAIL
 def test_initialize_returning_non_expression_is_rejected():
     extension = make_palette_extension(initialize_return=123)
     with pytest.raises(TypeError, match="Expression|expression"):
         generate_with_extensions(Literal[True], extensions={Palette: extension})
 
 
-@EXT_XFAIL
 def test_initialize_returning_non_boolean_expression_is_rejected():
     extension = make_palette_extension(initialize_return=int_const(1))
     with pytest.raises(TypeError, match="boolean"):
         generate_with_extensions(Literal[True], extensions={Palette: extension})
 
 
-@EXT_XFAIL
 def test_initialize_may_force_empty_result_with_contradiction():
     lo_extension = make_palette_extension(initialize_return=Ge(ref("X"), int_const(2)))
     hi_extension = RegexExtension(initialize_return=Le(ref("X"), int_const(1)))
@@ -408,7 +390,6 @@ def test_initialize_may_force_empty_result_with_contradiction():
     assert generate_with_extensions(tree, _int_bounds("X", 0, 3), extensions={Palette: lo_extension, Regex: hi_extension}) == set()
 
 
-@EXT_XFAIL
 def test_initialize_constraints_participate_in_bounds_inference():
     extension = make_palette_extension(initialize_return=_int_bounds("X", 1, 2))
     tree = Tuple[Annotated[int, CoreName("X")], Literal[True]]
@@ -420,60 +401,50 @@ def test_initialize_constraints_participate_in_bounds_inference():
 # ---------------------------------------------------------------------------
 
 
-@EXT_XFAIL
 def test_unknown_custom_leaf_without_extension_is_rejected():
     with pytest.raises(ValueError, match="extension|unsupported"):
         generate_with_extensions(WARM)
 
 
-@EXT_XFAIL
 def test_extension_matches_plain_custom_leaf():
     assert generate_with_extensions(WARM, extensions={Palette: make_palette_extension()}) == {"red", "orange"}
 
 
-@EXT_XFAIL
 def test_extension_matches_annotated_custom_leaf():
     tree = as_annotated(WARM, CoreName("P"))
     assert generate_with_extensions(tree, extensions={Palette: make_palette_extension()}) == {"red", "orange"}
 
 
-@EXT_XFAIL
 def test_extension_matches_union_branch():
     tree = as_union(WARM, Literal["fallback"])
     assert generate_with_extensions(tree, extensions={Palette: make_palette_extension()}) == {"red", "orange", "fallback"}
 
 
-@EXT_XFAIL
 def test_extension_matches_tuple_element():
     tree = as_tuple(WARM, Literal[1])
     assert generate_with_extensions(tree, extensions={Palette: make_palette_extension()}) == {("red", 1), ("orange", 1)}
 
 
-@EXT_XFAIL
 def test_extension_can_override_bool():
     assert generate_with_extensions(bool, extensions={bool: OnlyTrueBoolExtension()}) == {True}
 
 
-@EXT_XFAIL
 def test_bool_override_preserves_boolean_constraints():
     tree = Annotated[bool, CoreName("B")]
     assert generate_with_extensions(tree, ref("B"), extensions={bool: PreferTrueBoolExtension()}) == {True}
 
 
-@EXT_XFAIL
 def test_unused_extension_entries_are_ignored_after_initialize():
     extension = make_palette_extension()
     assert generate_with_extensions(Literal[True], extensions={Palette: extension}) == {True}
 
 
-@EXT_XFAIL
 def test_extension_may_return_runtime_type_different_from_syntax_head():
     result = generate_with_extensions(WARM, extensions={Palette: make_palette_extension()})
     assert result == {"red", "orange"}
     assert all(isinstance(value, str) for value in result)
 
 
-@EXT_XFAIL
 def test_two_distinct_palette_leaves_use_per_occurrence_domains():
     tree = as_tuple(WARM, COOL)
     assert generate_with_extensions(tree, extensions={Palette: make_palette_extension()}) == {
@@ -489,7 +460,6 @@ def test_two_distinct_palette_leaves_use_per_occurrence_domains():
 # ---------------------------------------------------------------------------
 
 
-@EXT_XFAIL
 def test_unnamed_extension_leaf_uses_enumerate_all():
     extension = make_palette_extension()
     assert generate_with_extensions(WARM, extensions={Palette: extension}) == {"red", "orange"}
@@ -498,7 +468,6 @@ def test_unnamed_extension_leaf_uses_enumerate_all():
     assert not extension.uniform_calls
 
 
-@EXT_XFAIL
 def test_named_extension_all_uses_enumerate_all():
     extension = make_palette_extension()
     tree = as_annotated(WARM, CoreName("P"))
@@ -506,7 +475,6 @@ def test_named_extension_all_uses_enumerate_all():
     assert extension.enumerate_calls == [WARM]
 
 
-@EXT_XFAIL
 def test_named_extension_arbitrary_uses_extension_hook():
     extension = make_palette_extension()
     tree = as_annotated(WARM, CoreName("P"))
@@ -514,7 +482,6 @@ def test_named_extension_arbitrary_uses_extension_hook():
     assert extension.arbitrary_calls
 
 
-@EXT_XFAIL
 def test_named_extension_uniform_random_uses_extension_hook():
     extension = make_palette_extension()
     tree = as_annotated(WARM, CoreName("P"))
@@ -522,7 +489,6 @@ def test_named_extension_uniform_random_uses_extension_hook():
     assert extension.uniform_calls
 
 
-@EXT_XFAIL
 def test_mixed_tree_uses_extension_and_default_bool_together():
     tree = as_tuple(WARM, bool)
     assert generate_with_extensions(tree, extensions={Palette: make_palette_extension()}) == {
@@ -533,7 +499,6 @@ def test_mixed_tree_uses_extension_and_default_bool_together():
     }
 
 
-@EXT_XFAIL
 def test_repeated_named_extension_occurrences_share_one_value():
     tree = as_tuple(
         as_annotated(WARM, CoreName("P")),
@@ -545,7 +510,6 @@ def test_repeated_named_extension_occurrences_share_one_value():
     }
 
 
-@EXT_XFAIL
 def test_repeated_named_extension_occurrences_intersect_domains():
     tree = as_tuple(
         as_annotated(WARM, CoreName("P")),
@@ -554,7 +518,6 @@ def test_repeated_named_extension_occurrences_intersect_domains():
     assert generate_with_extensions(tree, extensions={Palette: make_palette_extension()}) == {("red", "red")}
 
 
-@EXT_XFAIL
 def test_different_named_extension_labels_remain_independent():
     tree = as_tuple(
         as_annotated(WARM, CoreName("X")),
@@ -568,7 +531,6 @@ def test_different_named_extension_labels_remain_independent():
     }
 
 
-@EXT_XFAIL
 def test_arbitrary_extension_result_is_singleton_subset_of_all():
     tree = as_tuple(
         as_annotated(WARM, CoreName("X")),
@@ -586,7 +548,6 @@ def test_arbitrary_extension_result_is_singleton_subset_of_all():
     assert witness <= all_results
 
 
-@EXT_XFAIL
 def test_uniform_random_extension_result_is_singleton_subset_of_all():
     tree = as_tuple(
         as_annotated(WARM, CoreName("X")),
@@ -604,7 +565,6 @@ def test_uniform_random_extension_result_is_singleton_subset_of_all():
     assert witness <= all_results
 
 
-@EXT_XFAIL
 def test_arbitrary_extension_may_override_default_bool_witness_policy():
     tree = Annotated[bool, CoreName("B")]
     assert generate_with_extensions(tree, methods={"B": "arbitrary"}, extensions={bool: PreferTrueBoolExtension()}) == {True}
@@ -615,7 +575,6 @@ def test_arbitrary_extension_may_override_default_bool_witness_policy():
 # ---------------------------------------------------------------------------
 
 
-@EXT_XFAIL
 def test_extension_eq_constraint_works():
     tree = as_tuple(
         as_annotated(WARM, CoreName("X")),
@@ -626,7 +585,6 @@ def test_extension_eq_constraint_works():
     }
 
 
-@EXT_XFAIL
 def test_extension_ne_constraint_works():
     tree = as_tuple(
         as_annotated(WARM, CoreName("X")),
@@ -639,7 +597,6 @@ def test_extension_ne_constraint_works():
     }
 
 
-@EXT_XFAIL
 def test_extension_ordering_constraint_is_rejected_by_default():
     tree = as_tuple(
         as_annotated(WARM, CoreName("X")),
@@ -649,21 +606,18 @@ def test_extension_ordering_constraint_is_rejected_by_default():
         generate_with_extensions(tree, Lt(ref("X"), ref("Y")), extensions={Palette: make_palette_extension()})
 
 
-@EXT_XFAIL
 def test_extension_arithmetic_constraint_is_rejected_by_default():
     tree = as_annotated(WARM, CoreName("X"))
     with pytest.raises(TypeError, match="numeric|Arithmetic"):
         generate_with_extensions(tree, Eq(core_attr("Add")(ref("X"), int_const(1)), int_const(1)), extensions={Palette: make_palette_extension()})
 
 
-@EXT_XFAIL
 def test_extension_labels_are_atomic_for_addressing():
     tree = as_annotated(WARM, CoreName("X"))
     with pytest.raises(ValueError, match="path|tuple|address"):
         generate_with_extensions(tree, Eq(ref("X", (0,)), ref("X")), extensions={Palette: make_palette_extension()})
 
 
-@EXT_XFAIL
 def test_extension_results_deduplicate_by_structural_equality():
     assert generate_with_extensions(DEDUP, extensions={Palette: make_palette_extension()}) == {"same"}
 
@@ -673,49 +627,41 @@ def test_extension_results_deduplicate_by_structural_equality():
 # ---------------------------------------------------------------------------
 
 
-@EXT_XFAIL
 def test_regex_finite_exhaustive_generation():
     assert generate_with_extensions(FINITE_REGEX, extensions={Regex: RegexExtension()}) == {"ab", "cd"}
 
 
-@EXT_XFAIL
 def test_regex_finite_named_all_generation():
     tree = as_annotated(FINITE_REGEX, CoreName("R"))
     assert generate_with_extensions(tree, extensions={Regex: RegexExtension()}) == {"ab", "cd"}
 
 
-@EXT_XFAIL
 def test_regex_finite_arbitrary_generation():
     tree = as_annotated(FINITE_REGEX, CoreName("R"))
     assert generate_with_extensions(tree, methods={"R": "arbitrary"}, extensions={Regex: RegexExtension()}) == {"ab"}
 
 
-@EXT_XFAIL
 def test_regex_finite_uniform_random_generation():
     tree = as_annotated(FINITE_REGEX, CoreName("R"))
     assert generate_with_extensions(tree, methods={"R": "uniform_random"}, extensions={Regex: RegexExtension()}) == {"cd"}
 
 
-@EXT_XFAIL
 def test_regex_infinite_exhaustive_generation_raises():
     with pytest.raises(ValueError, match="infinite"):
         generate_with_extensions(INFINITE_REGEX, extensions={Regex: RegexExtension()})
 
 
-@EXT_XFAIL
 def test_regex_infinite_uniform_random_raises():
     tree = as_annotated(INFINITE_REGEX, CoreName("R"))
     with pytest.raises(ValueError, match="infinite"):
         generate_with_extensions(tree, methods={"R": "uniform_random"}, extensions={Regex: RegexExtension()})
 
 
-@EXT_XFAIL
 def test_regex_infinite_arbitrary_returns_witness():
     tree = as_annotated(INFINITE_REGEX, CoreName("R"))
     assert generate_with_extensions(tree, methods={"R": "arbitrary"}, extensions={Regex: RegexExtension()}) == {""}
 
 
-@EXT_XFAIL
 def test_two_distinct_regex_leaves_preserve_per_occurrence_patterns():
     tree = as_tuple(FINITE_REGEX, FINITE_REGEX_2)
     assert generate_with_extensions(tree, extensions={Regex: RegexExtension()}) == {

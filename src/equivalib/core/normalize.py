@@ -18,20 +18,42 @@ from equivalib.core.types import (
     TupleNode,
     UnionNode,
     NamedNode,
+    ExtensionNode,
     IRNode,
 )
 
 
-def normalize(t: object) -> IRNode:
+def _try_extension(value: object, extensions: dict[type, object]) -> ExtensionNode | None:
+    """Return an ExtensionNode if ``value`` matches a registered extension key, else None."""
+    if isinstance(value, type):
+        key: type | None = value if value in extensions else None
+    else:
+        t = type(value)
+        key = t if t in extensions else None
+    if key is None:
+        return None
+    kind = "bool" if key is bool else ("int" if key is int else "opaque")
+    return ExtensionNode(key=key, owner=value, kind=kind)
+
+
+def normalize(t: object, extensions: dict[type, object] | None = None) -> IRNode:
     """Normalize a type annotation ``t`` into an IR node.
 
     Raises ``ValueError`` for unsupported or malformed type expressions.
     """
+    ext = extensions or {}
+
+    # Check extension registry before any built-in checks so that extensions
+    # can override built-in types (e.g. bool or int).
+    ext_node = _try_extension(t, ext)
+    if ext_node is not None:
+        return ext_node
+
     origin = typing.get_origin(t)
     args = typing.get_args(t)
 
     if origin is typing.Annotated:
-        return _normalize_annotated(args[0], list(args[1:]))
+        return _normalize_annotated(args[0], list(args[1:]), ext)
 
     if t is type(None) or t is None:
         return NoneNode()
@@ -58,19 +80,23 @@ def normalize(t: object) -> IRNode:
         return UnionNode(tuple(LiteralNode(v) for v in args))
 
     if origin is tuple:
-        return TupleNode(tuple(normalize(a) for a in args))
+        return TupleNode(tuple(normalize(a, ext) for a in args))
 
     if origin is typing.Union or origin is types.UnionType:
         options: list[IRNode] = []
         for a in args:
-            options.append(normalize(a))
+            options.append(normalize(a, ext))
         return UnionNode(tuple(options))
 
-    raise ValueError(f"Unsupported type expression: {t!r}")
+    raise ValueError(
+        f"unsupported type expression: {t!r}. "
+        "If this is a custom leaf type, register it via the extensions= argument to generate()."
+    )
 
 
-def _normalize_annotated(base: object, metadata: list[object]) -> IRNode:
+def _normalize_annotated(base: object, metadata: list[object], extensions: dict[type, object] | None = None) -> IRNode:
     """Normalize an ``Annotated[base, *metadata]`` expression."""
+    ext = extensions or {}
     names = [m for m in metadata if isinstance(m, Name)]
     unknown = [m for m in metadata if not isinstance(m, Name)]
 
@@ -94,7 +120,11 @@ def _normalize_annotated(base: object, metadata: list[object]) -> IRNode:
     if name is not None and name.label == "":
         raise ValueError("Name label must not be empty.")
 
-    if base is int:
+    # Check extension registry before the int special case.
+    ext_node = _try_extension(base, ext)
+    if ext_node is not None:
+        inner: IRNode = ext_node
+    elif base is int:
         if name is None:
             raise ValueError(
                 "An 'int' in Annotated requires a Name(...) annotation. "
@@ -102,7 +132,7 @@ def _normalize_annotated(base: object, metadata: list[object]) -> IRNode:
             )
         inner: IRNode = UnboundedIntNode()
     else:
-        inner = normalize(base)
+        inner = normalize(base, ext)
 
     if name is not None:
         return NamedNode(name.label, inner)

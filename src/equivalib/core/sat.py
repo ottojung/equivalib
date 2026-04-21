@@ -45,11 +45,12 @@ from equivalib.core.types import (
     NamedNode,
     NoneNode,
     LiteralNode,
+    ExtensionNode,
     IRNode,
     labels as tree_labels,
     labels_in_order,
 )
-from equivalib.core.domains import _values_node_tagged, _untag_value
+from equivalib.core.domains import _values_node_tagged, _tag_value, _untag_value
 from equivalib.core.order import canonical_key, canonical_sorted
 from equivalib.core.eval import _structural_eq, eval_expression_partial
 
@@ -78,7 +79,9 @@ _EncResult = tuple[Any, str, bool, Literal[True] | cp_model.IntVar]
 def _sat_compute_domains(
     node: IRNode,
     int_sat_labels: set[str],
-) -> tuple[dict[str, tuple[int, int]], dict[str, list[object]]]:
+    extensions: dict[type, object] | None = None,
+    methods: dict[str, str] | None = None,
+) -> tuple[dict[str, tuple[int, int]], dict[str, list[object]], dict[str, tuple[object, object]]]:
     """Compute bounds for int SAT labels and full domains for all other labels.
 
     For integer-range SAT labels (``IntRangeNode``), only the tightest bounds
@@ -87,17 +90,26 @@ def _sat_compute_domains(
     is returned via tagged-frozenset intersection (same semantics as
     ``domain_map``).
 
+    Extension-owned labels are enumerated via ``extension.enumerate_all``.
+    If enumeration raises and the label's method is ``"arbitrary"``, the label
+    is recorded in ``arbitrary_infinite`` instead of aborting.
+
     Returns:
-        int_bounds:    ``{label: (lo, hi)}`` for every label in
-                       ``int_sat_labels``.  An empty intersection (``lo > hi``)
-                       signals an empty domain without listing any values.
-        other_domains: ``{label: [values]}`` for non-int-SAT labels.
+        int_bounds:        ``{label: (lo, hi)}`` for every label in
+                           ``int_sat_labels``.
+        other_domains:     ``{label: [values]}`` for non-int-SAT labels.
+        arbitrary_infinite: ``{label: (ext_obj, owner)}`` for extension labels
+                            whose domain could not be enumerated and whose
+                            method is ``"arbitrary"``.
     """
+    ext = extensions or {}
+    meth = methods or {}
     int_occurrences: dict[str, list[tuple[int, int]]] = {}
     other_occurrences: dict[str, list[frozenset[object]]] = {}
+    arbitrary_infinite: dict[str, tuple[object, object]] = {}
 
     def _walk(n: IRNode) -> None:
-        if isinstance(n, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode)):
+        if isinstance(n, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode, ExtensionNode)):
             return
         if isinstance(n, TupleNode):
             for item in n.items:
@@ -113,6 +125,32 @@ def _sat_compute_domains(
                 if label not in int_occurrences:
                     int_occurrences[label] = []
                 int_occurrences[label].append((lo, hi))
+            elif isinstance(n.inner, ExtensionNode):
+                # Extension-owned label: enumerate via the extension hook.
+                ext_node = n.inner
+                ext_obj = ext.get(ext_node.key)
+                if ext_obj is None:
+                    raise ValueError(
+                        f"No extension registered for key {ext_node.key!r}. "
+                        "Pass the extension via the extensions= argument to generate()."
+                    )
+                # Skip if already recorded as arbitrary_infinite (repeated occurrence).
+                if label in arbitrary_infinite:
+                    return
+                try:
+                    raw_vals = list(ext_obj.enumerate_all(ext_node.owner))
+                    tagged_vals = frozenset(_tag_value(v) for v in raw_vals)
+                    if label not in other_occurrences:
+                        other_occurrences[label] = []
+                    other_occurrences[label].append(tagged_vals)
+                except Exception:
+                    method = meth.get(label, "all")
+                    if method == "arbitrary":
+                        arbitrary_infinite[label] = (ext_obj, ext_node.owner)
+                        # Remove any partial occurrences recorded before the error.
+                        other_occurrences.pop(label, None)
+                    else:
+                        raise
             else:
                 tagged_vals = _values_node_tagged(n.inner)
                 if label not in other_occurrences:
@@ -139,30 +177,25 @@ def _sat_compute_domains(
             tagged_domain = tagged_domain & occ
         other_domains[label] = [_untag_value(tv) for tv in tagged_domain]
 
-    return int_bounds, other_domains
+    return int_bounds, other_domains, arbitrary_infinite
 
 
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def sat_search(
+def _sat_search_extended(
     node: IRNode,
     constraint: Expression,
     methods: Mapping[str, str] | None = None,
-) -> list[dict[str, object]]:
-    """Return satisfying assignments using CP-SAT for bool/int-range labels.
+    extensions: dict[type, object] | None = None,
+) -> tuple[list[dict[str, object]], dict[str, tuple[object, object]]]:
+    """Internal: return ``(assignments, arbitrary_infinite)`` using CP-SAT.
 
-    When ``methods`` indicates that every label (SAT and enum alike)
-    uses ``"arbitrary"``, SAT solution enumeration per enum branch is
-    replaced by sequential minimization (one solver call per SAT label)
-    instead of enumerating all CP-SAT solutions.  Full enumeration is
-    performed when any label — SAT or enum — has method ``"all"`` or
-    ``"uniform_random"``.
-
-    Boolean and integer-range labels are encoded as CP-SAT variables.
-    All other labels (string/None/tuple literals, mixed unions) are enumerated
-    in Python via backtracking, with CP-SAT invoked for the remaining labels.
+    ``arbitrary_infinite`` maps label -> ``(ext_obj, owner)`` for extension
+    labels whose domain could not be enumerated and whose method is
+    ``"arbitrary"``.  The caller is responsible for adding those values to
+    each surviving assignment after calling ``apply_methods``.
     """
     if methods is None:
         methods = {}
@@ -173,21 +206,26 @@ def sat_search(
     # Restrict to labels that actually appear in the tree.
     tree_label_set = tree_labels(node)
     sat_kinds = {lbl: knd for lbl, knd in sat_kinds.items() if lbl in tree_label_set}
-    enum_labels = sorted(enum_label_set & tree_label_set)
 
     # Compute domains without enumerating int-range SAT labels.
     # For int SAT labels: direct (lo, hi) bounds from IntRangeNode (no range materialisation).
     # For enum and bool labels: full tagged-frozenset intersection (same as domain_map).
+    # Extension labels whose enumeration fails with method="arbitrary" go into arbitrary_infinite.
     int_sat_labels = {lbl for lbl, knd in sat_kinds.items() if knd == _INT}
-    int_bounds, other_domains = _sat_compute_domains(node, int_sat_labels)
+    int_bounds, other_domains, arbitrary_infinite = _sat_compute_domains(
+        node, int_sat_labels, extensions, dict(methods)
+    )
+
+    # Extension labels that are infinite-arbitrary are excluded from the enum search.
+    enum_labels = sorted((enum_label_set - set(arbitrary_infinite.keys())) & tree_label_set)
 
     # Early exit: empty domain for any label → no satisfying assignments.
     for label, (lo, hi) in int_bounds.items():
         if lo > hi:
-            return []
+            return [], arbitrary_infinite
     for domain_vals in other_domains.values():
         if not domain_vals:
-            return []
+            return [], arbitrary_infinite
 
     # Precompute canonical-sorted domain lists for enum labels.
     sorted_enum_domains: dict[str, list[object]] = {
@@ -206,22 +244,6 @@ def sat_search(
     results: list[dict[str, object]] = []
 
     # Determine whether full enumeration is needed.
-    # Full enumeration is required when any label (SAT *or* enum) has method
-    # "all" (the default) or "uniform_random".
-    #
-    # For "all": every satisfying assignment must appear in the output.
-    #
-    # For "uniform_random": the probability of selecting a value must be
-    # proportional to the number of satisfying assignments supporting it.
-    # This multiplicity comes from the full SAT enumeration — even if the
-    # "uniform_random" label is an enum label, each enum value may be
-    # supported by a *different* number of SAT solutions, so collapsing SAT
-    # solutions to a single canonical-minimum assignment per enum branch would
-    # give each enum value equal weight regardless of how many SAT solutions
-    # support it, corrupting the distribution.
-    #
-    # Only when every label across the whole problem uses "arbitrary" can we
-    # safely skip full enumeration and use sequential minimization instead.
     all_labels = list(sat_kinds) + enum_labels
     needs_all_solutions: bool = any(
         methods.get(label, "all") != "arbitrary"
@@ -234,11 +256,6 @@ def sat_search(
     sat_labels_in_order = [lbl for lbl in all_labels_ordered if lbl in sat_kinds]
 
     if sat_kinds:
-        # Build the base CP-SAT model once (SAT variables + domain-tightening
-        # constraints for bool labels with narrowed domains).  Each enum
-        # combination will clone this base model and add the full constraint
-        # encoding on the clone, avoiding redundant variable construction per
-        # enum branch.
         base_model, sat_var_indices = _build_base_model(sat_kinds, sat_bounds, other_domains)
     else:
         base_model = None
@@ -259,13 +276,39 @@ def sat_search(
         sat_labels_in_order,
     )
 
-    # Sort results in canonical label order so that downstream consumers
-    # (e.g. apply_methods with uniform_random) receive a deterministic,
-    # seed-reproducible sequence that matches the old backtracking order.
-    sorted_labels = sorted(tree_label_set)
-    results.sort(key=lambda asgn: tuple(canonical_key(asgn[lbl]) for lbl in sorted_labels))
+    # Sort results in canonical label order.  Arbitrary_infinite labels are not
+    # in the assignments yet, so we sort only by the labels that are present.
+    sorted_labels = sorted(tree_label_set - set(arbitrary_infinite.keys()))
+    results.sort(key=lambda asgn: tuple(canonical_key(asgn[lbl]) for lbl in sorted_labels if lbl in asgn))
 
-    return results
+    return results, arbitrary_infinite
+
+
+def sat_search(
+    node: IRNode,
+    constraint: Expression,
+    methods: Mapping[str, str] | None = None,
+    extensions: dict[type, object] | None = None,
+) -> list[dict[str, object]]:
+    """Return satisfying assignments using CP-SAT for bool/int-range labels.
+
+    When ``methods`` indicates that every label (SAT and enum alike)
+    uses ``"arbitrary"``, SAT solution enumeration per enum branch is
+    replaced by sequential minimization (one solver call per SAT label)
+    instead of enumerating all CP-SAT solutions.  Full enumeration is
+    performed when any label — SAT or enum — has method ``"all"`` or
+    ``"uniform_random"``.
+
+    Boolean and integer-range labels are encoded as CP-SAT variables.
+    All other labels (string/None/tuple literals, mixed unions) are enumerated
+    in Python via backtracking, with CP-SAT invoked for the remaining labels.
+
+    Note: Extension labels with infinite domains and method ``"arbitrary"`` are
+    silently excluded from the returned assignments.  Use ``_sat_search_extended``
+    when the caller needs to handle these labels.
+    """
+    assignments, _arbitrary_infinite = _sat_search_extended(node, constraint, methods, extensions)
+    return assignments
 
 
 # ---------------------------------------------------------------------------
@@ -294,7 +337,7 @@ def _classify_labels(node: IRNode) -> tuple[dict[str, str], set[str]]:
 
 def _collect_label_kinds(node: IRNode, out: dict[str, str]) -> None:
     """Walk the tree and record the inner-node kind for every NamedNode."""
-    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode)):
+    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode, ExtensionNode)):
         return
     if isinstance(node, TupleNode):
         for item in node.items:

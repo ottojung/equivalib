@@ -19,6 +19,7 @@ from equivalib.core.types import (
     TupleNode,
     UnionNode,
     NamedNode,
+    ExtensionNode,
     IRNode,
     labels as tree_labels,
     contains_name,
@@ -63,6 +64,8 @@ def _check_node(node: IRNode) -> None:
     if isinstance(node, BoolNode):
         return
     if isinstance(node, LiteralNode):
+        return
+    if isinstance(node, ExtensionNode):
         return
     if isinstance(node, IntRangeNode):
         if node.min_value > node.max_value:
@@ -163,7 +166,7 @@ def _collect_label_shapes(node: IRNode) -> LabelShapes:
 
 
 def _walk_for_shapes(node: IRNode, result: LabelShapes) -> None:
-    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode)):
+    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode, ExtensionNode)):
         return
     if isinstance(node, TupleNode):
         for item in node.items:
@@ -321,6 +324,12 @@ def _shape_type(shape: IRNode) -> str:
     """Return the expression type ('bool', 'numeric', or 'any') for a given shape."""
     if isinstance(shape, BoolNode):
         return "bool"
+    if isinstance(shape, ExtensionNode):
+        if shape.kind == "bool":
+            return "bool"
+        if shape.kind == "int":
+            return "numeric"
+        return "any"
     if isinstance(shape, IntRangeNode):
         return "numeric"
     if isinstance(shape, LiteralNode):
@@ -362,6 +371,12 @@ def _validate_address_from(label: str, path: tuple[int, ...], current: object, p
         for opt in current.options:
             _validate_address_from(label, path, opt, position)
         return
+
+    if isinstance(current, ExtensionNode):
+        raise ValueError(
+            f"Address path {path!r} for label {label!r} descends into an "
+            f"atomic extension-owned leaf at position {position}."
+        )
 
     if not isinstance(current, TupleNode):
         raise ValueError(
