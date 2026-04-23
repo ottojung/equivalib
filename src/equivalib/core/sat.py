@@ -13,7 +13,10 @@ from __future__ import annotations
 
 from typing import Any, Literal, Mapping
 
-from ortools.sat.python import cp_model
+try:
+    from ortools.sat.python import cp_model
+except ModuleNotFoundError:  # pragma: no cover - exercised in minimal environments
+    cp_model = None  # type: ignore[assignment]
 
 from equivalib.core.expression import (
     BooleanConstant,
@@ -52,6 +55,7 @@ from equivalib.core.types import (
 from equivalib.core.domains import _values_node_tagged, _untag_value
 from equivalib.core.order import canonical_key, canonical_sorted
 from equivalib.core.eval import _structural_eq, eval_expression_partial
+from equivalib.core.domains import domain_map
 
 # ---------------------------------------------------------------------------
 # Kind constants
@@ -68,7 +72,10 @@ _ZERO_DIV = "zero_div"  # sentinel: operand is undefined due to division by zero
 # - defined: True (always defined) or a CP-SAT BoolVar that is 1 iff the
 #            expression is well-defined (used for variable-divisor FloorDiv/Mod
 #            to avoid polluting the model with a global rv!=0 constraint)
-_EncResult = tuple[Any, str, bool, Literal[True] | cp_model.IntVar]
+if cp_model is None:
+    _EncResult = tuple[Any, str, bool, object]
+else:
+    _EncResult = tuple[Any, str, bool, Literal[True] | cp_model.IntVar]
 
 
 # ---------------------------------------------------------------------------
@@ -164,6 +171,9 @@ def sat_search(
     All other labels (string/None/tuple literals, mixed unions) are enumerated
     in Python via backtracking, with CP-SAT invoked for the remaining labels.
     """
+    if cp_model is None:
+        return _sat_search_fallback(node, constraint)
+
     if methods is None:
         methods = {}
     # Classify labels into CP-SAT-encodable (bool / int-range) and enum.
@@ -266,6 +276,29 @@ def sat_search(
     results.sort(key=lambda asgn: tuple(canonical_key(asgn[lbl]) for lbl in sorted_labels))
 
     return results
+
+
+def _sat_search_fallback(node: IRNode, constraint: Expression) -> list[dict[str, object]]:
+    domains = {k: canonical_sorted(v) for k, v in domain_map(node).items()}
+    labels = sorted(domains)
+    out: list[dict[str, object]] = []
+
+    def backtrack(i: int, asgn: dict[str, object]) -> None:
+        partial = eval_expression_partial(constraint, asgn)
+        if partial is False:
+            return
+        if i == len(labels):
+            if partial is True:
+                out.append(dict(asgn))
+            return
+        label = labels[i]
+        for value in domains[label]:
+            asgn[label] = value
+            backtrack(i + 1, asgn)
+        del asgn[label]
+
+    backtrack(0, {})
+    return out
 
 
 # ---------------------------------------------------------------------------

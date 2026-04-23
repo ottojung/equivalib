@@ -62,6 +62,13 @@ class UnboundedIntNode:
 
 
 @dataclass(frozen=True)
+class ExtensionNode:
+    """Represents a class-owned extension leaf."""
+
+    owner: type[object]
+
+
+@dataclass(frozen=True)
 class TupleNode:
     """Represents a product type."""
 
@@ -83,7 +90,7 @@ class NamedNode:
     inner: "IRNode"
 
 
-IRNode = Union[NoneNode, BoolNode, LiteralNode, UnboundedIntNode, IntRangeNode, TupleNode, UnionNode, NamedNode]
+IRNode = Union[NoneNode, BoolNode, LiteralNode, UnboundedIntNode, IntRangeNode, ExtensionNode, TupleNode, UnionNode, NamedNode]
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +100,7 @@ IRNode = Union[NoneNode, BoolNode, LiteralNode, UnboundedIntNode, IntRangeNode, 
 
 def labels(node: IRNode) -> frozenset[str]:
     """Return all labels used within ``node``."""
-    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode)):
+    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode, ExtensionNode)):
         return frozenset()
     if isinstance(node, TupleNode):
         result: frozenset[str] = frozenset()
@@ -126,7 +133,7 @@ def labels_in_order(node: IRNode) -> list[str]:
     result: list[str] = []
 
     def visit(n: IRNode) -> None:
-        if isinstance(n, (NoneNode, BoolNode, LiteralNode, IntRangeNode)):
+        if isinstance(n, (NoneNode, BoolNode, LiteralNode, IntRangeNode, ExtensionNode)):
             return
         if isinstance(n, UnboundedIntNode):
             return
@@ -154,7 +161,7 @@ def tree_shape(node: IRNode) -> IRNode:
     The shape of a ``NamedNode`` is the shape of its inner node (not of the
     NamedNode itself), because address paths look through the name.
     """
-    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode)):
+    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode, ExtensionNode)):
         return node
     if isinstance(node, TupleNode):
         return TupleNode(tuple(tree_shape(i) for i in node.items))
