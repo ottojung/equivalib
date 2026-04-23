@@ -11,7 +11,7 @@ from equivalib.core.expression import And, Eq, Expression, Ge, Le
 from equivalib.core.name import Name as CoreName
 
 
-EXT_XFAIL = pytest.mark.xfail(reason="Interface-based class extensions not implemented yet")
+EXT_XFAIL = pytest.mark.xfail(reason="Class-based Extension subtype mechanism not implemented yet")
 
 
 T = TypeVar("T")
@@ -51,11 +51,29 @@ def generate_core(
 
 
 @dataclass(frozen=True)
-class NoInterfaceLeaf:
+class NotExtensionLeaf:
     token: str = "x"
 
 
-class Palette:
+class Extension:
+    @staticmethod
+    def initialize(tree: Type[T], constraint: Expression) -> Optional[Expression]:
+        raise NotImplementedError
+
+    @staticmethod
+    def enumerate_all(tree: Type[T], constraint: Expression, address: Optional[str]) -> Iterator[object]:
+        raise NotImplementedError
+
+    @staticmethod
+    def arbitrary(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[object]:
+        raise NotImplementedError
+
+    @staticmethod
+    def uniform_random(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[object]:
+        raise NotImplementedError
+
+
+class Palette(Extension):
     @staticmethod
     def initialize(tree: Type[T], constraint: Expression) -> Optional[Expression]:
         return None
@@ -76,7 +94,7 @@ class Palette:
         return "orange"
 
 
-class MissingInitialize:
+class InvalidInitialize(Extension):
     @staticmethod
     def enumerate_all(tree: Type[T], constraint: Expression, address: Optional[str]) -> Iterator[object]:
         del tree, constraint, address
@@ -91,6 +109,9 @@ class MissingInitialize:
     def uniform_random(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[object]:
         del tree, constraint, address
         return None
+
+
+setattr(InvalidInitialize, "initialize", None)
 
 
 # ---------------------------------------------------------------------------
@@ -110,19 +131,19 @@ def test_generate_signature_has_three_arguments():
 
 
 @EXT_XFAIL
-def test_non_base_class_without_interface_is_rejected():
-    with pytest.raises((TypeError, ValueError), match="unsupported|interface|initialize"):
-        generate_core(NoInterfaceLeaf)
+def test_non_base_class_not_subtype_of_extension_is_rejected():
+    with pytest.raises((TypeError, ValueError), match="unsupported|Extension|subtype"):
+        generate_core(NotExtensionLeaf)
 
 
 @EXT_XFAIL
 def test_class_missing_required_initialize_method_is_rejected():
     with pytest.raises((TypeError, ValueError), match="initialize"):
-        generate_core(MissingInitialize)
+        generate_core(InvalidInitialize)
 
 
 @EXT_XFAIL
-def test_class_with_interface_can_drive_exhaustive_generation():
+def test_extension_subclass_can_drive_exhaustive_generation():
     assert generate_core(Palette) == {"red", "orange"}
 
 
@@ -131,7 +152,7 @@ def test_class_with_interface_can_drive_exhaustive_generation():
 # ---------------------------------------------------------------------------
 
 
-class BoundedByInitialize:
+class BoundedByInitialize(Extension):
     @staticmethod
     def initialize(tree: Type[T], constraint: Expression) -> Optional[Expression]:
         del tree, constraint
@@ -161,7 +182,7 @@ def test_initialize_constraint_is_anded_into_effective_constraint():
 
 
 # ---------------------------------------------------------------------------
-# Method dispatch to interface hooks
+# Method dispatch to Extension hooks
 # ---------------------------------------------------------------------------
 
 
@@ -216,4 +237,3 @@ def test_bool_behavior_still_uses_core_semantics():
 def test_int_behavior_still_uses_core_semantics():
     tree = Annotated[int, CoreName("X")]
     assert generate_core(tree, _int_bounds("X", 1, 2)) == {1, 2}
-

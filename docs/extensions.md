@@ -1,10 +1,10 @@
-# Interface-based Extensions for `equivalib.core.generate`
+# `Extension`-subclass based custom leaves for `equivalib.core.generate`
 
 This document defines the extension design for custom class leaves in `equivalib.core.generate`.
 
 ## Scope
 
-Extensions are discovered from the class itself via an interface implemented on the class.
+Custom leaves are discovered from the class itself. A custom class leaf participates only when it is a subtype of `Extension`.
 
 Core leaf language remains built-in and unchanged for:
 
@@ -14,7 +14,7 @@ Core leaf language remains built-in and unchanged for:
 - `union` (`typing.Union[...]` / `|`)
 - supported `Literal[...]` forms
 
-For any class leaf outside that base language, generation checks whether that class implements the required extension interface below.
+For any class leaf outside that base language, generation checks whether that class is a subtype of `Extension` and provides the required methods below.
 
 ---
 
@@ -34,27 +34,30 @@ def generate(
 
 ---
 
-## Required Interface
+## Required `Extension` Base Class
 
-When a non-base class leaf is encountered, its class must provide these static methods:
+The contract is defined by a base class:
 
 ```python
-@staticmethod
-def initialize(tree: Type[T], constraint: Expression) -> Optional[Expression]:
-    ...
+class Extension:
+    @staticmethod
+    def initialize(tree: Type[T], constraint: Expression) -> Optional[Expression]:
+        ...
 
-@staticmethod
-def enumerate_all(tree: Type[T], constraint: Expression, address: Optional[str]) -> Iterator[A]:
-    ...
+    @staticmethod
+    def enumerate_all(tree: Type[T], constraint: Expression, address: Optional[str]) -> Iterator[A]:
+        ...
 
-@staticmethod
-def arbitrary(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[A]:
-    ...
+    @staticmethod
+    def arbitrary(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[A]:
+        ...
 
-@staticmethod
-def uniform_random(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[A]:
-    ...
+    @staticmethod
+    def uniform_random(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[A]:
+        ...
 ```
+
+A non-base class leaf must be a subtype of `Extension`.
 
 Semantics:
 
@@ -72,8 +75,8 @@ Semantics:
 Given a leaf syntax `L`:
 
 1. If `L` is a core base leaf (`bool`, `int`, tuple, union, supported literals), core behavior applies.
-2. Otherwise if `L` is a class and that class implements the required static interface, that class owns the leaf.
-3. Otherwise generation fails (unsupported leaf / missing interface).
+2. Otherwise if `L` is a class and `issubclass(L, Extension)` is true, that class owns the leaf.
+3. Otherwise generation fails (unsupported leaf / class is not an `Extension` subtype).
 
 
 ---
@@ -153,8 +156,8 @@ Built-in types keep built-in expression typing.
 
 Generation must fail when:
 
-- a non-base class leaf does not implement the required interface,
-- required interface methods are missing or non-callable,
+- a non-base class leaf is not a subtype of `Extension`,
+- required `Extension` methods are missing or non-callable,
 - `initialize` returns a non-expression or non-boolean expression,
 - hook outputs are inadmissible for the addressed occurrence,
 - invalid expression operations are applied to atomic extension-owned leaves,
@@ -164,13 +167,13 @@ Generation must fail when:
 
 ## Examples
 
-### Class-owned custom leaf
+### Class-owned custom leaf (`Extension` subtype)
 
 ```python
 import random
 
 
-class Regex:
+class Regex(Extension):
     @staticmethod
     def initialize(tree, constraint):
         return None
@@ -195,4 +198,4 @@ generate(Regex)
 generate(Annotated[Regex, Name("R")], methods={"R": "arbitrary"})
 ```
 
-use `Regex`'s interface methods directly.
+use `Regex`'s `Extension` methods directly.
