@@ -181,27 +181,7 @@ import random
 from abc import ABC, abstractmethod
 
 
-class Regex(Extension, ABC):
-    @staticmethod
-    @abstractmethod
-    def initialize(tree, constraint):
-        ...
-
-    @staticmethod
-    @abstractmethod
-    def enumerate_all(tree, constraint, address):
-        ...
-
-    @staticmethod
-    @abstractmethod
-    def arbitrary(tree, constraint, address):
-        ...
-
-    @staticmethod
-    @abstractmethod
-    def uniform_random(tree, constraint, address):
-        ...
-
+class Regex(Extension, ABC): pass
 
 class RegexABorCD(Regex):
     @staticmethod
