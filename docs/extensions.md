@@ -184,21 +184,24 @@ from abc import ABC, abstractmethod
 class Regex(Extension, ABC): pass
 
 class RegexABorCD(Regex):
+    def __init__(self, string):
+        self.string = string
+
     @staticmethod
     def initialize(tree, constraint):
         return None
 
     @staticmethod
     def enumerate_all(tree, constraint, address):  # language: {"ab", "cd"}
-        yield from ["ab", "cd"]
+        yield from [RegexABorCD("ab"), RegexABorCD("cd")]
 
     @staticmethod
     def arbitrary(tree, constraint, address):
-        return "ab"
+        return RegexABorCD("ab")
 
     @staticmethod
     def uniform_random(tree, constraint, address):
-        return random.choice(["ab", "cd"])
+        return RegexABorCD(random.choice(["ab", "cd"]))
 ```
 
 Then:
