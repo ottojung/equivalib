@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib
 import inspect
 from dataclasses import dataclass
-from typing import Annotated, Any, Iterator, Literal, Optional, Type, TypeVar
+from typing import Annotated, Any, Iterator, Optional, Type, TypeVar, cast
 
 import pytest
 
@@ -15,8 +15,6 @@ EXT_XFAIL = pytest.mark.xfail(reason="Interface-based class extensions not imple
 
 
 T = TypeVar("T")
-A = TypeVar("A")
-
 
 def core_attr(name: str) -> Any:
     module = importlib.import_module("equivalib.core")
@@ -49,7 +47,7 @@ def generate_core(
         constraint = true_expr()
     if methods is None:
         methods = {}
-    return generate(tree, constraint, methods)
+    return cast(set[object], generate(tree, constraint, methods))
 
 
 @dataclass(frozen=True)
@@ -63,34 +61,34 @@ class Palette:
         return None
 
     @staticmethod
-    def enumerate_all(tree: Type[T], constraint: Expression, address: Optional[str]) -> Iterator[A]:
+    def enumerate_all(tree: Type[T], constraint: Expression, address: Optional[str]) -> Iterator[object]:
         del tree, constraint, address
         return iter(("red", "orange"))
 
     @staticmethod
-    def arbitrary(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[A]:
+    def arbitrary(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[object]:
         del tree, constraint, address
         return "red"
 
     @staticmethod
-    def uniform_random(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[A]:
+    def uniform_random(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[object]:
         del tree, constraint, address
         return "orange"
 
 
 class MissingInitialize:
     @staticmethod
-    def enumerate_all(tree: Type[T], constraint: Expression, address: Optional[str]) -> Iterator[A]:
+    def enumerate_all(tree: Type[T], constraint: Expression, address: Optional[str]) -> Iterator[object]:
         del tree, constraint, address
         return iter(())
 
     @staticmethod
-    def arbitrary(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[A]:
+    def arbitrary(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[object]:
         del tree, constraint, address
         return None
 
     @staticmethod
-    def uniform_random(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[A]:
+    def uniform_random(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[object]:
         del tree, constraint, address
         return None
 
@@ -101,10 +99,9 @@ class MissingInitialize:
 
 
 @EXT_XFAIL
-def test_generate_signature_has_three_arguments_and_no_extensions():
+def test_generate_signature_has_three_arguments():
     params = inspect.signature(core_attr("generate")).parameters
     assert list(params.keys()) == ["tree", "constraint", "methods"]
-    assert "extensions" not in params
 
 
 # ---------------------------------------------------------------------------
@@ -138,20 +135,20 @@ class BoundedByInitialize:
     @staticmethod
     def initialize(tree: Type[T], constraint: Expression) -> Optional[Expression]:
         del tree, constraint
-        return _int_bounds("X", 1, 2)
+        return cast(Expression, _int_bounds("X", 1, 2))
 
     @staticmethod
-    def enumerate_all(tree: Type[T], constraint: Expression, address: Optional[str]) -> Iterator[A]:
+    def enumerate_all(tree: Type[T], constraint: Expression, address: Optional[str]) -> Iterator[object]:
         del tree, constraint, address
         return iter(("ok",))
 
     @staticmethod
-    def arbitrary(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[A]:
+    def arbitrary(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[object]:
         del tree, constraint, address
         return "ok"
 
     @staticmethod
-    def uniform_random(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[A]:
+    def uniform_random(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[object]:
         del tree, constraint, address
         return "ok"
 
@@ -220,14 +217,3 @@ def test_int_behavior_still_uses_core_semantics():
     tree = Annotated[int, CoreName("X")]
     assert generate_core(tree, _int_bounds("X", 1, 2)) == {1, 2}
 
-
-# ---------------------------------------------------------------------------
-# No extensions argument is accepted
-# ---------------------------------------------------------------------------
-
-
-@EXT_XFAIL
-def test_generate_rejects_extensions_keyword_argument():
-    generate = core_attr("generate")
-    with pytest.raises(TypeError):
-        generate(Literal[True], true_expr(), {}, extensions={})

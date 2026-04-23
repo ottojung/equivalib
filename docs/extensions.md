@@ -4,7 +4,7 @@ This document defines the extension design for custom class leaves in `equivalib
 
 ## Scope
 
-Extensions are discovered from the class itself (interface-style), not from an external registry argument.
+Extensions are discovered from the class itself via an interface implemented on the class.
 
 Core leaf language remains built-in and unchanged for:
 
@@ -20,7 +20,7 @@ For any class leaf outside that base language, generation checks whether that cl
 
 ## Public API
 
-`generate` keeps the 3-argument signature:
+`generate` has this signature:
 
 ```python
 def generate(
@@ -31,7 +31,6 @@ def generate(
     ...
 ```
 
-There is **no** `extensions` argument.
 
 ---
 
@@ -76,7 +75,6 @@ Given a leaf syntax `L`:
 2. Otherwise if `L` is a class and that class implements the required static interface, that class owns the leaf.
 3. Otherwise generation fails (unsupported leaf / missing interface).
 
-No external extension map is consulted.
 
 ---
 
@@ -169,6 +167,9 @@ Generation must fail when:
 ### Class-owned custom leaf
 
 ```python
+import random
+
+
 class Regex:
     @staticmethod
     def initialize(tree, constraint):
@@ -184,7 +185,7 @@ class Regex:
 
     @staticmethod
     def uniform_random(tree, constraint, address):
-        return "cd"
+        return random.choice(["ab", "cd"])
 ```
 
 Then:
@@ -194,4 +195,4 @@ generate(Regex)
 generate(Annotated[Regex, Name("R")], methods={"R": "arbitrary"})
 ```
 
-use `Regex`'s interface methods directly (no registry argument).
+use `Regex`'s interface methods directly.

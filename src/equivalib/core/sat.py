@@ -465,7 +465,7 @@ def _solve_sat(
 
     if needs_all_solutions:
         # Enumerate all solutions with a solution callback.
-        class _SolutionCollector(cp_model.CpSolverSolutionCallback):
+        class _SolutionCollector(cp_model.CpSolverSolutionCallback):  # type: ignore[misc]
             def __init__(self, variables: dict[str, Any], kinds: dict[str, str]) -> None:
                 super().__init__()
                 self._variables = variables

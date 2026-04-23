@@ -13,7 +13,7 @@ from equivalib.super import Super
 from equivalib.structure import VarName
 
 
-class VarArraySolutionPrinter(cp_model.CpSolverSolutionCallback):
+class VarArraySolutionPrinter(cp_model.CpSolverSolutionCallback):  # type: ignore[misc]
     def __init__(self, variables):
         self._variables: Iterable[Comparable] = list(variables)
         self.collected: Dict[object, bool] = {}
