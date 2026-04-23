@@ -2,7 +2,7 @@
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import random
-from typing import Dict, Iterator, Union, Iterable
+from typing import Dict, Iterator, Union, Iterable, TYPE_CHECKING
 from ortools.sat.python import cp_model
 
 from equivalib.constant import Constant
@@ -13,7 +13,16 @@ from equivalib.super import Super
 from equivalib.structure import VarName
 
 
-class VarArraySolutionPrinter(cp_model.CpSolverSolutionCallback):  # type: ignore[misc]
+if TYPE_CHECKING:
+    class _SolverCallbackBase:
+        def __init__(self) -> None: ...
+
+        def value(self, expression: object) -> int: ...
+else:
+    _SolverCallbackBase = cp_model.CpSolverSolutionCallback
+
+
+class VarArraySolutionPrinter(_SolverCallbackBase):
     def __init__(self, variables):
         self._variables: Iterable[Comparable] = list(variables)
         self.collected: Dict[object, bool] = {}

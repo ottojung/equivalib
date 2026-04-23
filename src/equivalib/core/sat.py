@@ -11,7 +11,7 @@ representing one satisfying assignment.
 
 from __future__ import annotations
 
-from typing import Any, Literal, Mapping
+from typing import Any, Literal, Mapping, TYPE_CHECKING
 
 from ortools.sat.python import cp_model
 
@@ -69,6 +69,14 @@ _ZERO_DIV = "zero_div"  # sentinel: operand is undefined due to division by zero
 #            expression is well-defined (used for variable-divisor FloorDiv/Mod
 #            to avoid polluting the model with a global rv!=0 constraint)
 _EncResult = tuple[Any, str, bool, Literal[True] | cp_model.IntVar]
+
+if TYPE_CHECKING:
+    class _SolverCallbackBase:
+        def __init__(self) -> None: ...
+
+        def value(self, expression: object) -> int: ...
+else:
+    _SolverCallbackBase = cp_model.CpSolverSolutionCallback
 
 
 # ---------------------------------------------------------------------------
@@ -465,7 +473,7 @@ def _solve_sat(
 
     if needs_all_solutions:
         # Enumerate all solutions with a solution callback.
-        class _SolutionCollector(cp_model.CpSolverSolutionCallback):  # type: ignore[misc]
+        class _SolutionCollector(_SolverCallbackBase):
             def __init__(self, variables: dict[str, Any], kinds: dict[str, str]) -> None:
                 super().__init__()
                 self._variables = variables
