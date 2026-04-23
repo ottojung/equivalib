@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import inspect
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Annotated, Any, Iterator, Optional, Type, TypeVar, cast
 
@@ -55,20 +56,24 @@ class NotExtensionLeaf:
     token: str = "x"
 
 
-class Extension:
+class Extension(ABC):
     @staticmethod
+    @abstractmethod
     def initialize(tree: Type[T], constraint: Expression) -> Optional[Expression]:
         raise NotImplementedError
 
     @staticmethod
+    @abstractmethod
     def enumerate_all(tree: Type[T], constraint: Expression, address: Optional[str]) -> Iterator[object]:
         raise NotImplementedError
 
     @staticmethod
+    @abstractmethod
     def arbitrary(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[object]:
         raise NotImplementedError
 
     @staticmethod
+    @abstractmethod
     def uniform_random(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[object]:
         raise NotImplementedError
 

@@ -36,23 +36,30 @@ def generate(
 
 ## Required `Extension` Base Class
 
-The contract is defined by a base class:
+The contract is defined by an abstract base class:
 
 ```python
-class Extension:
+from abc import ABC, abstractmethod
+
+
+class Extension(ABC):
     @staticmethod
+    @abstractmethod
     def initialize(tree: Type[T], constraint: Expression) -> Optional[Expression]:
         ...
 
     @staticmethod
+    @abstractmethod
     def enumerate_all(tree: Type[T], constraint: Expression, address: Optional[str]) -> Iterator[A]:
         ...
 
     @staticmethod
+    @abstractmethod
     def arbitrary(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[A]:
         ...
 
     @staticmethod
+    @abstractmethod
     def uniform_random(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[A]:
         ...
 ```
@@ -167,19 +174,42 @@ Generation must fail when:
 
 ## Examples
 
-### Class-owned custom leaf (`Extension` subtype)
+### Class-owned custom leaves (`Extension` subtypes)
 
 ```python
 import random
+from abc import ABC, abstractmethod
 
 
-class Regex(Extension):
+class Regex(Extension, ABC):
+    @staticmethod
+    @abstractmethod
+    def initialize(tree, constraint):
+        ...
+
+    @staticmethod
+    @abstractmethod
+    def enumerate_all(tree, constraint, address):
+        ...
+
+    @staticmethod
+    @abstractmethod
+    def arbitrary(tree, constraint, address):
+        ...
+
+    @staticmethod
+    @abstractmethod
+    def uniform_random(tree, constraint, address):
+        ...
+
+
+class RegexABorCD(Regex):
     @staticmethod
     def initialize(tree, constraint):
         return None
 
     @staticmethod
-    def enumerate_all(tree, constraint, address):
+    def enumerate_all(tree, constraint, address):  # language: {"ab", "cd"}
         yield from ["ab", "cd"]
 
     @staticmethod
@@ -194,8 +224,8 @@ class Regex(Extension):
 Then:
 
 ```python
-generate(Regex)
-generate(Annotated[Regex, Name("R")], methods={"R": "arbitrary"})
+generate(RegexABorCD)
+generate(Annotated[RegexABorCD, Name("R")], methods={"R": "arbitrary"})
 ```
 
-use `Regex`'s `Extension` methods directly.
+`Regex` is the abstract family, while `RegexABorCD` is one concrete regex language.
