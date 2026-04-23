@@ -1,243 +1,197 @@
-# Extensions for equivalib Core
+# Interface-based Extensions for `equivalib.core.generate`
 
-This document specifies the extension mechanism of `equivalib.core.generate`.
+This document defines the extension design for custom class leaves in `equivalib.core.generate`.
 
-An extension owns one or more leaf syntaxes in the generation tree. It may define custom finite or infinite domains for those leaves, override built-in leaves such as `bool` and `int`, add derived constraints during initialization, and provide method-specific witness selection.
+## Scope
 
-Extensions are leaf-level constructs. They do not introduce new expression nodes, and they do not make extension-owned values addressable below the whole leaf unless the leaf is one of the built-in override kinds defined in this document.
+Extensions are discovered from the class itself (interface-style), not from an external registry argument.
+
+Core leaf language remains built-in and unchanged for:
+
+- `bool`
+- `int` (named/bounded as defined in the core spec)
+- `tuple[...]`
+- `union` (`typing.Union[...]` / `|`)
+- supported `Literal[...]` forms
+
+For any class leaf outside that base language, generation checks whether that class implements the required extension interface below.
+
+---
 
 ## Public API
 
-The public entry point is:
+`generate` keeps the 3-argument signature:
 
 ```python
 def generate(
     tree: Type[GenerateT],
     constraint: Expression = _DEFAULT_CONSTRAINT,
     methods: Optional[Mapping[Label, Method]] = None,
-    extensions: Optional[Mapping[Type[A], Extension[A]]] = None
 ) -> set[GenerateT]:
+    ...
+```
+
+There is **no** `extensions` argument.
+
+---
+
+## Required Interface
+
+When a non-base class leaf is encountered, its class must provide these static methods:
+
+```python
+@staticmethod
+def initialize(tree: Type[T], constraint: Expression) -> Optional[Expression]:
+    ...
+
+@staticmethod
+def enumerate_all(tree: Type[T], constraint: Expression, address: Optional[str]) -> Iterator[A]:
+    ...
+
+@staticmethod
+def arbitrary(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[A]:
+    ...
+
+@staticmethod
+def uniform_random(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[A]:
+    ...
 ```
 
 Semantics:
 
-- `methods` defaults to `{}`.
-- A label not present in `methods` uses method `"all"`.
-- `extensions` defaults to `{}`.
-- If `extensions` is empty, generation uses only the built-in core leaf language.
-- If `extensions` is present, built-in and extension-owned leaves may appear in the same tree.
-- The result is the set of all runtime values of `tree` that satisfy the effective constraint and the method rules.
+- `initialize` returns additional boolean constraints (or `None`).
+- `enumerate_all` provides exhaustive admissible values for the occurrence.
+- `arbitrary` provides one admissible witness value (or `None` if none exists).
+- `uniform_random` provides one admissible witness value with core uniform-random semantics (or `None` if none exists).
 
-## Extension Protocol
+`initialize` is called once per participating extension class per `generate(...)` call.
 
-`GenerateT`, `T`, and `A` are type variables.
+---
 
-An extension must provide exactly these methods:
+## Discovery and Ownership Rules
 
-```python
-class Extension(Protocol[A]):
-    def initialize(self, tree: Type[T], constraint: Expression) -> Optional[Expression]:
-        ...
+Given a leaf syntax `L`:
 
-    def enumerate_all(self, tree: Type[T], constraint: Expression, address: Optional[str]) -> Iterator[A]:
-        ...
+1. If `L` is a core base leaf (`bool`, `int`, tuple, union, supported literals), core behavior applies.
+2. Otherwise if `L` is a class and that class implements the required static interface, that class owns the leaf.
+3. Otherwise generation fails (unsupported leaf / missing interface).
 
-    def arbitrary(self, tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[A]:
-        ...
+No external extension map is consulted.
 
-    def uniform_random(self, tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[A]:
-        ...
-```
-
-Semantics:
-
-- `initialize` is called once per registered extension.
-- `enumerate_all` returns the admissible values for the addressed occurrence under the effective problem when exhaustive generation is required.
-- `arbitrary` returns one admissible witness value for the addressed occurrence, or `None` if no admissible value exists.
-- `uniform_random` returns one admissible witness value for the addressed occurrence, or `None` if no admissible value exists, using the same probability semantics as core `uniform_random`.
-
-All hooks other than `initialize` operate on the effective problem produced by the initialization phase.
-
-## Extension Lookup
-
-Extension lookup is performed after removing the outermost `Annotated[..., Name(...)]` wrapper, if present.
-
-Let `base` be the resulting leaf payload.
-
-Lookup rules:
-
-1. If `base` is a type object and `base` is a key in `extensions`, that extension owns the leaf.
-2. If `base` is not a type object and `type(base)` is a key in `extensions`, that extension owns the leaf.
-3. Otherwise the built-in core rules apply.
-
-This permits both built-in overrides and parameterized custom leaves.
-
-Examples:
-
-```python
-bool
-Annotated[bool, Name("B")]
-Regex("ab|cd")
-Annotated[Regex("a*"), Name("R")]
-Tuple[Regex("ab|cd"), bool]
-```
+---
 
 ## Effective Constraint
 
-Before validation, bounds inference, search, or method selection, `generate` calls:
+For each participating extension class `C`:
 
 ```python
-extra_i = extension_i.initialize(tree, constraint)
+extra_C = C.initialize(tree, constraint)
 ```
-
-for every registered extension.
-
-Each extension receives the original `tree` and the original `constraint`. Each call returns either `None` or one additional boolean `Expression`.
 
 The effective constraint is:
 
 ```text
-constraint_eff = And(constraint, extra_1, extra_2, ..., extra_n)
+constraint_eff = And(constraint, extra_C1, extra_C2, ...)
 ```
 
-with all `None` results omitted.
+with `None` entries omitted.
 
-All subsequent validation, bounds inference, search, and extension hooks use `constraint_eff`.
+All later validation/search/method dispatch and extension hook calls use `constraint_eff`.
 
-The order of `initialize` calls must not change the meaning of `constraint_eff`.
+---
 
 ## Address Semantics
 
-The `address` argument identifies the extension-owned occurrence for which a hook is being invoked.
+`address` identifies the owned occurrence:
 
-`address` is the canonical string form of how that occurrence is referred to inside the constrained tree.
+- Named occurrence `Annotated[..., Name("X")]` → `"X"`
+- Reachable tuple child from addressable parent → dot path (e.g. `"X.0"`, `"0.1"`)
+- Otherwise `None`
 
-Rules:
+Repeated identical labels denote the same logical variable.
 
-- If the occurrence is annotated with `Name("X")`, then `address == "X"`.
-- Otherwise, if the occurrence is reachable through tuple indices from an addressable parent, then `address` is the canonical dot-separated zero-based index path.
-- Otherwise, `address is None`.
+---
 
-Examples:
+## Method Dispatch
 
-- `Annotated[Regex("ab|cd"), Name("R")]` gives `address == "R"`.
-- In `Annotated[Tuple[Regex("ab|cd"), bool], Name("X")]`, the regex occurrence at tuple position `0` gives `address == "X.0"`.
-- In `Tuple[Regex("ab|cd"), bool]`, the regex occurrence at tuple position `0` gives `address == "0"`.
-- A standalone leaf such as `Regex("ab|cd")` gives `address is None`.
+Per-label method selection remains core behavior:
 
-If two occurrences share the same `Name` label, then they share the same `address` and denote the same logical variable.
-
-## Domain Semantics
-
-For an extension-owned occurrence identified by `address`, the extension methods are interpreted against the whole effective problem `(tree, constraint_eff)`.
-
-`enumerate_all(tree, constraint_eff, address)` must yield exactly the admissible values for that address under exhaustive generation.
-
-`arbitrary(tree, constraint_eff, address)` must return one admissible value for that address when one exists.
-
-`uniform_random(tree, constraint_eff, address)` must return one admissible value for that address according to core `uniform_random` semantics: each satisfying assignment contributes one count to the value projected at that address.
-
-If a hook returns `None`, that address has no admissible witness for the requested method.
-
-## Method Semantics
-
-Method selection is determined by labels exactly as in the core API.
-
-- An occurrence with `Name("L")` uses `methods["L"]` when that key is present.
-- If `"L"` is not present in `methods`, that occurrence uses `"all"`.
-- An occurrence without `Name(...)` is not method-selectable and behaves as `"all"`.
+- default method: `"all"`
+- explicit methods: `"all"`, `"arbitrary"`, `"uniform_random"`
 
 For extension-owned occurrences:
 
-- `"all"` uses `enumerate_all`.
-- `"arbitrary"` uses `arbitrary`.
-- `"uniform_random"` uses `uniform_random`.
+- `"all"` → `enumerate_all(...)`
+- `"arbitrary"` → `arbitrary(...)`
+- `"uniform_random"` → `uniform_random(...)`
 
-If the same label appears in more than one occurrence, those occurrences denote one logical variable. The extension methods for that label must respect the full tree, the full effective constraint, and all occurrences of that label.
+---
 
-## Expression and Validation Semantics
+## Typing/Expression Semantics
 
-By default, an extension-owned leaf is atomic.
+Extension-owned leaves are atomic unless explicitly specified otherwise by future revisions.
 
-For an atomic extension-owned leaf:
+Therefore by default:
 
-- equality and inequality on the whole leaf are valid,
-- a non-empty address path into the leaf is invalid,
-- arithmetic on the leaf is invalid,
-- ordering on the leaf is invalid,
-- boolean use in `And` and `Or` is invalid.
+- equality / inequality on whole value are valid,
+- non-empty sub-addressing into the leaf is invalid,
+- arithmetic and ordering on the leaf are invalid,
+- boolean connectives using the leaf as a boolean term are invalid.
 
-Built-in overrides preserve the built-in expression type:
+Built-in types keep built-in expression typing.
 
-- an extension registered under `bool` remains boolean-typed,
-- an extension registered under `int` remains numeric-typed.
+---
 
-All other extension-owned leaves are opaque for expression typing.
+## Finite vs Infinite Domains
 
-## Finite and Infinite Domains
+- `enumerate_all` must only be used when exhaustive support is finite.
+- Exhaustive generation over infinite support must raise.
+- `uniform_random` requires finite, sampleable support with defined weighting.
+- `arbitrary` may return a witness on infinite support.
 
-An extension domain may be finite or infinite.
-
-Requirements:
-
-- `enumerate_all` must be usable only when exhaustive generation is finite.
-- If exhaustive generation would be infinite, `generate` must raise an exception.
-- `uniform_random` must be usable only when the admissible support is finite and the required distribution is well-defined.
-- If `uniform_random` cannot satisfy those conditions, `generate` must raise an exception.
-- `arbitrary` may return a witness on an infinite admissible domain.
+---
 
 ## Error Conditions
 
-Generation must fail when any of the following occurs:
+Generation must fail when:
 
-- `extensions` is not a mapping,
-- an extension registry key is not a type,
-- an extension object does not provide the required methods,
-- a custom leaf appears with no matching extension,
-- `initialize` returns a non-expression,
-- `initialize` returns a non-boolean expression,
-- an extension hook returns a value that is not admissible for its address,
-- a non-empty address path is applied to an atomic extension-owned leaf,
-- arithmetic or ordering is applied to an opaque extension-owned leaf,
-- exhaustive generation is requested for an infinite domain,
-- `uniform_random` is requested for an infinite or otherwise unsampleable admissible support.
+- a non-base class leaf does not implement the required interface,
+- required interface methods are missing or non-callable,
+- `initialize` returns a non-expression or non-boolean expression,
+- hook outputs are inadmissible for the addressed occurrence,
+- invalid expression operations are applied to atomic extension-owned leaves,
+- exhaustive or uniform-random generation is requested for unsupported infinite domains.
 
-## Worked Examples
+---
 
-### Built-in override: `bool`
+## Examples
+
+### Class-owned custom leaf
 
 ```python
-generate(bool, extensions={bool: custom_bool_extension})
+class Regex:
+    @staticmethod
+    def initialize(tree, constraint):
+        return None
+
+    @staticmethod
+    def enumerate_all(tree, constraint, address):
+        yield from ["ab", "cd"]
+
+    @staticmethod
+    def arbitrary(tree, constraint, address):
+        return "ab"
+
+    @staticmethod
+    def uniform_random(tree, constraint, address):
+        return "cd"
 ```
 
-This call uses the extension-owned boolean domain instead of the built-in `{False, True}`.
+Then:
 
 ```python
-generate(
-    Annotated[bool, Name("B")],
-    Reference("B"),
-    {"B": "arbitrary"},
-    extensions={bool: custom_bool_extension},
-)
+generate(Regex)
+generate(Annotated[Regex, Name("R")], methods={"R": "arbitrary"})
 ```
 
-In this call, `B` remains boolean-typed and witness selection for `B` is delegated to `arbitrary(tree, constraint_eff, "B")`.
-
-### Regex extension
-
-```python
-generate(Regex("ab|cd"), extensions={Regex: regex_extension})
-```
-
-This call returns the exhaustive finite set produced by `enumerate_all(tree, constraint_eff, None)`.
-
-```python
-generate(
-    Annotated[Regex("a*"), Name("R")],
-    _DEFAULT_CONSTRAINT,
-    {"R": "arbitrary"},
-    extensions={Regex: regex_extension},
-)
-```
-
-This call delegates witness selection for `R` to `arbitrary(tree, constraint_eff, "R")`.
+use `Regex`'s interface methods directly (no registry argument).
