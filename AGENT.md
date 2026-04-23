@@ -8,20 +8,19 @@ It provides a `generate` function that takes a type tree, a constraint expressio
 ## Setup
 
 ```bash
-pip install -e .
-pip install -e ".[test,dev]"
+uv sync --all-extras
 ```
 
 ## Running tests
 
 ```bash
-python -m pytest tests/
+uv run pytest -v
 ```
 
 ## Type checking
 
 ```bash
-python -m mypy src/equivalib tests
+uv run mypy src/equivalib tests
 ```
 
 Mypy runs in **strict mode** with `warn_unused_ignores = true`.
@@ -33,7 +32,7 @@ This means:
 ## Linting
 
 ```bash
-python -m ruff check src/ tests/
+uv run ruff check src/ tests/
 ```
 
 ## Key source locations
