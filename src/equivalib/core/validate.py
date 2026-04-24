@@ -16,6 +16,7 @@ from equivalib.core.types import (
     LiteralNode,
     IntRangeNode,
     UnboundedIntNode,
+    ExtensionNode,
     TupleNode,
     UnionNode,
     NamedNode,
@@ -63,6 +64,8 @@ def _check_node(node: IRNode) -> None:
     if isinstance(node, BoolNode):
         return
     if isinstance(node, LiteralNode):
+        return
+    if isinstance(node, ExtensionNode):
         return
     if isinstance(node, IntRangeNode):
         if node.min_value > node.max_value:
@@ -163,7 +166,7 @@ def _collect_label_shapes(node: IRNode) -> LabelShapes:
 
 
 def _walk_for_shapes(node: IRNode, result: LabelShapes) -> None:
-    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode)):
+    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode, ExtensionNode)):
         return
     if isinstance(node, TupleNode):
         for item in node.items:

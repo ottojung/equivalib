@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import typing
 import types
+import inspect
 
 from equivalib.core.name import Name
 from equivalib.core.types import (
@@ -18,8 +19,16 @@ from equivalib.core.types import (
     TupleNode,
     UnionNode,
     NamedNode,
+    ExtensionNode,
     IRNode,
 )
+
+
+def _is_extension_subtype(t: object) -> bool:
+    if not inspect.isclass(t):
+        return False
+    required = ("initialize", "enumerate_all", "arbitrary", "uniform_random")
+    return any(hasattr(t, name) for name in required)
 
 
 def normalize(t: object) -> IRNode:
@@ -65,6 +74,15 @@ def normalize(t: object) -> IRNode:
         for a in args:
             options.append(normalize(a))
         return UnionNode(tuple(options))
+
+    if _is_extension_subtype(t):
+        assert inspect.isclass(t)
+        return ExtensionNode(t)
+
+    if inspect.isclass(t):
+        raise ValueError(
+            f"Unsupported class leaf {t!r}: non-base classes must provide Extension hooks."
+        )
 
     raise ValueError(f"Unsupported type expression: {t!r}")
 

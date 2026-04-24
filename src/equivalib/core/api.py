@@ -6,11 +6,28 @@ Public entry point:
 
 from __future__ import annotations
 
-from typing import Mapping, Optional, Type, TypeVar, cast
+from typing import Iterator, Mapping, Optional, Protocol, Type, TypeVar, cast
 
 from equivalib.core.expression import (
     BooleanExpression,
     Expression,
+    And,
+    BooleanConstant,
+    IntegerConstant,
+    Reference,
+    Neg,
+    Add,
+    Sub,
+    Mul,
+    FloorDiv,
+    Mod,
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    Or,
     impossible,
 )
 from equivalib.core.normalize import normalize
@@ -23,6 +40,7 @@ from equivalib.core.types import (
     IntRangeNode,
     TupleNode,
     UnionNode,
+    ExtensionNode,
     NamedNode,
     IRNode,
     contains_name,
@@ -36,7 +54,40 @@ from equivalib.core.methods import apply_methods, Label, Method
 
 GenerateT = TypeVar("GenerateT")
 
+
+class ExtensionHooks(Protocol):
+    @staticmethod
+    def initialize(tree: object, constraint: Expression) -> Optional[Expression]: ...
+
+    @staticmethod
+    def enumerate_all(tree: object, constraint: Expression, address: str | None) -> Iterator[object]: ...
+
+    @staticmethod
+    def arbitrary(tree: object, constraint: Expression, address: str | None) -> object | None: ...
+
+    @staticmethod
+    def uniform_random(tree: object, constraint: Expression, address: str | None) -> object | None: ...
+
 _DEFAULT_CONSTRAINT: Expression = BooleanExpression(True)
+_EXPR_TYPES = (
+    BooleanConstant,
+    IntegerConstant,
+    Reference,
+    Neg,
+    Add,
+    Sub,
+    Mul,
+    FloorDiv,
+    Mod,
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    And,
+    Or,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -57,6 +108,8 @@ def concretize(node: IRNode, assignment: Mapping[str, object]) -> frozenset[obje
         raise ValueError("UnboundedIntNode should have been filled before concretize is called.")
     if isinstance(node, IntRangeNode):
         return frozenset(range(node.min_value, node.max_value + 1))
+    if isinstance(node, ExtensionNode):
+        raise ValueError("ExtensionNode should be resolved before concretize is called.")
     if isinstance(node, TupleNode):
         result: frozenset[object] = frozenset({()})
         for item in node.items:
@@ -89,18 +142,24 @@ def generate(
     # 1. Normalize
     node = normalize(tree)
 
-    # 2. Validate expression against the (still-unfilled) tree so that
+    # 2. Extension initialize hooks and effective constraint
+    constraint_eff = _effective_constraint(node, tree, constraint)
+
+    # 3. Resolve extension leaves according to methods/addresses.
+    node = _resolve_extensions(node, tree, constraint_eff, methods)
+
+    # 4. Validate expression against the (still-unfilled) tree so that
     #    malformed or non-boolean constraints raise TypeError/ValueError
     #    before bounds inference has a chance to emit a misleading error.
-    validate_expression(constraint, node)
+    validate_expression(constraint_eff, node)
 
-    # 3. Validate methods against the unfilled tree so that invalid method
+    # 5. Validate methods against the unfilled tree so that invalid method
     #    keys/values are always reported, even when bounds are contradictory
     #    and generate() would otherwise return early with an empty set.
     validate_methods(node, methods)
 
-    # 4. Infer and fill integer bounds from the constraint
-    bounds = infer_int_bounds(node, constraint)
+    # 6. Infer and fill integer bounds from the constraint
+    bounds = infer_int_bounds(node, constraint_eff)
     if bounds:
         # Contradictory bounds (lo > hi) -> no solutions possible
         for _label, (lo, hi) in bounds.items():
@@ -108,31 +167,108 @@ def generate(
                 return set()
         node = fill_int_bounds(node, bounds)
 
-    # 5. Validate tree (requires bounds to have been filled)
+    # 7. Validate tree (requires bounds to have been filled)
     validate_tree(node)
 
-    # 6. Fast path: no named nodes
+    # 8. Fast path: no named nodes
     if not contains_name(node):
-        satisfied = eval_expression(constraint, {})
+        satisfied = eval_expression(constraint_eff, {})
         if satisfied is not True:
             return set()
         return cast("set[GenerateT]", set(_values_node(node)))
 
-    # 7. Exact satisfying-assignment search (S0)
-    assignments = search(node, constraint, methods)
+    # 9. Exact satisfying-assignment search (S0)
+    assignments = search(node, constraint_eff, methods)
 
     if not assignments:
         return set()
 
-    # 8. Apply super-method reductions (S*)
+    # 10. Apply super-method reductions (S*)
     reduced = apply_methods(assignments, methods, labels_in_order(node))
 
     if not reduced:
         return set()
 
-    # 9. Concretize each assignment into runtime values.
+    # 11. Concretize each assignment into runtime values.
     result: set[object] = set()
     for asgn in reduced:
         result.update(concretize(node, asgn))
 
     return result  # type: ignore[return-value]
+
+
+def _effective_constraint(node: IRNode, tree: Type[GenerateT], constraint: Expression) -> Expression:
+    extras: list[Expression] = []
+    for cls in _extension_classes(node):
+        initialize = getattr(cls, "initialize", None)
+        if not callable(initialize):
+            raise ValueError(f"Extension class {cls!r} is missing callable initialize(...).")
+        extra = initialize(tree, constraint)
+        if extra is None:
+            continue
+        if not isinstance(extra, _EXPR_TYPES):
+            raise TypeError("initialize(...) must return an Expression or None.")
+        extras.append(extra)
+
+    eff = constraint
+    for extra in extras:
+        eff = And(eff, extra)
+    return eff
+
+
+def _extension_classes(node: IRNode) -> set[type[ExtensionHooks]]:
+    classes: set[type[ExtensionHooks]] = set()
+
+    def walk(n: IRNode) -> None:
+        if isinstance(n, ExtensionNode):
+            classes.add(cast(type[ExtensionHooks], n.owner))
+            return
+        if isinstance(n, TupleNode):
+            for item in n.items:
+                walk(item)
+        elif isinstance(n, UnionNode):
+            for opt in n.options:
+                walk(opt)
+        elif isinstance(n, NamedNode):
+            walk(n.inner)
+
+    walk(node)
+    return classes
+
+
+def _resolve_extensions(
+    node: IRNode,
+    tree: Type[GenerateT],
+    constraint: Expression,
+    methods: Mapping[Label, Method],
+    address: str | None = None,
+    current_label: str | None = None,
+) -> IRNode:
+    if isinstance(node, ExtensionNode):
+        hook = methods.get(current_label, "all") if current_label is not None else "all"
+        cls = cast(type[ExtensionHooks], node.owner)
+        if hook == "all":
+            values = list(cls.enumerate_all(tree, constraint, address))
+        elif hook == "arbitrary":
+            one = cls.arbitrary(tree, constraint, address)
+            values = [] if one is None else [one]
+        else:
+            one = cls.uniform_random(tree, constraint, address)
+            values = [] if one is None else [one]
+        literals = tuple(LiteralNode(v) for v in values)
+        if not literals:
+            return UnionNode(())
+        if len(literals) == 1:
+            return literals[0]
+        return UnionNode(literals)
+    if isinstance(node, TupleNode):
+        items: list[IRNode] = []
+        for idx, item in enumerate(node.items):
+            child_address = f"{address}.{idx}" if address is not None else str(idx)
+            items.append(_resolve_extensions(item, tree, constraint, methods, child_address, current_label))
+        return TupleNode(tuple(items))
+    if isinstance(node, UnionNode):
+        return UnionNode(tuple(_resolve_extensions(opt, tree, constraint, methods, address, current_label) for opt in node.options))
+    if isinstance(node, NamedNode):
+        return NamedNode(node.label, _resolve_extensions(node.inner, tree, constraint, methods, node.label, node.label))
+    return node

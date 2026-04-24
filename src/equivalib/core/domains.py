@@ -15,6 +15,7 @@ from equivalib.core.types import (
     LiteralNode,
     IntRangeNode,
     UnboundedIntNode,
+    ExtensionNode,
     TupleNode,
     UnionNode,
     NamedNode,
@@ -49,6 +50,8 @@ def _values_node(node: IRNode) -> frozenset[object]:
         return frozenset({node.value})
     if isinstance(node, IntRangeNode):
         return frozenset(range(node.min_value, node.max_value + 1))
+    if isinstance(node, ExtensionNode):
+        raise ValueError("ExtensionNode denotation must be resolved before domain computation.")
     if isinstance(node, TupleNode):
         result: frozenset[object] = frozenset({()})
         for item in node.items:
@@ -123,6 +126,8 @@ def _values_node_tagged(node: IRNode) -> frozenset[object]:
         return frozenset({_tag_value(node.value)})
     if isinstance(node, IntRangeNode):
         return frozenset(_tag_value(i) for i in range(node.min_value, node.max_value + 1))
+    if isinstance(node, ExtensionNode):
+        raise ValueError("ExtensionNode denotation must be resolved before domain computation.")
     if isinstance(node, TupleNode):
         # Build a frozenset of row-tuples made from tagged element values.
         # Each row is then wrapped in a tuple tag to form a tagged-tuple value.
@@ -202,7 +207,7 @@ def _collect_occurrences_tagged(
     out: dict[str, list[frozenset[object]]],
 ) -> None:
     """Populate ``out`` with per-label tagged occurrence frozensets."""
-    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode)):
+    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode, ExtensionNode)):
         return
     if isinstance(node, TupleNode):
         for item in node.items:

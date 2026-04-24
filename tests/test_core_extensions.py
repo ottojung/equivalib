@@ -12,9 +12,6 @@ from equivalib.core.expression import And, Eq, Expression, Ge, Le
 from equivalib.core.name import Name as CoreName
 
 
-EXT_XFAIL = pytest.mark.xfail(reason="Class-based Extension subtype mechanism not implemented yet")
-
-
 T = TypeVar("T")
 
 def core_attr(name: str) -> Any:
@@ -124,7 +121,6 @@ setattr(InvalidInitialize, "initialize", None)
 # ---------------------------------------------------------------------------
 
 
-@EXT_XFAIL
 def test_generate_signature_has_three_arguments():
     params = inspect.signature(core_attr("generate")).parameters
     assert list(params.keys()) == ["tree", "constraint", "methods"]
@@ -135,19 +131,16 @@ def test_generate_signature_has_three_arguments():
 # ---------------------------------------------------------------------------
 
 
-@EXT_XFAIL
 def test_non_base_class_not_subtype_of_extension_is_rejected():
     with pytest.raises((TypeError, ValueError), match="unsupported|Extension|subtype"):
         generate_core(NotExtensionLeaf)
 
 
-@EXT_XFAIL
 def test_class_missing_required_initialize_method_is_rejected():
     with pytest.raises((TypeError, ValueError), match="initialize"):
         generate_core(InvalidInitialize)
 
 
-@EXT_XFAIL
 def test_extension_subclass_can_drive_exhaustive_generation():
     assert generate_core(Palette) == {"red", "orange"}
 
@@ -179,7 +172,6 @@ class BoundedByInitialize(Extension):
         return "ok"
 
 
-@EXT_XFAIL
 def test_initialize_constraint_is_anded_into_effective_constraint():
     tree = tuple[Annotated[int, CoreName("X")], BoundedByInitialize]
     result = generate_core(tree, _int_bounds("X", 0, 3))
@@ -191,19 +183,16 @@ def test_initialize_constraint_is_anded_into_effective_constraint():
 # ---------------------------------------------------------------------------
 
 
-@EXT_XFAIL
 def test_named_custom_class_all_uses_enumerate_all():
     tree = Annotated[Palette, CoreName("P")]
     assert generate_core(tree) == {"red", "orange"}
 
 
-@EXT_XFAIL
 def test_named_custom_class_arbitrary_uses_arbitrary_hook():
     tree = Annotated[Palette, CoreName("P")]
     assert generate_core(tree, methods={"P": "arbitrary"}) == {"red"}
 
 
-@EXT_XFAIL
 def test_named_custom_class_uniform_random_uses_uniform_random_hook():
     tree = Annotated[Palette, CoreName("P")]
     assert generate_core(tree, methods={"P": "uniform_random"}) == {"orange"}
@@ -214,14 +203,12 @@ def test_named_custom_class_uniform_random_uses_uniform_random_hook():
 # ---------------------------------------------------------------------------
 
 
-@EXT_XFAIL
 def test_custom_class_address_from_name_and_tuple_path():
     tree = tuple[Annotated[Palette, CoreName("P")], Annotated[Palette, CoreName("Q")]]
     all_results = generate_core(tree)
     assert ("red", "red") in all_results
 
 
-@EXT_XFAIL
 def test_custom_class_leaf_remains_atomic_for_subpaths():
     tree = Annotated[Palette, CoreName("P")]
     with pytest.raises((TypeError, ValueError), match="path|atomic|address"):
@@ -233,12 +220,10 @@ def test_custom_class_leaf_remains_atomic_for_subpaths():
 # ---------------------------------------------------------------------------
 
 
-@EXT_XFAIL
 def test_bool_behavior_still_uses_core_semantics():
     assert generate_core(bool) == {False, True}
 
 
-@EXT_XFAIL
 def test_int_behavior_still_uses_core_semantics():
     tree = Annotated[int, CoreName("X")]
     assert generate_core(tree, _int_bounds("X", 1, 2)) == {1, 2}

@@ -14,6 +14,24 @@ corresponding test cases in a rigorous yet intuitive manner.
 
 The current core generation engine is specified in [docs/spec1.md](docs/spec1.md).
 
+## Setup
+
+`ortools` is a required runtime dependency (including for test execution).
+Set up a project environment with all extras installed:
+
+```bash
+uv sync --all-extras
+uv run python -c "import ortools; print(ortools.__version__)"
+```
+
+Run checks:
+
+```bash
+uv run mypy src/equivalib tests
+uv run ruff check src tests
+uv run pytest -v
+```
+
 # Licensing
 
 The distribution of Equivalib falls under the GNU General Public
