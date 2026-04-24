@@ -13,10 +13,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, Mapping
 
-try:
-    from ortools.sat.python import cp_model
-except ModuleNotFoundError:  # pragma: no cover - exercised in minimal environments
-    cp_model = None  # type: ignore[assignment]
+from ortools.sat.python import cp_model
 
 from equivalib.core.expression import (
     BooleanConstant,
@@ -43,6 +40,7 @@ from equivalib.core.types import (
     BoolNode,
     IntRangeNode,
     UnboundedIntNode,
+    ExtensionNode,
     TupleNode,
     UnionNode,
     NamedNode,
@@ -55,7 +53,6 @@ from equivalib.core.types import (
 from equivalib.core.domains import _values_node_tagged, _untag_value
 from equivalib.core.order import canonical_key, canonical_sorted
 from equivalib.core.eval import _structural_eq, eval_expression_partial
-from equivalib.core.domains import domain_map
 
 # ---------------------------------------------------------------------------
 # Kind constants
@@ -72,10 +69,7 @@ _ZERO_DIV = "zero_div"  # sentinel: operand is undefined due to division by zero
 # - defined: True (always defined) or a CP-SAT BoolVar that is 1 iff the
 #            expression is well-defined (used for variable-divisor FloorDiv/Mod
 #            to avoid polluting the model with a global rv!=0 constraint)
-if cp_model is None:
-    _EncResult = tuple[Any, str, bool, object]
-else:
-    _EncResult = tuple[Any, str, bool, Literal[True] | cp_model.IntVar]
+_EncResult = tuple[Any, str, bool, Literal[True] | cp_model.IntVar]
 
 
 # ---------------------------------------------------------------------------
@@ -104,7 +98,7 @@ def _sat_compute_domains(
     other_occurrences: dict[str, list[frozenset[object]]] = {}
 
     def _walk(n: IRNode) -> None:
-        if isinstance(n, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode)):
+        if isinstance(n, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode, ExtensionNode)):
             return
         if isinstance(n, TupleNode):
             for item in n.items:
@@ -171,9 +165,6 @@ def sat_search(
     All other labels (string/None/tuple literals, mixed unions) are enumerated
     in Python via backtracking, with CP-SAT invoked for the remaining labels.
     """
-    if cp_model is None:
-        return _sat_search_fallback(node, constraint)
-
     if methods is None:
         methods = {}
     # Classify labels into CP-SAT-encodable (bool / int-range) and enum.
@@ -278,28 +269,6 @@ def sat_search(
     return results
 
 
-def _sat_search_fallback(node: IRNode, constraint: Expression) -> list[dict[str, object]]:
-    domains = {k: canonical_sorted(v) for k, v in domain_map(node).items()}
-    labels = sorted(domains)
-    out: list[dict[str, object]] = []
-
-    def backtrack(i: int, asgn: dict[str, object]) -> None:
-        partial = eval_expression_partial(constraint, asgn)
-        if partial is False:
-            return
-        if i == len(labels):
-            if partial is True:
-                out.append(dict(asgn))
-            return
-        label = labels[i]
-        for value in domains[label]:
-            asgn[label] = value
-            backtrack(i + 1, asgn)
-        del asgn[label]
-
-    backtrack(0, {})
-    return out
-
 
 # ---------------------------------------------------------------------------
 # Label classification
@@ -327,7 +296,7 @@ def _classify_labels(node: IRNode) -> tuple[dict[str, str], set[str]]:
 
 def _collect_label_kinds(node: IRNode, out: dict[str, str]) -> None:
     """Walk the tree and record the inner-node kind for every NamedNode."""
-    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode)):
+    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode, ExtensionNode)):
         return
     if isinstance(node, TupleNode):
         for item in node.items:
@@ -498,7 +467,7 @@ def _solve_sat(
 
     if needs_all_solutions:
         # Enumerate all solutions with a solution callback.
-        class _SolutionCollector(cp_model.CpSolverSolutionCallback):
+        class _SolutionCollector(cp_model.CpSolverSolutionCallback):  # type: ignore[misc]
             def __init__(self, variables: dict[str, Any], kinds: dict[str, str]) -> None:
                 super().__init__()
                 self._variables = variables

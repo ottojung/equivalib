@@ -25,6 +25,7 @@ from equivalib.core.types import (
     LiteralNode,
     IntRangeNode,
     UnboundedIntNode,
+    ExtensionNode,
     TupleNode,
     UnionNode,
     NamedNode,
@@ -105,7 +106,7 @@ def _labels_outside(subtree: IRNode, node: IRNode) -> frozenset[str]:
     """Return labels in ``node`` that are NOT in ``subtree`` (using object identity)."""
     if node is subtree:
         return frozenset()
-    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode)):
+    if isinstance(node, (NoneNode, BoolNode, LiteralNode, IntRangeNode, UnboundedIntNode, ExtensionNode)):
         return frozenset()
     if isinstance(node, TupleNode):
         result: frozenset[str] = frozenset()

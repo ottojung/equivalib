@@ -76,6 +76,7 @@ def normalize(t: object) -> IRNode:
         return UnionNode(tuple(options))
 
     if _is_extension_subtype(t):
+        assert inspect.isclass(t)
         return ExtensionNode(t)
 
     if inspect.isclass(t):

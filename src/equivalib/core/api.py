@@ -6,7 +6,7 @@ Public entry point:
 
 from __future__ import annotations
 
-from typing import Mapping, Optional, Type, TypeVar, cast
+from typing import Iterator, Mapping, Optional, Protocol, Type, TypeVar, cast
 
 from equivalib.core.expression import (
     BooleanExpression,
@@ -53,6 +53,20 @@ from equivalib.core.search import search
 from equivalib.core.methods import apply_methods, Label, Method
 
 GenerateT = TypeVar("GenerateT")
+
+
+class ExtensionHooks(Protocol):
+    @staticmethod
+    def initialize(tree: object, constraint: Expression) -> Optional[Expression]: ...
+
+    @staticmethod
+    def enumerate_all(tree: object, constraint: Expression, address: str | None) -> Iterator[object]: ...
+
+    @staticmethod
+    def arbitrary(tree: object, constraint: Expression, address: str | None) -> object | None: ...
+
+    @staticmethod
+    def uniform_random(tree: object, constraint: Expression, address: str | None) -> object | None: ...
 
 _DEFAULT_CONSTRAINT: Expression = BooleanExpression(True)
 _EXPR_TYPES = (
@@ -202,12 +216,12 @@ def _effective_constraint(node: IRNode, tree: Type[GenerateT], constraint: Expre
     return eff
 
 
-def _extension_classes(node: IRNode) -> set[type[object]]:
-    classes: set[type[object]] = set()
+def _extension_classes(node: IRNode) -> set[type[ExtensionHooks]]:
+    classes: set[type[ExtensionHooks]] = set()
 
     def walk(n: IRNode) -> None:
         if isinstance(n, ExtensionNode):
-            classes.add(n.owner)
+            classes.add(cast(type[ExtensionHooks], n.owner))
             return
         if isinstance(n, TupleNode):
             for item in n.items:
@@ -232,7 +246,7 @@ def _resolve_extensions(
 ) -> IRNode:
     if isinstance(node, ExtensionNode):
         hook = methods.get(current_label, "all") if current_label is not None else "all"
-        cls = node.owner
+        cls = cast(type[ExtensionHooks], node.owner)
         if hook == "all":
             values = list(cls.enumerate_all(tree, constraint, address))
         elif hook == "arbitrary":
