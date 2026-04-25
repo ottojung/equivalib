@@ -262,7 +262,7 @@ Where:
 
 - `value` is a boolean or integer constant
 - `label` is a `Label`
-- `path` is a finite tuple of zero-based tuple indices
+- `path` is a finite tuple of zero-based tuple indices (`0` = first element, `1` = second, etc.)
 
 Examples:
 
@@ -296,6 +296,7 @@ Or(
 Address evaluation MUST fail if any step:
 
 - indexes a non-tuple value, or
+- uses a negative index, or
 - uses an out-of-range index
 
 ### Mentioned labels
