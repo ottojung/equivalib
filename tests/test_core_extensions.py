@@ -293,4 +293,4 @@ def test_extension_address_uses_bracket_notation_from_unnamed_tuple_path():
     tree = tuple[bool, tuple[AddressEcho]]
     result = generate_core(tree)
     assert result == {(False, (AddressEcho("ok"),)), (True, (AddressEcho("ok"),))}
-    assert AddressEcho.seen_addresses == ["1[0]"]
+    assert AddressEcho.seen_addresses == ["[1][0]"]
