@@ -738,6 +738,16 @@ def test_generate_rejects_address_out_of_range_on_all_union_branches():
         generate(tree, Eq(ref("X", (1,)), bool_const(True)), {})
 
 
+def test_generate_rejects_negative_tuple_index():
+    """Tuple paths are strictly zero-based; negative indices are invalid."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    Eq = core_attr("Eq")
+    tree = Annotated[Tuple[bool, bool], Name("X")]
+    with pytest.raises(ValueError, match="out of range"):
+        generate(tree, Eq(ref("X", (-1,)), bool_const(True)), {})
+
+
 def test_generate_rejects_address_valid_only_in_first_union_branch():
     """A path must be valid in every union branch, not just the first."""
     generate = core_attr("generate")
@@ -2329,6 +2339,13 @@ def test_reference_path_into_enum_tuple_as_hard_constraint():
     constraint = Reference("T", (1,))
     assignments = _sat_search(node, constraint)
     assert assignments == [], f"Expected no solutions, got {assignments}"
+
+
+def test_eval_reference_path_uses_zero_based_tuple_indices():
+    expr = Reference("T", (0,))
+    assert eval_expression(expr, {"T": (11, 22)}) == 11
+    expr_second = Reference("T", (1,))
+    assert eval_expression(expr_second, {"T": (11, 22)}) == 22
 
 
 # --------------------------------------------------------------------------

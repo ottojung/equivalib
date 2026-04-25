@@ -60,6 +60,28 @@ Unknown = _UnknownType()
 
 
 # ---------------------------------------------------------------------------
+# Tuple path addressing helper
+# ---------------------------------------------------------------------------
+
+def _follow_reference_path(value: object, path: tuple[int, ...], label: str) -> object:
+    """Follow ``path`` into ``value`` using strict zero-based tuple indexing."""
+    current = value
+    for depth, idx in enumerate(path):
+        if not isinstance(current, tuple):
+            raise TypeError(
+                f"Reference {label!r} path {path!r} descends into non-tuple "
+                f"at depth {depth}: {current!r}."
+            )
+        if idx < 0 or idx >= len(current):
+            raise IndexError(
+                f"Reference {label!r} path {path!r} uses out-of-range zero-based "
+                f"index {idx} at depth {depth} for tuple length {len(current)}."
+            )
+        current = current[idx]
+    return current
+
+
+# ---------------------------------------------------------------------------
 # Structural equality helper
 # ---------------------------------------------------------------------------
 
@@ -100,9 +122,7 @@ def _eval(expr: Expression, assignment: dict[str, object]) -> object:
         return expr.value
     if isinstance(expr, Reference):
         value: object = assignment[expr.label]
-        for idx in expr.path:
-            value = value[idx]  # type: ignore[index]
-        return value
+        return _follow_reference_path(value, expr.path, expr.label)
     if isinstance(expr, Neg):
         return -_eval(expr.operand, assignment)  # type: ignore[operator]
     if isinstance(expr, Add):
@@ -156,10 +176,23 @@ def _eval_partial(expr: Expression, pa: dict[str, object]) -> object:
         if expr.label not in pa:
             return Unknown
         value: object = pa[expr.label]
-        for idx in expr.path:
+        for prefix_len in range(len(expr.path) + 1):
             if isinstance(value, _UnknownType):
                 return Unknown
-            value = value[idx]  # type: ignore[index]
+            if prefix_len == len(expr.path):
+                return value
+            idx = expr.path[prefix_len]
+            if not isinstance(value, tuple):
+                raise TypeError(
+                    f"Reference {expr.label!r} path {expr.path!r} descends into non-tuple "
+                    f"at depth {prefix_len}: {value!r}."
+                )
+            if idx < 0 or idx >= len(value):
+                raise IndexError(
+                    f"Reference {expr.label!r} path {expr.path!r} uses out-of-range zero-based "
+                    f"index {idx} at depth {prefix_len} for tuple length {len(value)}."
+                )
+            value = value[idx]
         return value
     if isinstance(expr, Neg):
         v = _eval_partial(expr.operand, pa)

@@ -73,6 +73,28 @@ _EncResult = tuple[Any, str, bool, Literal[True] | cp_model.IntVar]
 
 
 # ---------------------------------------------------------------------------
+# Tuple path addressing helper
+# ---------------------------------------------------------------------------
+
+def _follow_reference_path(value: object, path: tuple[int, ...], label: str) -> object:
+    """Follow ``path`` into ``value`` using strict zero-based tuple indexing."""
+    current = value
+    for depth, idx in enumerate(path):
+        if not isinstance(current, tuple):
+            raise TypeError(
+                f"Reference {label!r} path {path!r} descends into non-tuple "
+                f"at depth {depth}: {current!r}."
+            )
+        if idx < 0 or idx >= len(current):
+            raise IndexError(
+                f"Reference {label!r} path {path!r} uses out-of-range zero-based "
+                f"index {idx} at depth {depth} for tuple length {len(current)}."
+            )
+        current = current[idx]
+    return current
+
+
+# ---------------------------------------------------------------------------
 # Domain computation helpers
 # ---------------------------------------------------------------------------
 
@@ -567,9 +589,7 @@ def _add_constraint(
             model.add_bool_and([sat_vars[label]])
             return
         if label in enum_assignment:
-            v: object = enum_assignment[label]
-            for idx in expr.path:
-                v = v[idx]  # type: ignore[index]
+            v = _follow_reference_path(enum_assignment[label], expr.path, label)
             if v is False:
                 model.add_bool_or([])  # constraint is False → unsatisfiable
             # v is True → no constraint needed
@@ -628,9 +648,7 @@ def _reify_constraint(
             # Reify the boolean SAT variable directly.
             model.add(sat_vars[label] == b)
         elif label in enum_assignment:
-            v: object = enum_assignment[label]
-            for idx in expr.path:
-                v = v[idx]  # type: ignore[index]
+            v = _follow_reference_path(enum_assignment[label], expr.path, label)
             if v is True:
                 model.add_bool_and([b])
             else:
@@ -723,9 +741,7 @@ def _encode_arith(
             return (sat_vars[label], sat_kinds[label], False, True)
         if label in enum_assignment:
             # Navigate the path in the Python value.
-            v: object = enum_assignment[label]
-            for idx in expr.path:
-                v = v[idx]  # type: ignore[index]
+            v = _follow_reference_path(enum_assignment[label], expr.path, label)
             if isinstance(v, bool):
                 return (int(v), _BOOL, True, True)
             if isinstance(v, int):
@@ -1004,9 +1020,7 @@ def _compute_bounds(
         if label in sat_bounds:
             return sat_bounds[label]
         if label in enum_assignment:
-            v2: object = enum_assignment[label]
-            for idx in expr.path:
-                v2 = v2[idx]  # type: ignore[index]
+            v2 = _follow_reference_path(enum_assignment[label], expr.path, label)
             if isinstance(v2, int):  # includes bool
                 iv = int(v2)
                 return (iv, iv)
