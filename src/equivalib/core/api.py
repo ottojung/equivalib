@@ -257,7 +257,7 @@ def _resolve_extensions(
     if isinstance(node, TupleNode):
         items: list[IRNode] = []
         for idx, item in enumerate(node.items):
-            child_address = f"{address}[{idx}]" if address is not None else str(idx)
+            child_address = f"{address}[{idx}]" if address is not None else f"[{idx}]"
             items.append(_resolve_extensions(item, tree, constraint, methods, child_address, current_label))
         return TupleNode(tuple(items))
     if isinstance(node, UnionNode):
