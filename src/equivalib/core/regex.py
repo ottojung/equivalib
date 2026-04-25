@@ -6,7 +6,7 @@ import sre_parse
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from itertools import product
-from typing import Iterator
+from typing import Any, Iterator, cast
 
 from equivalib.core.extension import Extension
 from equivalib.core.expression import Expression
@@ -38,7 +38,6 @@ class Regex(Extension, ABC):
     @staticmethod
     def initialize(tree: object, constraint: Expression) -> None:
         del tree, constraint
-        return None
 
     @classmethod
     def enumerate_all(cls, tree: object, constraint: Expression, address: str | None) -> Iterator["Regex"]:
@@ -83,7 +82,7 @@ def _enumerate_token(
     infinite_bound: int | None,
 ) -> Iterator[str]:
     if op is sre_parse.LITERAL:
-        yield chr(arg)  # type: ignore[arg-type]
+        yield chr(cast(int, arg))
         return
 
     if op is sre_parse.ANY:
@@ -92,23 +91,23 @@ def _enumerate_token(
         return
 
     if op is sre_parse.IN:
-        for c in _enumerate_in(arg):  # type: ignore[arg-type]
+        for c in _enumerate_in(cast(list[tuple[object, object]], arg)):
             yield c
         return
 
     if op is sre_parse.BRANCH:
-        _, branches = arg  # type: ignore[misc]
+        _, branches = cast(tuple[Any, list[sre_parse.SubPattern]], arg)
         for branch in branches:
             yield from _enumerate_subpattern(branch, infinite_bound)
         return
 
     if op is sre_parse.SUBPATTERN:
-        _gid, _add_flags, _del_flags, nested = arg  # type: ignore[misc]
+        _gid, _add_flags, _del_flags, nested = cast(tuple[Any, Any, Any, sre_parse.SubPattern], arg)
         yield from _enumerate_subpattern(nested, infinite_bound)
         return
 
     if op in (sre_parse.MAX_REPEAT, sre_parse.MIN_REPEAT):
-        lo, hi, nested = arg  # type: ignore[misc]
+        lo, hi, nested = cast(tuple[int, int, sre_parse.SubPattern], arg)
         if hi == sre_parse.MAXREPEAT:
             if infinite_bound is None:
                 raise ValueError("Regex enumerate_all does not support unbounded repeats.")
@@ -150,10 +149,10 @@ def _enumerate_in(arg: list[tuple[object, object]]) -> Iterator[str]:
             negate = True
             continue
         if in_op is sre_parse.LITERAL:
-            pieces.append(chr(in_arg))
+            pieces.append(chr(cast(int, in_arg)))
             continue
         if in_op is sre_parse.RANGE:
-            lo, hi = in_arg
+            lo, hi = cast(tuple[int, int], in_arg)
             for code in range(lo, hi + 1):
                 pieces.append(chr(code))
             continue

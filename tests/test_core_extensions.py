@@ -7,6 +7,7 @@ from typing import Annotated, Any, Iterator, cast
 
 import pytest
 
+from equivalib.core import Extension, Regex
 from equivalib.core.expression import And, Eq, Expression, Ge, Le
 from equivalib.core.name import Name as CoreName
 
@@ -47,10 +48,6 @@ def generate_core(
 @dataclass(frozen=True)
 class NotExtensionLeaf:
     token: str = "x"
-
-
-Extension = core_attr("Extension")
-Regex = core_attr("Regex")
 
 
 @dataclass(frozen=True)
@@ -131,6 +128,7 @@ def test_extension_subclass_can_drive_exhaustive_generation():
 # ---------------------------------------------------------------------------
 
 
+@dataclass(frozen=True)
 class BoundedByInitialize(Extension):
     @staticmethod
     def initialize(tree: object, constraint: Expression) -> Expression | None:
@@ -232,7 +230,7 @@ class RegexABorCD(Regex):
 class RegexDigits3(Regex):
     @staticmethod
     def expression() -> str:
-        return r"\\d{3}"
+        return r"\d{3}"
 
 
 def test_regex_extension_enumerates_concrete_language():

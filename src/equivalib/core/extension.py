@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Iterator, Optional, TypeVar
+from typing import Iterator, Optional
 
 from equivalib.core.expression import Expression
-
-ExtensionT = TypeVar("ExtensionT", bound="Extension")
-
 
 class Extension(ABC):
     @staticmethod
@@ -20,7 +17,7 @@ class Extension(ABC):
         tree: object,
         constraint: Expression,
         address: str | None,
-    ) -> Iterator[ExtensionT]:
+    ) -> Iterator["Extension"]:
         raise NotImplementedError
 
     @staticmethod
@@ -29,7 +26,7 @@ class Extension(ABC):
         tree: object,
         constraint: Expression,
         address: str | None,
-    ) -> ExtensionT | None:
+    ) -> "Extension" | None:
         raise NotImplementedError
 
     @staticmethod
@@ -38,5 +35,5 @@ class Extension(ABC):
         tree: object,
         constraint: Expression,
         address: str | None,
-    ) -> ExtensionT | None:
+    ) -> "Extension" | None:
         raise NotImplementedError

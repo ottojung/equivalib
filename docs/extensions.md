@@ -177,23 +177,62 @@ Generation must fail when:
 ### Class-owned custom leaves (`Extension` subtypes)
 
 ```python
-from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Annotated, Iterator
+
+from equivalib.core import (
+    BooleanExpression,
+    Extension,
+    Name,
+    generate,
+)
 
 
-class Regex(Extension, ABC): pass
+@dataclass(frozen=True)
+class Greeting(Extension):
+    text: str
+
+    @staticmethod
+    def initialize(tree: object, constraint: object) -> object:
+        del tree, constraint
+        return None
+
+    @staticmethod
+    def enumerate_all(tree: object, constraint: object, address: str | None) -> Iterator["Greeting"]:
+        del tree, constraint, address
+        return iter((Greeting("hello"), Greeting("hi")))
+
+    @staticmethod
+    def arbitrary(tree: object, constraint: object, address: str | None) -> "Greeting" | None:
+        del tree, constraint, address
+        return Greeting("hello")
+
+    @staticmethod
+    def uniform_random(tree: object, constraint: object, address: str | None) -> "Greeting" | None:
+        del tree, constraint, address
+        return Greeting("hi")
+
+
+assert generate(Greeting, BooleanExpression(True), {}) == {Greeting("hello"), Greeting("hi")}
+assert generate(
+    Annotated[Greeting, Name("G")],
+    BooleanExpression(True),
+    {"G": "arbitrary"},
+) == {Greeting("hello")}
+```
+
+For regex families, `Regex` is the abstract helper base that owns mechanics (`initialize`, `enumerate_all`, `arbitrary`, `uniform_random`), and each concrete subclass provides only `expression()`.
+
+```python
+from equivalib.core import Regex
+
 
 class RegexABorCD(Regex):
     @staticmethod
     def expression() -> str:
         return "(ab|cd)"
-```
 
-Then:
 
-```python
 generate(RegexABorCD)
 generate(Annotated[RegexABorCD, Name("R")], methods={"R": "arbitrary"})
 ```
-
-`Regex` is the abstract family and owns the mechanics (`initialize`, `enumerate_all`, `arbitrary`, `uniform_random`).
-`RegexABorCD` is a concrete language that only provides `expression()`.

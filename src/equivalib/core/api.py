@@ -234,6 +234,7 @@ def _resolve_extensions(
     if isinstance(node, ExtensionNode):
         hook = methods.get(current_label, "all") if current_label is not None else "all"
         cls = cast(type[Extension], node.owner)
+        values: list[Extension]
         if hook == "all":
             values = list(cls.enumerate_all(tree, constraint, address))
         elif hook == "arbitrary":
