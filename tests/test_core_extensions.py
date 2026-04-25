@@ -2,17 +2,13 @@ from __future__ import annotations
 
 import importlib
 import inspect
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Annotated, Any, Iterator, Optional, Type, TypeVar, cast
+from typing import Annotated, Any, Iterator, cast
 
 import pytest
 
 from equivalib.core.expression import And, Eq, Expression, Ge, Le
 from equivalib.core.name import Name as CoreName
-
-
-T = TypeVar("T")
 
 def core_attr(name: str) -> Any:
     module = importlib.import_module("equivalib.core")
@@ -53,62 +49,47 @@ class NotExtensionLeaf:
     token: str = "x"
 
 
-class Extension(ABC):
-    @staticmethod
-    @abstractmethod
-    def initialize(tree: Type[T], constraint: Expression) -> Optional[Expression]:
-        raise NotImplementedError
-
-    @staticmethod
-    @abstractmethod
-    def enumerate_all(tree: Type[T], constraint: Expression, address: Optional[str]) -> Iterator[object]:
-        raise NotImplementedError
-
-    @staticmethod
-    @abstractmethod
-    def arbitrary(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[object]:
-        raise NotImplementedError
-
-    @staticmethod
-    @abstractmethod
-    def uniform_random(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[object]:
-        raise NotImplementedError
+Extension = core_attr("Extension")
+Regex = core_attr("Regex")
 
 
+@dataclass(frozen=True)
 class Palette(Extension):
+    token: str
+
     @staticmethod
-    def initialize(tree: Type[T], constraint: Expression) -> Optional[Expression]:
+    def initialize(tree: object, constraint: Expression) -> Expression | None:
         return None
 
     @staticmethod
-    def enumerate_all(tree: Type[T], constraint: Expression, address: Optional[str]) -> Iterator[object]:
+    def enumerate_all(tree: object, constraint: Expression, address: str | None) -> Iterator["Palette"]:
         del tree, constraint, address
-        return iter(("red", "orange"))
+        return iter((Palette("red"), Palette("orange")))
 
     @staticmethod
-    def arbitrary(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[object]:
+    def arbitrary(tree: object, constraint: Expression, address: str | None) -> "Palette" | None:
         del tree, constraint, address
-        return "red"
+        return Palette("red")
 
     @staticmethod
-    def uniform_random(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[object]:
+    def uniform_random(tree: object, constraint: Expression, address: str | None) -> "Palette" | None:
         del tree, constraint, address
-        return "orange"
+        return Palette("orange")
 
 
 class InvalidInitialize(Extension):
     @staticmethod
-    def enumerate_all(tree: Type[T], constraint: Expression, address: Optional[str]) -> Iterator[object]:
+    def enumerate_all(tree: object, constraint: Expression, address: str | None) -> Iterator["InvalidInitialize"]:
         del tree, constraint, address
         return iter(())
 
     @staticmethod
-    def arbitrary(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[object]:
+    def arbitrary(tree: object, constraint: Expression, address: str | None) -> "InvalidInitialize" | None:
         del tree, constraint, address
         return None
 
     @staticmethod
-    def uniform_random(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[object]:
+    def uniform_random(tree: object, constraint: Expression, address: str | None) -> "InvalidInitialize" | None:
         del tree, constraint, address
         return None
 
@@ -142,7 +123,7 @@ def test_class_missing_required_initialize_method_is_rejected():
 
 
 def test_extension_subclass_can_drive_exhaustive_generation():
-    assert generate_core(Palette) == {"red", "orange"}
+    assert generate_core(Palette) == {Palette("red"), Palette("orange")}
 
 
 # ---------------------------------------------------------------------------
@@ -152,30 +133,30 @@ def test_extension_subclass_can_drive_exhaustive_generation():
 
 class BoundedByInitialize(Extension):
     @staticmethod
-    def initialize(tree: Type[T], constraint: Expression) -> Optional[Expression]:
+    def initialize(tree: object, constraint: Expression) -> Expression | None:
         del tree, constraint
         return cast(Expression, _int_bounds("X", 1, 2))
 
     @staticmethod
-    def enumerate_all(tree: Type[T], constraint: Expression, address: Optional[str]) -> Iterator[object]:
+    def enumerate_all(tree: object, constraint: Expression, address: str | None) -> Iterator["BoundedByInitialize"]:
         del tree, constraint, address
-        return iter(("ok",))
+        return iter((BoundedByInitialize(),))
 
     @staticmethod
-    def arbitrary(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[object]:
+    def arbitrary(tree: object, constraint: Expression, address: str | None) -> "BoundedByInitialize" | None:
         del tree, constraint, address
-        return "ok"
+        return BoundedByInitialize()
 
     @staticmethod
-    def uniform_random(tree: Type[T], constraint: Expression, address: Optional[str]) -> Optional[object]:
+    def uniform_random(tree: object, constraint: Expression, address: str | None) -> "BoundedByInitialize" | None:
         del tree, constraint, address
-        return "ok"
+        return BoundedByInitialize()
 
 
 def test_initialize_constraint_is_anded_into_effective_constraint():
     tree = tuple[Annotated[int, CoreName("X")], BoundedByInitialize]
     result = generate_core(tree, _int_bounds("X", 0, 3))
-    assert result == {(1, "ok"), (2, "ok")}
+    assert result == {(1, BoundedByInitialize()), (2, BoundedByInitialize())}
 
 
 # ---------------------------------------------------------------------------
@@ -185,17 +166,17 @@ def test_initialize_constraint_is_anded_into_effective_constraint():
 
 def test_named_custom_class_all_uses_enumerate_all():
     tree = Annotated[Palette, CoreName("P")]
-    assert generate_core(tree) == {"red", "orange"}
+    assert generate_core(tree) == {Palette("red"), Palette("orange")}
 
 
 def test_named_custom_class_arbitrary_uses_arbitrary_hook():
     tree = Annotated[Palette, CoreName("P")]
-    assert generate_core(tree, methods={"P": "arbitrary"}) == {"red"}
+    assert generate_core(tree, methods={"P": "arbitrary"}) == {Palette("red")}
 
 
 def test_named_custom_class_uniform_random_uses_uniform_random_hook():
     tree = Annotated[Palette, CoreName("P")]
-    assert generate_core(tree, methods={"P": "uniform_random"}) == {"orange"}
+    assert generate_core(tree, methods={"P": "uniform_random"}) == {Palette("orange")}
 
 
 # ---------------------------------------------------------------------------
@@ -206,7 +187,7 @@ def test_named_custom_class_uniform_random_uses_uniform_random_hook():
 def test_custom_class_address_from_name_and_tuple_path():
     tree = tuple[Annotated[Palette, CoreName("P")], Annotated[Palette, CoreName("Q")]]
     all_results = generate_core(tree)
-    assert ("red", "red") in all_results
+    assert (Palette("red"), Palette("red")) in all_results
 
 
 def test_custom_class_leaf_remains_atomic_for_subpaths():
@@ -227,3 +208,46 @@ def test_bool_behavior_still_uses_core_semantics():
 def test_int_behavior_still_uses_core_semantics():
     tree = Annotated[int, CoreName("X")]
     assert generate_core(tree, _int_bounds("X", 1, 2)) == {1, 2}
+
+
+class BadPalette(Palette):
+    @staticmethod
+    def arbitrary(tree: object, constraint: Expression, address: str | None) -> Palette | None:
+        del tree, constraint, address
+        return Palette("red")
+
+
+def test_arbitrary_must_return_concrete_subclass_instance():
+    tree = Annotated[BadPalette, CoreName("P")]
+    with pytest.raises(TypeError, match="non-BadPalette"):
+        generate_core(tree, methods={"P": "arbitrary"})
+
+
+class RegexABorCD(Regex):
+    @staticmethod
+    def expression() -> str:
+        return "(ab|cd)"
+
+
+class RegexDigits3(Regex):
+    @staticmethod
+    def expression() -> str:
+        return r"\\d{3}"
+
+
+def test_regex_extension_enumerates_concrete_language():
+    assert generate_core(RegexABorCD) == {RegexABorCD("ab"), RegexABorCD("cd")}
+
+
+def test_regex_extension_arbitrary_and_uniform_random_return_subclass():
+    arb = generate_core(Annotated[RegexABorCD, CoreName("R")], methods={"R": "arbitrary"})
+    rand = generate_core(Annotated[RegexABorCD, CoreName("R")], methods={"R": "uniform_random"})
+    assert arb <= {RegexABorCD("ab"), RegexABorCD("cd")}
+    assert rand <= {RegexABorCD("ab"), RegexABorCD("cd")}
+
+
+def test_regex_extension_handles_repetition_and_ranges():
+    values = generate_core(RegexDigits3)
+    assert len(values) == 1000
+    assert RegexDigits3("000") in values
+    assert RegexDigits3("999") in values

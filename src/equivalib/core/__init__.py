@@ -44,10 +44,14 @@ from equivalib.core.expression import (
 from equivalib.core.api import generate
 from equivalib.core.domains import values
 from equivalib.core.cache import mentioned_labels
+from equivalib.core.extension import Extension
+from equivalib.core.regex import Regex
 
 __all__ = [
     "generate",
     "values",
+    "Extension",
+    "Regex",
     "Name",
     "Expression",
     "BooleanExpression",

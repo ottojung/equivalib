@@ -177,31 +177,15 @@ Generation must fail when:
 ### Class-owned custom leaves (`Extension` subtypes)
 
 ```python
-import random
 from abc import ABC, abstractmethod
 
 
 class Regex(Extension, ABC): pass
 
 class RegexABorCD(Regex):
-    def __init__(self, string):
-        self.string = string
-
     @staticmethod
-    def initialize(tree, constraint):
-        return None
-
-    @staticmethod
-    def enumerate_all(tree, constraint, address):  # language: {"ab", "cd"}
-        yield from [RegexABorCD("ab"), RegexABorCD("cd")]
-
-    @staticmethod
-    def arbitrary(tree, constraint, address):
-        return RegexABorCD("ab")
-
-    @staticmethod
-    def uniform_random(tree, constraint, address):
-        return RegexABorCD(random.choice(["ab", "cd"]))
+    def expression() -> str:
+        return "(ab|cd)"
 ```
 
 Then:
@@ -211,4 +195,5 @@ generate(RegexABorCD)
 generate(Annotated[RegexABorCD, Name("R")], methods={"R": "arbitrary"})
 ```
 
-`Regex` is the abstract family, while `RegexABorCD` is one concrete regex language.
+`Regex` is the abstract family and owns the mechanics (`initialize`, `enumerate_all`, `arbitrary`, `uniform_random`).
+`RegexABorCD` is a concrete language that only provides `expression()`.

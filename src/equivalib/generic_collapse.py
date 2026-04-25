@@ -2,7 +2,8 @@
 ## This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 3 of the License. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import random
-from typing import Protocol, Union, NoReturn
+from abc import ABC, abstractmethod
+from typing import Union, NoReturn
 
 from equivalib.dynamic import denv
 from equivalib.constant import Constant
@@ -14,10 +15,14 @@ from equivalib.structure import Structure, VarName
 import equivalib.labelled_type as LT
 
 
-class Collapser(Protocol):
+class Collapser(ABC):
     # pylint: disable=multiple-statements
-    def __init__(self, ctx: Sentence) -> None: pass
-    def collapse(self, var: Comparable) -> Union[VarName, Constant]: pass
+    def __init__(self, ctx: Sentence) -> None:
+        del ctx
+
+    @abstractmethod
+    def collapse(self, var: Comparable) -> Union[VarName, Constant]:
+        raise NotImplementedError
 
 
 def generic_collapse(self: Sentence, coll_t: type[Collapser]) -> Sentence:
