@@ -113,7 +113,7 @@ All later validation/search/method dispatch and extension hook calls use `constr
 `address` identifies the owned occurrence:
 
 - Named occurrence `Annotated[..., Name("X")]` → `"X"`
-- Reachable tuple child from addressable parent → dot path (e.g. `"X.0"`, `"0.1"`)
+- Reachable tuple child from addressable parent → bracket path (e.g. `"X[0]"`, `"X[1][2]"`, `"0[1]"`)
 - Otherwise `None`
 
 Repeated identical labels denote the same logical variable.

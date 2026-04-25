@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib
 import inspect
 from dataclasses import dataclass
-from typing import Annotated, Any, Iterator, cast
+from typing import Annotated, Any, ClassVar, Iterator, cast
 
 import pytest
 
@@ -249,3 +249,48 @@ def test_regex_extension_handles_repetition_and_ranges():
     assert len(values) == 1000
     assert RegexDigits3("000") in values
     assert RegexDigits3("999") in values
+
+
+@dataclass(frozen=True)
+class AddressEcho(Extension):
+    token: str
+    seen_addresses: ClassVar[list[str | None]] = []
+
+    @staticmethod
+    def initialize(tree: object, constraint: Expression) -> Expression | None:
+        del tree, constraint
+        return None
+
+    @staticmethod
+    def enumerate_all(tree: object, constraint: Expression, address: str | None) -> Iterator["AddressEcho"]:
+        del tree, constraint
+        AddressEcho.seen_addresses.append(address)
+        return iter((AddressEcho("ok"),))
+
+    @staticmethod
+    def arbitrary(tree: object, constraint: Expression, address: str | None) -> "AddressEcho" | None:
+        del tree, constraint
+        AddressEcho.seen_addresses.append(address)
+        return AddressEcho("ok")
+
+    @staticmethod
+    def uniform_random(tree: object, constraint: Expression, address: str | None) -> "AddressEcho" | None:
+        del tree, constraint
+        AddressEcho.seen_addresses.append(address)
+        return AddressEcho("ok")
+
+
+def test_extension_address_uses_bracket_notation_from_named_tuple_path():
+    AddressEcho.seen_addresses.clear()
+    tree = Annotated[tuple[bool, tuple[AddressEcho]], CoreName("X")]
+    result = generate_core(tree, methods={"X": "arbitrary"})
+    assert result == {(False, (AddressEcho("ok"),))}
+    assert AddressEcho.seen_addresses == ["X[1][0]"]
+
+
+def test_extension_address_uses_bracket_notation_from_unnamed_tuple_path():
+    AddressEcho.seen_addresses.clear()
+    tree = tuple[bool, tuple[AddressEcho]]
+    result = generate_core(tree)
+    assert result == {(False, (AddressEcho("ok"),)), (True, (AddressEcho("ok"),))}
+    assert AddressEcho.seen_addresses == ["1[0]"]
