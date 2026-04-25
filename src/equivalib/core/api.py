@@ -6,8 +6,9 @@ Public entry point:
 
 from __future__ import annotations
 
-from typing import Iterator, Mapping, Optional, Protocol, Type, TypeVar, cast
+from typing import Mapping, Optional, Type, TypeVar, cast
 
+from equivalib.core.extension import Extension
 from equivalib.core.expression import (
     BooleanExpression,
     Expression,
@@ -53,20 +54,6 @@ from equivalib.core.search import search
 from equivalib.core.methods import apply_methods, Label, Method
 
 GenerateT = TypeVar("GenerateT")
-
-
-class ExtensionHooks(Protocol):
-    @staticmethod
-    def initialize(tree: object, constraint: Expression) -> Optional[Expression]: ...
-
-    @staticmethod
-    def enumerate_all(tree: object, constraint: Expression, address: str | None) -> Iterator[object]: ...
-
-    @staticmethod
-    def arbitrary(tree: object, constraint: Expression, address: str | None) -> object | None: ...
-
-    @staticmethod
-    def uniform_random(tree: object, constraint: Expression, address: str | None) -> object | None: ...
 
 _DEFAULT_CONSTRAINT: Expression = BooleanExpression(True)
 _EXPR_TYPES = (
@@ -216,12 +203,12 @@ def _effective_constraint(node: IRNode, tree: Type[GenerateT], constraint: Expre
     return eff
 
 
-def _extension_classes(node: IRNode) -> set[type[ExtensionHooks]]:
-    classes: set[type[ExtensionHooks]] = set()
+def _extension_classes(node: IRNode) -> set[type[Extension]]:
+    classes: set[type[Extension]] = set()
 
     def walk(n: IRNode) -> None:
         if isinstance(n, ExtensionNode):
-            classes.add(cast(type[ExtensionHooks], n.owner))
+            classes.add(cast(type[Extension], n.owner))
             return
         if isinstance(n, TupleNode):
             for item in n.items:
@@ -246,7 +233,8 @@ def _resolve_extensions(
 ) -> IRNode:
     if isinstance(node, ExtensionNode):
         hook = methods.get(current_label, "all") if current_label is not None else "all"
-        cls = cast(type[ExtensionHooks], node.owner)
+        cls = cast(type[Extension], node.owner)
+        values: list[Extension]
         if hook == "all":
             values = list(cls.enumerate_all(tree, constraint, address))
         elif hook == "arbitrary":
@@ -255,6 +243,11 @@ def _resolve_extensions(
         else:
             one = cls.uniform_random(tree, constraint, address)
             values = [] if one is None else [one]
+        for value in values:
+            if not isinstance(value, cls):
+                raise TypeError(
+                    f"Extension hook for {cls.__qualname__} returned non-{cls.__qualname__} value: {value!r}."
+                )
         literals = tuple(LiteralNode(v) for v in values)
         if not literals:
             return UnionNode(())

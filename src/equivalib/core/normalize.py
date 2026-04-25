@@ -10,6 +10,7 @@ import typing
 import types
 import inspect
 
+from equivalib.core.extension import Extension
 from equivalib.core.name import Name
 from equivalib.core.types import (
     NoneNode,
@@ -27,8 +28,7 @@ from equivalib.core.types import (
 def _is_extension_subtype(t: object) -> bool:
     if not inspect.isclass(t):
         return False
-    required = ("initialize", "enumerate_all", "arbitrary", "uniform_random")
-    return any(hasattr(t, name) for name in required)
+    return issubclass(t, Extension)
 
 
 def normalize(t: object) -> IRNode:
@@ -81,7 +81,7 @@ def normalize(t: object) -> IRNode:
 
     if inspect.isclass(t):
         raise ValueError(
-            f"Unsupported class leaf {t!r}: non-base classes must provide Extension hooks."
+            f"Unsupported class leaf {t!r}: non-base classes must be Extension subclasses."
         )
 
     raise ValueError(f"Unsupported type expression: {t!r}")

@@ -177,38 +177,62 @@ Generation must fail when:
 ### Class-owned custom leaves (`Extension` subtypes)
 
 ```python
-import random
-from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Annotated, Iterator
+
+from equivalib.core import (
+    BooleanExpression,
+    Extension,
+    Name,
+    generate,
+)
 
 
-class Regex(Extension, ABC): pass
-
-class RegexABorCD(Regex):
-    def __init__(self, string):
-        self.string = string
+@dataclass(frozen=True)
+class Greeting(Extension):
+    text: str
 
     @staticmethod
-    def initialize(tree, constraint):
+    def initialize(tree: object, constraint: object) -> object:
+        del tree, constraint
         return None
 
     @staticmethod
-    def enumerate_all(tree, constraint, address):  # language: {"ab", "cd"}
-        yield from [RegexABorCD("ab"), RegexABorCD("cd")]
+    def enumerate_all(tree: object, constraint: object, address: str | None) -> Iterator["Greeting"]:
+        del tree, constraint, address
+        return iter((Greeting("hello"), Greeting("hi")))
 
     @staticmethod
-    def arbitrary(tree, constraint, address):
-        return RegexABorCD("ab")
+    def arbitrary(tree: object, constraint: object, address: str | None) -> "Greeting" | None:
+        del tree, constraint, address
+        return Greeting("hello")
 
     @staticmethod
-    def uniform_random(tree, constraint, address):
-        return RegexABorCD(random.choice(["ab", "cd"]))
+    def uniform_random(tree: object, constraint: object, address: str | None) -> "Greeting" | None:
+        del tree, constraint, address
+        return Greeting("hi")
+
+
+assert generate(Greeting, BooleanExpression(True), {}) == {Greeting("hello"), Greeting("hi")}
+assert generate(
+    Annotated[Greeting, Name("G")],
+    BooleanExpression(True),
+    {"G": "arbitrary"},
+) == {Greeting("hello")}
 ```
 
-Then:
+For regex families, `Regex` is the abstract helper base that owns mechanics (`initialize`, `enumerate_all`, `arbitrary`, `uniform_random`), and each concrete subclass provides only `expression()`.
 
 ```python
+from equivalib.core import Regex
+
+
+class RegexABorCD(Regex):
+    @staticmethod
+    def expression() -> str:
+        return "(ab|cd)"
+
+
 generate(RegexABorCD)
 generate(Annotated[RegexABorCD, Name("R")], methods={"R": "arbitrary"})
 ```
-
-`Regex` is the abstract family, while `RegexABorCD` is one concrete regex language.
