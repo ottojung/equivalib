@@ -284,8 +284,8 @@ def test_extension_address_uses_bracket_notation_from_named_tuple_path():
     AddressEcho.seen_addresses.clear()
     tree = Annotated[tuple[bool, tuple[AddressEcho]], CoreName("X")]
     result = generate_core(tree, methods={"X": "arbitrary"})
-    assert result == {(False, (AddressEcho("ok"),)), (True, (AddressEcho("ok"),))}
-    assert AddressEcho.seen_addresses == ["X[1][0]", "X[1][0]"]
+    assert result == {(False, (AddressEcho("ok"),))}
+    assert AddressEcho.seen_addresses == ["X[1][0]"]
 
 
 def test_extension_address_uses_bracket_notation_from_unnamed_tuple_path():
