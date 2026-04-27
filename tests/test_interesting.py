@@ -45,10 +45,7 @@ def generate_pythagorean_triples(limit: int) -> set[tuple[int, int, int]]:
 
 
 def generate_sum_to_hundred_witness() -> set[tuple[int, ...]]:
-    tree = cast(
-        type[tuple[int, ...]],
-        Annotated[tuple[int, int, int, int, int, int, int, int, int, int], Name("X")],
-    )
+    tree = Annotated[tuple[int, int, int, int, int, int, int, int, int, int], Name("X")]
     refs = [reference("X", i) for i in range(10)]
 
     bounded: And | None = None
