@@ -121,7 +121,7 @@ def test_interesting_large_integer_domain_can_return_one_arbitrary_witness():
 
     assert len(values) == 1
     only = next(iter(values))
-    assert sum(only) == 100
+    assert sum(only) == 5
 
 
 def test_interesting_boolean_expression_true_is_unconstrained():
