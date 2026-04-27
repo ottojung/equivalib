@@ -103,7 +103,7 @@ def test_interesting_ticket_code_regex_language():
 
 def test_interesting_ticket_code_prefix_filtering_example():
     values = generate(TicketCode)
-    ab_prefixed = {code for code in values if str(code).startswith("AB")}
+    ab_prefixed = {code for code in values if str(code.value).startswith("AB")}
 
     assert len(ab_prefixed) == 100
     assert TicketCode("AB42") in ab_prefixed
