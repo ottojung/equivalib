@@ -120,7 +120,9 @@ The canonical constraints on `Annotated[...]` are:
 - every integer leaf MUST be finitely bounded, either directly (for example via
   `ValueRange(min, max)`) or via numeric constraints on a valid `Reference(label, path)`
   that points to that leaf
-- `label` MUST be a non-empty string
+- `label` MUST be a string; the empty string `""` is only permitted when `base` is the
+  root of the entire type tree (the outermost `Annotated` expression)
+- a `Name(label)` that is not at the root MUST use a non-empty label
 
 The value space is finite by construction.
 
@@ -140,6 +142,8 @@ Annotated[bool, Name("X")]
 Annotated[int, ValueRange(3, 9), Name("X")]
 Annotated[Tuple[bool, bool], Name("X")]
 Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
+Annotated[bool, Name("")]                       # root label: valid at outermost position
+Annotated[Tuple[bool, bool], Name("")]          # root label wrapping a tuple
 ```
 
 ### Named occurrences
@@ -223,11 +227,12 @@ A compliant implementation MUST enforce type-aware structural equality at every 
 A compliant implementation MUST reject invalid trees, including at least:
 
 - `ValueRange(min, max)` with `min > max`
-- `Name("")`
+- `Name("")` used at a non-root position (i.e. inside a `Tuple`, `Union`, or nested `Annotated`)
 - plain `int` without a `ValueRange(...)`
 - `Annotated[...]` with more than one `ValueRange(...)`
 - `Annotated[...]` with more than one `Name(...)`
-- `methods` containing a label that does not appear in the tree
+- `methods` containing a label that does not appear in the tree (after index/root label
+  translation — see "Index-Style and Root Labels" below)
 - a constraint referring to a label that does not appear in the tree
 
 The implementation MAY reject additional malformed inputs if they are outside this spec.
@@ -315,7 +320,52 @@ Define `mentioned_labels(expr)` recursively as the set of non-`None` labels occu
 
 This notion is used later when defining which labels must participate in constraint solving.
 
-## Denotation of Unnamed Trees
+## Index-Style and Root Labels
+
+### Root label
+
+The empty string `""` is reserved as the **root label**.
+
+When `methods` contains the key `""` and the tree has no existing `Name(...)` labels, a
+compliant implementation MUST treat the whole root type as if it were wrapped in
+`Annotated[tree, Name("")]`.  That is, the root value is assigned the label `""` and the
+method `methods[""]` is applied to it as a unit.
+
+All `Reference(None, path)` expressions in the constraint are implicitly rewritten to
+`Reference("", path)` under this convention.
+
+The user MAY also make the root label explicit by writing `Annotated[base, Name("")]`.
+A `Name("")` annotation is only valid when it appears at the outermost (root) position of
+the type tree; using it at any inner position MUST be rejected.
+
+### Index-style labels
+
+For an unnamed `Tuple[t0, t1, ..., t_{n-1}]` root, each element `i` carries the
+**index-style label** `f"[{i}]"` (for example `"[0]"`, `"[1]"`, `"[9]"`, etc.).
+
+When `methods` contains any key of the form `"[i]"` and the root is an unnamed
+`Tuple`, a compliant implementation MUST:
+
+1. Treat element `i` as if it were wrapped in `Annotated[t_i, Name("[i]")]`.  Elements
+   that are not mentioned in `methods` also receive virtual labels (for constraint
+   rewriting purposes) and default to method `"all"`.
+2. Rewrite every `Reference(None, (i, *rest))` in the constraint to
+   `Reference("[i]", rest)` before validation and solving.
+
+This rewriting allows `reference(i)` (the short form `Reference(None, (i,))`) to address
+individual elements of an unnamed tuple by index, while still applying per-element methods.
+
+A method key `"[i]"` where `i` is out of range for the tuple MUST be rejected as an
+unknown label.
+
+### Priority rule
+
+If the root is a `Tuple` and the `methods` dict contains any index-style key `"[i]"`,
+index-style label translation takes priority over root-label translation (even if `""`
+is also present).  If the root is not a `Tuple`, index-style keys are invalid labels and
+MUST be rejected.
+
+
 
 The core needs a finite denotation for every name-free subtree.
 

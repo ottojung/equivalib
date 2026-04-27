@@ -55,10 +55,10 @@ ExprType: TypeAlias = str
 
 def validate_tree(node: IRNode) -> None:
     """Raise ValueError if the IR node tree contains structural problems."""
-    _check_node(node)
+    _check_node(node, is_root=True)
 
 
-def _check_node(node: IRNode) -> None:
+def _check_node(node: IRNode, is_root: bool = False) -> None:
     if isinstance(node, NoneNode):
         return
     if isinstance(node, BoolNode):
@@ -82,8 +82,11 @@ def _check_node(node: IRNode) -> None:
             _check_node(opt)
         return
     if isinstance(node, NamedNode):
-        if node.label == "":
-            raise ValueError("Name label must not be empty.")
+        if node.label == "" and not is_root:
+            raise ValueError(
+                "The root label '' can only be used at the top level of the type tree. "
+                "Use Name('') only on the outermost type annotation."
+            )
         if contains_name(node.inner):
             raise ValueError(
                 f"Nested Name annotations are not allowed inside Name({node.label!r}). "

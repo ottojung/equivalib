@@ -431,11 +431,20 @@ def test_mentioned_labels_deduplicates_repeated_references():
     assert mentioned_labels(expr) == {"X", "Y"}
 
 
-def test_generate_rejects_empty_name_label():
+def test_generate_accepts_root_label_name_empty_string():
     generate = core_attr("generate")
     Name = core_attr("Name")
+    # Name("") is now valid when used at the root of the type tree.
+    result = generate(Annotated[bool, Name("")], true_expr(), {})
+    assert result == {False, True}
+
+
+def test_generate_rejects_root_label_name_empty_string_as_non_root():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    # Name("") is only valid at the root level; using it inside a tuple is rejected.
     with pytest.raises(ValueError):
-        generate(Annotated[bool, Name("")], true_expr(), {})
+        generate(tuple[Annotated[bool, Name("")], bool], true_expr(), {})
 
 
 def test_generate_rejects_non_string_name_label():
@@ -521,7 +530,7 @@ def test_generate_accepts_address_bounded_ints_inside_unnamed_tuple():
         And(Ge(a, int_const(1)), Le(a, int_const(2))),
         And(Ge(b, int_const(3)), Le(b, int_const(4))),
     )
-    assert generate(tree, constraint, {"T": "all"}) == {
+    assert generate(tree, constraint, {"": "all"}) == {
         (1, 3),
         (1, 4),
         (2, 3),
@@ -540,6 +549,129 @@ def test_generate_accepts_address_bounded_ints_inside_unnamed_tuple_three_items(
         And(And(Ge(y, int_const(20)), Le(y, int_const(20))), And(Ge(z, int_const(30)), Le(z, int_const(30)))),
     )
     assert generate(tree, constraint, {}) == {(10, 20, 30)}
+
+
+# ---------------------------------------------------------------------------
+# Root label ("") tests
+# ---------------------------------------------------------------------------
+
+def test_root_label_on_bool_all():
+    """methods={"": "all"} on bool is equivalent to the default (returns all values)."""
+    generate = core_attr("generate")
+    assert generate(bool, true_expr(), {"": "all"}) == {False, True}
+
+
+def test_root_label_on_bool_arbitrary():
+    """methods={"": "arbitrary"} on bool returns exactly one value."""
+    generate = core_attr("generate")
+    result = generate(bool, true_expr(), {"": "arbitrary"})
+    assert len(result) == 1
+    assert result <= {False, True}
+
+
+def test_root_label_on_named_int_arbitrary():
+    """methods={"": "arbitrary"} with explicit Name("") annotation."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    tree = Annotated[int, Name("")]
+    result = generate(tree, And(Ge(ref(""), int_const(0)), Le(ref(""), int_const(4))), {"": "arbitrary"})
+    assert len(result) == 1
+    assert result <= {0, 1, 2, 3, 4}
+
+
+def test_root_label_on_tuple_returns_all_combinations():
+    """methods={"": "all"} on tuple treats the root tuple as one unit."""
+    generate = core_attr("generate")
+    tree = Tuple[int, int]
+    constraint = And(
+        And(Ge(ref(0), int_const(0)), Le(ref(0), int_const(1))),
+        And(Ge(ref(1), int_const(0)), Le(ref(1), int_const(1))),
+    )
+    assert generate(tree, constraint, {"": "all"}) == {(0, 0), (0, 1), (1, 0), (1, 1)}
+
+
+def test_root_label_on_tuple_arbitrary_returns_one():
+    """methods={"": "arbitrary"} on a constrained tuple returns exactly one tuple."""
+    generate = core_attr("generate")
+    tree = Tuple[int, int]
+    constraint = And(
+        And(Ge(ref(0), int_const(0)), Le(ref(0), int_const(1))),
+        And(Ge(ref(1), int_const(0)), Le(ref(1), int_const(1))),
+    )
+    result = generate(tree, constraint, {"": "arbitrary"})
+    assert len(result) == 1
+
+
+# ---------------------------------------------------------------------------
+# Index-style label ("[i]") tests
+# ---------------------------------------------------------------------------
+
+def test_index_labels_on_tuple_all():
+    """methods with all "[i]": "all" entries returns all combinations."""
+    generate = core_attr("generate")
+    tree = Tuple[int, int]
+    constraint = And(
+        And(Ge(ref(0), int_const(0)), Le(ref(0), int_const(1))),
+        And(Ge(ref(1), int_const(0)), Le(ref(1), int_const(1))),
+    )
+    assert generate(tree, constraint, {"[0]": "all", "[1]": "all"}) == {(0, 0), (0, 1), (1, 0), (1, 1)}
+
+
+def test_index_labels_on_tuple_arbitrary_returns_one():
+    """methods with all "[i]": "arbitrary" entries returns exactly one tuple."""
+    generate = core_attr("generate")
+    tree = Tuple[int, int]
+    constraint = And(
+        And(Ge(ref(0), int_const(0)), Le(ref(0), int_const(1))),
+        And(Ge(ref(1), int_const(0)), Le(ref(1), int_const(1))),
+    )
+    result = generate(tree, constraint, {"[0]": "arbitrary", "[1]": "arbitrary"})
+    assert len(result) == 1
+
+
+def test_index_labels_partial_coverage():
+    """Only some tuple elements use index labels; unspecified elements default to "all"."""
+    generate = core_attr("generate")
+    tree = Tuple[int, int]
+    constraint = And(
+        And(Ge(ref(0), int_const(0)), Le(ref(0), int_const(1))),
+        And(Ge(ref(1), int_const(0)), Le(ref(1), int_const(1))),
+    )
+    # Only [0] is labelled; [1] is not in methods so defaults to "all".
+    result = generate(tree, constraint, {"[0]": "arbitrary"})
+    # Arbitrary [0] means [0] is fixed to one value; [1] can still be 0 or 1.
+    assert len(result) == 2
+
+
+def test_index_labels_with_constraint_returns_correct_value():
+    """Index labels with a sum constraint produce the canonical-minimum witness."""
+    generate = core_attr("generate")
+    tree = Tuple[int, int, int]
+    x, y, z = ref(0), ref(1), ref(2)
+    constraint = And(
+        And(Ge(x, int_const(0)), Le(x, int_const(1))),
+        And(
+            And(Ge(y, int_const(0)), Le(y, int_const(1))),
+            And(
+                And(Ge(z, int_const(0)), Le(z, int_const(1))),
+                Eq(Add(Add(x, y), z), int_const(2)),
+            ),
+        ),
+    )
+    result = generate(tree, constraint, {"[0]": "arbitrary", "[1]": "arbitrary", "[2]": "arbitrary"})
+    assert len(result) == 1
+    (only,) = result
+    assert sum(only) == 2
+
+
+def test_index_label_rejects_out_of_range():
+    """An index label referencing a non-existent tuple position is rejected."""
+    generate = core_attr("generate")
+    tree = Tuple[int, int]
+    constraint = And(Ge(ref(0), int_const(0)), Le(ref(0), int_const(1)))
+    with pytest.raises(ValueError):
+        generate(tree, constraint, {"[5]": "all"})
+
 
 
 def test_generate_rejects_constraint_on_missing_label():

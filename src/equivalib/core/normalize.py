@@ -106,8 +106,6 @@ def _normalize_annotated(base: object, metadata: list[object]) -> IRNode:
         raise ValueError(
             f"Name label must be a string, got {type(name.label).__name__!r}: {name.label!r}."
         )
-    if name is not None and name.label == "":
-        raise ValueError("Name label must not be empty.")
 
     if base is int:
         inner: IRNode = UnboundedIntNode()
