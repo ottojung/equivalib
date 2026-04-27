@@ -1,27 +1,10 @@
 from __future__ import annotations
 
-from functools import reduce
-from typing import Annotated, Iterable, Tuple
+from dataclasses import dataclass
+from typing import Annotated, Tuple
 
-from equivalib.core import (
-    Add,
-    And,
-    BooleanExpression,
-    Eq,
-    Ge,
-    IntegerConstant,
-    Le,
-    Name,
-    Reference,
-    Regex,
-    generate,
-)
-
-
-def _and_all(expressions: Iterable[object]) -> object:
-    exprs = list(expressions)
-    assert exprs
-    return reduce(And, exprs)
+from equivalib import Super, ValueRange, generate_instances
+from equivalib.core import Regex, generate
 
 
 class HexPairWithDigit(Regex):
@@ -39,31 +22,37 @@ def test_interesting_regex_finite_language_is_enumerated():
 
 
 def test_interesting_huge_boolean_tree_collapses_to_one_arbitrary_witness():
-    tree = Annotated[Tuple[tuple(bool for _ in range(20))], Name("Bits")]
+    tree = Tuple[tuple(Annotated[bool, Super] for _ in range(20))]
 
-    values = generate(
-        tree,
-        BooleanExpression(True),
-        {"Bits": "arbitrary"},
-    )
+    values = set(generate_instances(tree))
 
-    assert values == {tuple(False for _ in range(20))}
+    assert len(values) == 1
+    only = next(iter(values))
+    assert isinstance(only, tuple)
+    assert len(only) == 20
+    assert set(only).issubset({False, True})
 
 
-def test_interesting_sat_constrained_large_domain_picks_canonical_solution():
-    tree = Annotated[Tuple[tuple(int for _ in range(10))], Name("X")]
-    refs = [Reference("X", (i,)) for i in range(10)]
+@dataclass(frozen=True)
+class SumToHundred:
+    x0: Annotated[int, ValueRange(0, 999), Super]
+    x1: Annotated[int, ValueRange(0, 999), Super]
+    x2: Annotated[int, ValueRange(0, 999), Super]
+    x3: Annotated[int, ValueRange(0, 999), Super]
+    x4: Annotated[int, ValueRange(0, 999), Super]
+    x5: Annotated[int, ValueRange(0, 999), Super]
+    x6: Annotated[int, ValueRange(0, 999), Super]
+    x7: Annotated[int, ValueRange(0, 999), Super]
+    x8: Annotated[int, ValueRange(0, 999), Super]
+    x9: Annotated[int, ValueRange(0, 999), Super]
 
-    bounds = _and_all(
-        And(Ge(ref, IntegerConstant(0)), Le(ref, IntegerConstant(999)))
-        for ref in refs
-    )
-    sum_eq_100 = Eq(reduce(Add, refs), IntegerConstant(100))
+    def __post_init__(self):
+        assert self.x0 + self.x1 + self.x2 + self.x3 + self.x4 + self.x5 + self.x6 + self.x7 + self.x8 + self.x9 == 100
 
-    values = generate(
-        tree,
-        And(bounds, sum_eq_100),
-        {"X": "arbitrary"},
-    )
 
-    assert values == {(0, 0, 0, 0, 0, 0, 0, 0, 0, 100)}
+def test_interesting_sat_constrained_large_domain_finds_a_witness():
+    values = set(generate_instances(SumToHundred))
+
+    assert len(values) == 1
+    item = next(iter(values))
+    assert sum((item.x0, item.x1, item.x2, item.x3, item.x4, item.x5, item.x6, item.x7, item.x8, item.x9)) == 100
