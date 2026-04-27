@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import NoReturn, Union
+from typing import NoReturn, Optional, Sequence, Union
 
 
 # ---------------------------------------------------------------------------
@@ -26,14 +26,31 @@ class IntegerConstant:
 
 @dataclass(frozen=True)
 class Reference:
-    """A reference to a named label, with an optional address path into tuples.
+    """A reference to a leaf.
 
     ``path`` is a tuple of zero-based integer indices.  An empty path refers
     to the whole value bound to ``label``.
+    By default, ``label`` is the root of the expression.
     """
 
-    label: str
-    path: tuple[int, ...] = ()
+    label: Optional[str]
+    path: Sequence[int] = ()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "path", tuple(self.path))
+
+
+def reference(first: str | int, *rest: int) -> Reference:
+    """Construct a ``Reference`` from either a label or a root index path.
+
+    Examples:
+    - ``reference("X")`` -> ``Reference("X", ())``
+    - ``reference("T", 0, 1)`` -> ``Reference("T", (0, 1))``
+    - ``reference(0, 1)`` -> ``Reference(None, (0, 1))``
+    """
+    if isinstance(first, str):
+        return Reference(first, rest)
+    return Reference(None, (first, *rest))
 
 
 # ---------------------------------------------------------------------------

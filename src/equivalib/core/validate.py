@@ -145,12 +145,13 @@ def validate_expression(expr: Expression, node: IRNode) -> None:
     - numeric operations have numeric operands, etc.
     """
     known_labels = tree_labels(node)
+    root_shape = tree_shape(node)
 
     # Build a label -> shape map for address validation
     label_shapes = _collect_label_shapes(node)
 
     # Type-check the top-level expression: must be boolean-typed
-    result_type = _check_expr_type(expr, known_labels, label_shapes)
+    result_type = _check_expr_type(expr, known_labels, label_shapes, root_shape)
     if result_type != "bool":
         raise TypeError(
             f"Top-level constraint must be a boolean expression, "
@@ -206,7 +207,12 @@ def _merge_shapes(left: IRNode, right: IRNode) -> IRNode:
     return UnionNode(tuple(dedup))
 
 
-def _check_expr_type(expr: Expression, known_labels: frozenset[str], label_shapes: LabelShapes) -> ExprType:
+def _check_expr_type(
+    expr: Expression,
+    known_labels: frozenset[str],
+    label_shapes: LabelShapes,
+    root_shape: IRNode,
+) -> ExprType:
     """Return 'bool', 'numeric', or 'any' (or raise if invalid).
 
     'any' is returned for expressions whose type cannot be resolved to
@@ -222,6 +228,14 @@ def _check_expr_type(expr: Expression, known_labels: frozenset[str], label_shape
         return "numeric"
 
     if isinstance(expr, Reference):
+        if expr.label is None:
+            if known_labels:
+                raise ValueError(
+                    "Root/index-only references are only supported when the tree has no Name(...) labels."
+                )
+            _validate_address(None, expr.path, root_shape)
+            resolved_root = _resolve_shape(root_shape, expr.path)
+            return _shape_type(resolved_root)
         if expr.label not in known_labels:
             raise ValueError(
                 f"Reference to unknown label {expr.label!r}. "
@@ -238,33 +252,33 @@ def _check_expr_type(expr: Expression, known_labels: frozenset[str], label_shape
         return "any"
 
     if isinstance(expr, Neg):
-        t = _check_expr_type(expr.operand, known_labels, label_shapes)
+        t = _check_expr_type(expr.operand, known_labels, label_shapes, root_shape)
         if t != "numeric":
             raise TypeError(f"Neg operand must be numeric, got {t!r}: {expr!r}")
         return "numeric"
 
     if isinstance(expr, (Add, Sub, Mul, FloorDiv, Mod)):
-        lt = _check_expr_type(expr.left, known_labels, label_shapes)
-        rt = _check_expr_type(expr.right, known_labels, label_shapes)
+        lt = _check_expr_type(expr.left, known_labels, label_shapes, root_shape)
+        rt = _check_expr_type(expr.right, known_labels, label_shapes, root_shape)
         if lt != "numeric" or rt != "numeric":
             raise TypeError(f"Arithmetic operands must be numeric, got ({lt!r}, {rt!r}): {expr!r}")
         return "numeric"
 
     if isinstance(expr, (Eq, Ne)):
-        _check_expr_type(expr.left, known_labels, label_shapes)
-        _check_expr_type(expr.right, known_labels, label_shapes)
+        _check_expr_type(expr.left, known_labels, label_shapes, root_shape)
+        _check_expr_type(expr.right, known_labels, label_shapes, root_shape)
         return "bool"
 
     if isinstance(expr, (Lt, Le, Gt, Ge)):
-        lt = _check_expr_type(expr.left, known_labels, label_shapes)
-        rt = _check_expr_type(expr.right, known_labels, label_shapes)
+        lt = _check_expr_type(expr.left, known_labels, label_shapes, root_shape)
+        rt = _check_expr_type(expr.right, known_labels, label_shapes, root_shape)
         if lt != "numeric" or rt != "numeric":
             raise TypeError(f"Ordering operands must be numeric, got ({lt!r}, {rt!r}): {expr!r}")
         return "bool"
 
     if isinstance(expr, (And, Or)):
-        lt = _check_expr_type(expr.left, known_labels, label_shapes)
-        rt = _check_expr_type(expr.right, known_labels, label_shapes)
+        lt = _check_expr_type(expr.left, known_labels, label_shapes, root_shape)
+        rt = _check_expr_type(expr.right, known_labels, label_shapes, root_shape)
         if lt != "bool":
             raise TypeError(f"{type(expr).__name__} left operand must be boolean, got {lt!r}: {expr!r}")
         if rt != "bool":
@@ -344,12 +358,12 @@ def _shape_type(shape: IRNode) -> str:
     return "any"
 
 
-def _validate_address(label: str, path: tuple[int, ...], shape: object) -> None:
+def _validate_address(label: str | None, path: tuple[int, ...], shape: object) -> None:
     """Raise ValueError if ``path`` is not a valid address into ``shape``."""
     _validate_address_from(label, path, shape, 0)
 
 
-def _validate_address_from(label: str, path: tuple[int, ...], current: object, position: int) -> None:
+def _validate_address_from(label: str | None, path: tuple[int, ...], current: object, position: int) -> None:
     if position >= len(path):
         return
 

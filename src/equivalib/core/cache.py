@@ -71,7 +71,8 @@ def _collect_labels(expr: Expression, out: set[str]) -> None:
     if isinstance(expr, (BooleanConstant, IntegerConstant)):
         return
     if isinstance(expr, Reference):
-        out.add(expr.label)
+        if expr.label is not None:
+            out.add(expr.label)
         return
     if isinstance(expr, Neg):
         _collect_labels(expr.operand, out)
