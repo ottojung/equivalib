@@ -24,8 +24,8 @@ def int_const(value: int) -> Any:
     return core_attr("IntegerConstant")(value)
 
 
-def ref(label: str, path: tuple[int, ...] = ()) -> Any:  # noqa: D401
-    return core_attr("Reference")(label, path)
+def ref(first: str | int, *rest: int) -> Any:  # noqa: D401
+    return core_attr("reference")(first, *rest)
 
 
 def _int_bounds(label: str, lo: int, hi: int) -> Any:
@@ -191,7 +191,7 @@ def test_custom_class_address_from_name_and_tuple_path():
 def test_custom_class_leaf_remains_atomic_for_subpaths():
     tree = Annotated[Palette, CoreName("P")]
     with pytest.raises((TypeError, ValueError), match="path|atomic|address"):
-        generate_core(tree, Eq(ref("P", (0,)), ref("P")))
+        generate_core(tree, Eq(ref("P", 0), ref("P")))
 
 
 # ---------------------------------------------------------------------------

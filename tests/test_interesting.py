@@ -12,11 +12,10 @@ from equivalib.core import (
     Le,
     Mul,
     Name,
-    Reference,
     Regex,
     generate,
 )
-from equivalib.core.expression import Expression
+from equivalib.core.expression import Expression, reference
 
 
 
@@ -28,9 +27,9 @@ class TicketCode(Regex):
 
 def generate_pythagorean_triples(limit: int) -> set[tuple[int, int, int]]:
     tree = cast(type[tuple[int, int, int]], Annotated[tuple[int, int, int], Name("T")])
-    a = Reference("T", (0,))
-    b = Reference("T", (1,))
-    c = Reference("T", (2,))
+    a = reference("T", 0)
+    b = reference("T", 1)
+    c = reference("T", 2)
 
     bounds = And(
         And(Ge(a, IntegerConstant(1)), Le(a, IntegerConstant(limit))),
@@ -50,7 +49,7 @@ def generate_sum_to_hundred_witness() -> set[tuple[int, ...]]:
         type[tuple[int, ...]],
         Annotated[tuple[int, int, int, int, int, int, int, int, int, int], Name("X")],
     )
-    refs = [Reference("X", (i,)) for i in range(10)]
+    refs = [reference("X", i) for i in range(10)]
 
     bounded: And | None = None
     for ref in refs:
@@ -85,12 +84,30 @@ def test_interesting_direct_indexing_on_generated_tuple_values():
     assert only_true_first == {(True, False), (True, True)}
 
 
+def test_interesting_tuple_constraint_with_reference_paths():
+    tree = cast(type[tuple[bool, bool]], Annotated[tuple[bool, bool], Name("B")])
+    same_value = Eq(reference("B", 0), reference("B", 1))
+
+    values = generate(tree, same_value, {"B": "all"})
+
+    assert values == {(False, False), (True, True)}
+
+
 def test_interesting_ticket_code_regex_language():
     values = generate(TicketCode)
 
     assert len(values) == 200
     assert TicketCode("AB00") in values
     assert TicketCode("CD99") in values
+
+
+def test_interesting_ticket_code_prefix_filtering_example():
+    values = generate(TicketCode)
+    ab_prefixed = {code for code in values if str(code).startswith("AB")}
+
+    assert len(ab_prefixed) == 100
+    assert TicketCode("AB42") in ab_prefixed
+    assert TicketCode("CD42") not in ab_prefixed
 
 
 def test_interesting_pythagorean_triples_are_found_via_sat_constraints():

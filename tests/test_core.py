@@ -68,8 +68,8 @@ def int_const(value: int) -> Any:
     return core_attr("IntegerConstant")(value)
 
 
-def ref(first: str | int, path: tuple[int, ...] = ()) -> Any:  # noqa: D401
-    return reference(first, *path)
+def ref(first: Union[str, int], *rest: int) -> Any:  # noqa: D401
+    return reference(first, *rest)
 
 
 def _int_bounds(label: str, lo: int, hi: int) -> Any:
@@ -241,7 +241,7 @@ def test_generate_with_address_constraint_on_named_tuple():
     Name = core_attr("Name")
     Ne = core_attr("Ne")
     tree = Annotated[Tuple[bool, bool], Name("X")]
-    constraint = Ne(ref("X", (0,)), ref("X", (1,)))
+    constraint = Ne(ref("X", 0), ref("X", 1))
     assert generate(tree, constraint, {"X": "all"}) == {(True, False), (False, True)}
 
 
@@ -481,8 +481,8 @@ def test_generate_accepts_address_bounded_ints_inside_named_tuple():
     generate = core_attr("generate")
     Name = core_attr("Name")
     tree = Annotated[Tuple[int, int], Name("T")]
-    a = ref("T", (0,))
-    b = ref("T", (1,))
+    a = ref("T", 0)
+    b = ref("T", 1)
     constraint = And(
         And(Ge(a, int_const(1)), Le(a, int_const(2))),
         And(Ge(b, int_const(3)), Le(b, int_const(4))),
@@ -499,9 +499,9 @@ def test_generate_arbitrary_method_works_with_address_bounded_ints():
     generate = core_attr("generate")
     Name = core_attr("Name")
     tree = Annotated[Tuple[int, int, int], Name("T")]
-    x = ref("T", (0,))
-    y = ref("T", (1,))
-    z = ref("T", (2,))
+    x = ref("T", 0)
+    y = ref("T", 1)
+    z = ref("T", 2)
     bounded = And(
         And(Ge(x, int_const(0)), Le(x, int_const(9))),
         And(And(Ge(y, int_const(0)), Le(y, int_const(9))), And(Ge(z, int_const(0)), Le(z, int_const(9)))),
@@ -625,7 +625,7 @@ def test_generate_rejects_invalid_address_on_scalar_label():
     Name = core_attr("Name")
     generate = core_attr("generate")
     with pytest.raises(ValueError):
-        generate(Annotated[bool, Name("X")], Eq(ref("X", (0,)), bool_const(True)), {})
+        generate(Annotated[bool, Name("X")], Eq(ref("X", 0), bool_const(True)), {})
 
 
 def test_generate_rejects_out_of_range_tuple_address():
@@ -633,7 +633,7 @@ def test_generate_rejects_out_of_range_tuple_address():
     Name = core_attr("Name")
     generate = core_attr("generate")
     with pytest.raises(ValueError):
-        generate(Annotated[Tuple[bool], Name("X")], Eq(ref("X", (1,)), bool_const(True)), {})
+        generate(Annotated[Tuple[bool], Name("X")], Eq(ref("X", 1), bool_const(True)), {})
 
 
 def test_generate_rejects_address_that_crosses_shape_boundary():
@@ -642,7 +642,7 @@ def test_generate_rejects_address_that_crosses_shape_boundary():
     generate = core_attr("generate")
     tree = Annotated[Union[Tuple[bool], bool], Name("X")]
     with pytest.raises(ValueError):
-        generate(tree, Eq(ref("X", (0,)), bool_const(True)), {})
+        generate(tree, Eq(ref("X", 0), bool_const(True)), {})
 
 
 def test_generate_rejects_non_boolean_top_level_constraint():
@@ -789,7 +789,7 @@ def test_generate_address_on_union_of_same_arity_tuples():
     Eq = core_attr("Eq")
     # Both branches have arity 1; address (0,) is valid.
     tree = Annotated[Union[Tuple[bool], Tuple[bool]], Name("X")]
-    constraint = Eq(ref("X", (0,)), bool_const(True))
+    constraint = Eq(ref("X", 0), bool_const(True))
     result = generate(tree, constraint, {"X": "all"})
     assert result == {(True,)}
 
@@ -801,7 +801,7 @@ def test_generate_rejects_address_out_of_range_on_all_union_branches():
     Eq = core_attr("Eq")
     tree = Annotated[Union[Tuple[bool], Tuple[bool]], Name("X")]
     with pytest.raises(ValueError):
-        generate(tree, Eq(ref("X", (1,)), bool_const(True)), {})
+        generate(tree, Eq(ref("X", 1), bool_const(True)), {})
 
 
 def test_generate_rejects_negative_tuple_index():
@@ -811,7 +811,7 @@ def test_generate_rejects_negative_tuple_index():
     Eq = core_attr("Eq")
     tree = Annotated[Tuple[bool, bool], Name("X")]
     with pytest.raises(ValueError, match="out of range"):
-        generate(tree, Eq(ref("X", (-1,)), bool_const(True)), {})
+        generate(tree, Eq(ref("X", -1), bool_const(True)), {})
 
 
 def test_generate_rejects_address_valid_only_in_first_union_branch():
@@ -821,14 +821,14 @@ def test_generate_rejects_address_valid_only_in_first_union_branch():
     Eq = core_attr("Eq")
     tree = Annotated[Union[Tuple[Tuple[bool]], Tuple[bool]], Name("X")]
     with pytest.raises(ValueError):
-        generate(tree, Eq(ref("X", (0, 0)), bool_const(True)), {})
+        generate(tree, Eq(ref("X", 0, 0), bool_const(True)), {})
 
 
 def test_validate_rejects_non_int_path_element():
     """A Reference with a non-int path element (e.g. str) must be rejected."""
     tree_node = NamedNode("X", TupleNode((BoolNode(),)))
     # Python does not enforce type annotations at runtime, so this constructs fine
-    expr = ref("X", ("0",))  # type: ignore[arg-type]
+    expr = ref("X", "0")  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="plain int"):
         validate_expression(expr, tree_node)
 
@@ -836,7 +836,7 @@ def test_validate_rejects_non_int_path_element():
 def test_validate_rejects_bool_path_element():
     """A Reference with a bool path element must be rejected (bool is not a plain int index)."""
     tree_node = NamedNode("X", TupleNode((BoolNode(),)))
-    expr = ref("X", (True,))  # bool is a subclass of int, so this type-checks
+    expr = ref("X", True)  # bool is a subclass of int, so this type-checks
     with pytest.raises(ValueError, match="plain int"):
         validate_expression(expr, tree_node)
 
@@ -851,7 +851,7 @@ def test_generate_rejects_path_when_repeated_label_has_non_tuple_occurrence():
         Annotated[bool, Name("X")],
     ]
     with pytest.raises(ValueError):
-        generate(tree, Eq(ref("X", (0,)), bool_const(True)), {})
+        generate(tree, Eq(ref("X", 0), bool_const(True)), {})
 
 
 def test_generate_address_on_nested_union_of_tuples():
@@ -862,7 +862,7 @@ def test_generate_address_on_nested_union_of_tuples():
     # normalize() will produce UnionNode([TupleNode([BoolNode]), UnionNode([TupleNode([BoolNode])])])
     # _resolve_shape must handle nested UnionNodes.
     tree = Annotated[Union[Tuple[bool], Union[Tuple[bool]]], Name("X")]
-    constraint = Eq(ref("X", (0,)), bool_const(True))
+    constraint = Eq(ref("X", 0), bool_const(True))
     result = generate(tree, constraint, {"X": "all"})
     assert result == {(True,)}
 
@@ -2335,7 +2335,7 @@ def test_floordiv_undefined_divisor_no_duplicate_sat_assignments():
     (B, Y) label assignment, not one per (q, r) combination.
     """
     node = TupleNode((NamedNode("B", BoolNode()), NamedNode("Y", IntRangeNode(0, 1))))
-    constraint = Or(ref("B", ()), Eq(FloorDiv(IntegerConstant(1), ref("Y", ())), IntegerConstant(0)))
+    constraint = Or(ref("B"), Eq(FloorDiv(IntegerConstant(1), ref("Y")), IntegerConstant(0)))
     assignments = _sat_search(node, constraint)
     seen: set[frozenset[tuple[str, object]]] = set()
     for asgn in assignments:
@@ -2350,7 +2350,7 @@ def test_mod_undefined_divisor_no_duplicate_sat_assignments():
     Same as the FloorDiv test but using Mod.
     """
     node = TupleNode((NamedNode("B", BoolNode()), NamedNode("Y", IntRangeNode(0, 1))))
-    constraint = Or(ref("B", ()), Eq(Mod(IntegerConstant(1), ref("Y", ())), IntegerConstant(0)))
+    constraint = Or(ref("B"), Eq(Mod(IntegerConstant(1), ref("Y")), IntegerConstant(0)))
     assignments = _sat_search(node, constraint)
     seen: set[frozenset[tuple[str, object]]] = set()
     for asgn in assignments:
@@ -2365,7 +2365,7 @@ def test_mod_undefined_divisor_no_duplicate_sat_assignments():
 
 
 def test_reference_path_into_enum_tuple_in_reify_constraint():
-    """Or(ref("B"), ref("T", (0,))) must follow path when T is an enum label.
+    """Or(ref("B"), ref("T", 0)) must follow path when T is an enum label.
 
     T is a tuple-valued enum label always assigned (True, False).  T[0] = True,
     so Or(B, T[0]) is trivially satisfied for both B=True and B=False.  Before
@@ -2380,7 +2380,7 @@ def test_reference_path_into_enum_tuple_in_reify_constraint():
         )
     )
     # T is always (True, False); T[0]=True, so Or(B, True) must admit B=False too.
-    constraint = Or(ref("B", ()), ref("T", (0,)))
+    constraint = Or(ref("B"), ref("T", 0))
     assignments = _sat_search(node, constraint)
     pairs = {(a["B"], a["T"]) for a in assignments}
     expected = {(True, (True, False)), (False, (True, False))}
@@ -2388,7 +2388,7 @@ def test_reference_path_into_enum_tuple_in_reify_constraint():
 
 
 def test_reference_path_into_enum_tuple_as_hard_constraint():
-    """ref("T", (1,)) as hard constraint must be unsatisfiable when T[1] is always False.
+    """ref("T", 1) as hard constraint must be unsatisfiable when T[1] is always False.
 
     T is always (True, False) so T[1] = False.  Using it as a hard constraint
     must make the model unsatisfiable.  Without the path fix, _add_constraint
@@ -2402,15 +2402,15 @@ def test_reference_path_into_enum_tuple_as_hard_constraint():
         )
     )
     # T[1] = False always → hard constraint is always False → no solutions.
-    constraint = ref("T", (1,))
+    constraint = ref("T", 1)
     assignments = _sat_search(node, constraint)
     assert assignments == [], f"Expected no solutions, got {assignments}"
 
 
 def test_eval_reference_path_uses_zero_based_tuple_indices():
-    expr = ref("T", (0,))
+    expr = ref("T", 0)
     assert eval_expression(expr, {"T": (11, 22)}) == 11
-    expr_second = ref("T", (1,))
+    expr_second = ref("T", 1)
     assert eval_expression(expr_second, {"T": (11, 22)}) == 22
 
 
@@ -2467,7 +2467,7 @@ def test_sat_search_arbitrary_matches_full_enumeration_plus_apply_methods():
         )
     )
     # Constraint: X == (Y > 1), i.e. X iff Y > 1
-    constraint = Eq(ref("X", ()), Gt(ref("Y", ()), IntegerConstant(1)))
+    constraint = Eq(ref("X"), Gt(ref("Y"), IntegerConstant(1)))
 
     label_order = list(labels_in_order(node))
 
