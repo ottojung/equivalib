@@ -1,58 +1,116 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Annotated, Tuple
+from typing import Annotated, cast
 
-from equivalib import Super, ValueRange, generate_instances
-from equivalib.core import Regex, generate
+from equivalib.core import (
+    Add,
+    And,
+    BooleanExpression,
+    Eq,
+    Ge,
+    IntegerConstant,
+    Le,
+    Mul,
+    Name,
+    Reference,
+    Regex,
+    generate,
+)
+from equivalib.core.expression import Expression
 
 
-class HexPairWithDigit(Regex):
+
+class TicketCode(Regex):
     @staticmethod
     def expression() -> str:
-        return r"[A-F]{2}\d"
+        return r"(AB|CD)\d{2}"
 
 
-def test_interesting_regex_finite_language_is_enumerated():
-    values = generate(HexPairWithDigit)
+def generate_pythagorean_triples(limit: int) -> set[tuple[int, int, int]]:
+    tree = cast(type[tuple[int, int, int]], Annotated[tuple[int, int, int], Name("T")])
+    a = Reference("T", (0,))
+    b = Reference("T", (1,))
+    c = Reference("T", (2,))
 
-    assert len(values) == 6 * 6 * 10
-    assert HexPairWithDigit("AA0") in values
-    assert HexPairWithDigit("FF9") in values
+    bounds = And(
+        And(Ge(a, IntegerConstant(1)), Le(a, IntegerConstant(limit))),
+        And(
+            And(Ge(b, IntegerConstant(1)), Le(b, IntegerConstant(limit))),
+            And(Ge(c, IntegerConstant(1)), Le(c, IntegerConstant(limit))),
+        ),
+    )
+    ordered = And(Le(a, b), Le(b, c))
+    pythagorean = Eq(Add(Mul(a, a), Mul(b, b)), Mul(c, c))
+
+    return generate(tree, And(bounds, And(ordered, pythagorean)), {"T": "all"})
 
 
-def test_interesting_huge_boolean_tree_collapses_to_one_arbitrary_witness():
-    tree = Tuple[tuple(Annotated[bool, Super] for _ in range(20))]
+def generate_sum_to_hundred_witness() -> set[tuple[int, ...]]:
+    tree = cast(
+        type[tuple[int, ...]],
+        Annotated[tuple[int, int, int, int, int, int, int, int, int, int], Name("X")],
+    )
+    refs = [Reference("X", (i,)) for i in range(10)]
 
-    values = set(generate_instances(tree))
+    bounded: And | None = None
+    for ref in refs:
+        per_ref = And(Ge(ref, IntegerConstant(0)), Le(ref, IntegerConstant(999)))
+        bounded = per_ref if bounded is None else And(bounded, per_ref)
+
+    sum_expr: Expression = refs[0]
+    for ref in refs[1:]:
+        sum_expr = Add(sum_expr, ref)
+
+    assert bounded is not None
+    constrained = And(bounded, Eq(sum_expr, IntegerConstant(100)))
+    return generate(tree, constrained, {"X": "arbitrary"})
+
+
+def test_interesting_single_boolean_value_generation():
+    values = generate(bool)
+
+    assert values == {False, True}
+
+
+def test_interesting_tuple_of_booleans_generation():
+    values = generate(tuple[bool, bool])
+
+    assert values == {(False, False), (False, True), (True, False), (True, True)}
+
+
+def test_interesting_direct_indexing_on_generated_tuple_values():
+    values = generate(tuple[bool, bool])
+    only_true_first = {item for item in values if item[0]}
+
+    assert only_true_first == {(True, False), (True, True)}
+
+
+def test_interesting_ticket_code_regex_language():
+    values = generate(TicketCode)
+
+    assert len(values) == 200
+    assert TicketCode("AB00") in values
+    assert TicketCode("CD99") in values
+
+
+def test_interesting_pythagorean_triples_are_found_via_sat_constraints():
+    triples = generate_pythagorean_triples(limit=30)
+
+    assert (3, 4, 5) in triples
+    assert (5, 12, 13) in triples
+    assert (20, 21, 29) in triples
+    assert all((a * a) + (b * b) == (c * c) for a, b, c in triples)
+
+
+def test_interesting_large_integer_domain_can_return_one_arbitrary_witness():
+    values = generate_sum_to_hundred_witness()
 
     assert len(values) == 1
     only = next(iter(values))
-    assert isinstance(only, tuple)
-    assert len(only) == 20
-    assert set(only).issubset({False, True})
+    assert sum(only) == 100
 
 
-@dataclass(frozen=True)
-class SumToHundred:
-    x0: Annotated[int, ValueRange(0, 999), Super]
-    x1: Annotated[int, ValueRange(0, 999), Super]
-    x2: Annotated[int, ValueRange(0, 999), Super]
-    x3: Annotated[int, ValueRange(0, 999), Super]
-    x4: Annotated[int, ValueRange(0, 999), Super]
-    x5: Annotated[int, ValueRange(0, 999), Super]
-    x6: Annotated[int, ValueRange(0, 999), Super]
-    x7: Annotated[int, ValueRange(0, 999), Super]
-    x8: Annotated[int, ValueRange(0, 999), Super]
-    x9: Annotated[int, ValueRange(0, 999), Super]
+def test_interesting_boolean_expression_true_is_unconstrained():
+    values = generate(bool, BooleanExpression(True))
 
-    def __post_init__(self):
-        assert self.x0 + self.x1 + self.x2 + self.x3 + self.x4 + self.x5 + self.x6 + self.x7 + self.x8 + self.x9 == 100
-
-
-def test_interesting_sat_constrained_large_domain_finds_a_witness():
-    values = set(generate_instances(SumToHundred))
-
-    assert len(values) == 1
-    item = next(iter(values))
-    assert sum((item.x0, item.x1, item.x2, item.x3, item.x4, item.x5, item.x6, item.x7, item.x8, item.x9)) == 100
+    assert values == {False, True}
