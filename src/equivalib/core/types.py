@@ -58,7 +58,7 @@ class IntRangeNode:
 
 @dataclass(frozen=True)
 class UnboundedIntNode:
-    """Placeholder for a named integer whose bounds are to be inferred from the constraint."""
+    """Placeholder for an integer whose bounds are inferred from constraints."""
 
 
 @dataclass(frozen=True)

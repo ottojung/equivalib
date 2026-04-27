@@ -1,7 +1,7 @@
 """Derive integer bounds from a constraint expression via transitive analysis.
 
 Entry points:
-    infer_int_bounds(node, constraint) -> dict[str, tuple[int, int]]
+    infer_int_bounds(node, constraint) -> dict[tuple[str, tuple[int, ...]], tuple[int, int]]
     fill_int_bounds(node, bounds) -> IRNode
 """
 
@@ -45,27 +45,38 @@ def _min_bound(a: int | None, b: int | None) -> int | None:
     return min(a, b)
 
 
-def _collect_unbounded_int_labels(node: IRNode) -> frozenset[str]:
-    """Return all label names whose inner node is UnboundedIntNode."""
-    if isinstance(node, NamedNode):
-        if isinstance(node.inner, UnboundedIntNode):
-            return frozenset({node.label})
-        return _collect_unbounded_int_labels(node.inner)
-    if isinstance(node, TupleNode):
-        result: frozenset[str] = frozenset()
-        for item in node.items:
-            result = result | _collect_unbounded_int_labels(item)
-        return result
-    if isinstance(node, UnionNode):
-        result = frozenset()
-        for opt in node.options:
-            result = result | _collect_unbounded_int_labels(opt)
-        return result
-    return frozenset()
+RefKey = tuple[str, tuple[int, ...]]
+
+
+def _collect_unbounded_ref_keys(node: IRNode) -> frozenset[RefKey]:
+    """Return all ``Reference(label, path)`` keys that point to unbounded ints."""
+    result: set[RefKey] = set()
+
+    def walk(n: IRNode, current_label: str | None, path_from_label: tuple[int, ...]) -> None:
+        if isinstance(n, NamedNode):
+            walk(n.inner, n.label, ())
+            return
+        if isinstance(n, UnboundedIntNode):
+            if current_label is not None:
+                result.add((current_label, path_from_label))
+            return
+        if isinstance(n, TupleNode):
+            for idx, item in enumerate(n.items):
+                child_path = path_from_label + (idx,) if current_label is not None else ()
+                walk(item, current_label, child_path)
+            return
+        if isinstance(n, UnionNode):
+            for opt in n.options:
+                walk(opt, current_label, path_from_label)
+            return
+        return
+
+    walk(node, None, ())
+    return frozenset(result)
 
 
 def _has_cycle_in_rel_lt(
-    rel_lt: list[tuple[str, str]], int_labels: frozenset[str]
+    rel_lt: list[tuple[RefKey, RefKey]], int_targets: frozenset[RefKey]
 ) -> bool:
     """Return True if the strict-inequality graph contains a directed cycle.
 
@@ -73,18 +84,18 @@ def _has_cycle_in_rel_lt(
     bounds are present (where the Bellman-Ford propagation loop would make no
     progress and fall through to the "missing bounds" error instead).
     """
-    graph: dict[str, list[str]] = {label: [] for label in int_labels}
+    graph: dict[RefKey, list[RefKey]] = {key: [] for key in int_targets}
     for x, y in rel_lt:
-        if x in graph and y in int_labels:
+        if x in graph and y in int_targets:
             graph[x].append(y)
 
     WHITE, GRAY, BLACK = 0, 1, 2
-    color: dict[str, int] = {label: WHITE for label in int_labels}
+    color: dict[RefKey, int] = {key: WHITE for key in int_targets}
 
-    for start in int_labels:
+    for start in int_targets:
         if color[start] != WHITE:
             continue
-        stack: list[tuple[str, object]] = [(start, iter(graph[start]))]
+        stack: list[tuple[RefKey, object]] = [(start, iter(graph[start]))]
         color[start] = GRAY
         while stack:
             node, neighbors = stack[-1]
@@ -118,116 +129,111 @@ def _flatten_and(expr: Expression) -> list[Expression]:
 
 def _try_extract_bound(
     expr: Expression,
-    int_labels: frozenset[str],
-    direct_lo: dict[str, int],
-    direct_hi: dict[str, int],
-    rel_lt: list[tuple[str, str]],
-    rel_le: list[tuple[str, str]],
-    rel_eq: list[tuple[str, str]],
+    int_targets: frozenset[RefKey],
+    direct_lo: dict[RefKey, int],
+    direct_hi: dict[RefKey, int],
+    rel_lt: list[tuple[RefKey, RefKey]],
+    rel_le: list[tuple[RefKey, RefKey]],
+    rel_eq: list[tuple[RefKey, RefKey]],
 ) -> None:
     """Extract a bound from a simple comparison conjunct, if possible."""
 
-    def is_plain_ref(e: Expression) -> bool:
-        return isinstance(e, Reference) and not e.path and e.label in int_labels
+    def ref_key(e: Expression) -> RefKey | None:
+        if not isinstance(e, Reference):
+            return None
+        key = (e.label, e.path)
+        if key in int_targets:
+            return key
+        return None
 
     def is_int_const(e: Expression) -> bool:
         return isinstance(e, IntegerConstant)
 
     if isinstance(expr, Ge):
-        if is_plain_ref(expr.left) and is_int_const(expr.right):
-            label = expr.left.label  # type: ignore[union-attr]
+        left_key = ref_key(expr.left)
+        right_key = ref_key(expr.right)
+        if left_key is not None and is_int_const(expr.right):
             n = expr.right.value  # type: ignore[union-attr]
-            direct_lo[label] = n if label not in direct_lo else max(direct_lo[label], n)
-        elif is_int_const(expr.left) and is_plain_ref(expr.right):
-            label = expr.right.label  # type: ignore[union-attr]
+            direct_lo[left_key] = n if left_key not in direct_lo else max(direct_lo[left_key], n)
+        elif is_int_const(expr.left) and right_key is not None:
             n = expr.left.value  # type: ignore[union-attr]
-            direct_hi[label] = n if label not in direct_hi else min(direct_hi[label], n)
-        elif is_plain_ref(expr.left) and is_plain_ref(expr.right):
-            lx = expr.left.label  # type: ignore[union-attr]
-            ry = expr.right.label  # type: ignore[union-attr]
-            rel_le.append((ry, lx))
+            direct_hi[right_key] = n if right_key not in direct_hi else min(direct_hi[right_key], n)
+        elif left_key is not None and right_key is not None:
+            rel_le.append((right_key, left_key))
 
     elif isinstance(expr, Le):
-        if is_plain_ref(expr.left) and is_int_const(expr.right):
-            label = expr.left.label  # type: ignore[union-attr]
+        left_key = ref_key(expr.left)
+        right_key = ref_key(expr.right)
+        if left_key is not None and is_int_const(expr.right):
             n = expr.right.value  # type: ignore[union-attr]
-            direct_hi[label] = n if label not in direct_hi else min(direct_hi[label], n)
-        elif is_int_const(expr.left) and is_plain_ref(expr.right):
-            label = expr.right.label  # type: ignore[union-attr]
+            direct_hi[left_key] = n if left_key not in direct_hi else min(direct_hi[left_key], n)
+        elif is_int_const(expr.left) and right_key is not None:
             n = expr.left.value  # type: ignore[union-attr]
-            direct_lo[label] = n if label not in direct_lo else max(direct_lo[label], n)
-        elif is_plain_ref(expr.left) and is_plain_ref(expr.right):
-            lx = expr.left.label  # type: ignore[union-attr]
-            ry = expr.right.label  # type: ignore[union-attr]
-            rel_le.append((lx, ry))
+            direct_lo[right_key] = n if right_key not in direct_lo else max(direct_lo[right_key], n)
+        elif left_key is not None and right_key is not None:
+            rel_le.append((left_key, right_key))
 
     elif isinstance(expr, Gt):
-        if is_plain_ref(expr.left) and is_int_const(expr.right):
-            label = expr.left.label  # type: ignore[union-attr]
+        left_key = ref_key(expr.left)
+        right_key = ref_key(expr.right)
+        if left_key is not None and is_int_const(expr.right):
             n = expr.right.value  # type: ignore[union-attr]
-            direct_lo[label] = n + 1 if label not in direct_lo else max(direct_lo[label], n + 1)
-        elif is_int_const(expr.left) and is_plain_ref(expr.right):
-            label = expr.right.label  # type: ignore[union-attr]
+            direct_lo[left_key] = n + 1 if left_key not in direct_lo else max(direct_lo[left_key], n + 1)
+        elif is_int_const(expr.left) and right_key is not None:
             n = expr.left.value  # type: ignore[union-attr]
-            direct_hi[label] = n - 1 if label not in direct_hi else min(direct_hi[label], n - 1)
-        elif is_plain_ref(expr.left) and is_plain_ref(expr.right):
-            lx = expr.left.label  # type: ignore[union-attr]
-            ry = expr.right.label  # type: ignore[union-attr]
-            rel_lt.append((ry, lx))
+            direct_hi[right_key] = n - 1 if right_key not in direct_hi else min(direct_hi[right_key], n - 1)
+        elif left_key is not None and right_key is not None:
+            rel_lt.append((right_key, left_key))
 
     elif isinstance(expr, Lt):
-        if is_plain_ref(expr.left) and is_int_const(expr.right):
-            label = expr.left.label  # type: ignore[union-attr]
+        left_key = ref_key(expr.left)
+        right_key = ref_key(expr.right)
+        if left_key is not None and is_int_const(expr.right):
             n = expr.right.value  # type: ignore[union-attr]
-            direct_hi[label] = n - 1 if label not in direct_hi else min(direct_hi[label], n - 1)
-        elif is_int_const(expr.left) and is_plain_ref(expr.right):
-            label = expr.right.label  # type: ignore[union-attr]
+            direct_hi[left_key] = n - 1 if left_key not in direct_hi else min(direct_hi[left_key], n - 1)
+        elif is_int_const(expr.left) and right_key is not None:
             n = expr.left.value  # type: ignore[union-attr]
-            direct_lo[label] = n + 1 if label not in direct_lo else max(direct_lo[label], n + 1)
-        elif is_plain_ref(expr.left) and is_plain_ref(expr.right):
-            lx = expr.left.label  # type: ignore[union-attr]
-            ry = expr.right.label  # type: ignore[union-attr]
-            rel_lt.append((lx, ry))
+            direct_lo[right_key] = n + 1 if right_key not in direct_lo else max(direct_lo[right_key], n + 1)
+        elif left_key is not None and right_key is not None:
+            rel_lt.append((left_key, right_key))
 
     elif isinstance(expr, Eq):
-        if is_plain_ref(expr.left) and is_int_const(expr.right):
-            label = expr.left.label  # type: ignore[union-attr]
+        left_key = ref_key(expr.left)
+        right_key = ref_key(expr.right)
+        if left_key is not None and is_int_const(expr.right):
             n = expr.right.value  # type: ignore[union-attr]
-            direct_lo[label] = n if label not in direct_lo else max(direct_lo[label], n)
-            direct_hi[label] = n if label not in direct_hi else min(direct_hi[label], n)
-        elif is_int_const(expr.left) and is_plain_ref(expr.right):
-            label = expr.right.label  # type: ignore[union-attr]
+            direct_lo[left_key] = n if left_key not in direct_lo else max(direct_lo[left_key], n)
+            direct_hi[left_key] = n if left_key not in direct_hi else min(direct_hi[left_key], n)
+        elif is_int_const(expr.left) and right_key is not None:
             n = expr.left.value  # type: ignore[union-attr]
-            direct_lo[label] = n if label not in direct_lo else max(direct_lo[label], n)
-            direct_hi[label] = n if label not in direct_hi else min(direct_hi[label], n)
-        elif is_plain_ref(expr.left) and is_plain_ref(expr.right):
-            lx = expr.left.label  # type: ignore[union-attr]
-            ry = expr.right.label  # type: ignore[union-attr]
-            rel_eq.append((lx, ry))
+            direct_lo[right_key] = n if right_key not in direct_lo else max(direct_lo[right_key], n)
+            direct_hi[right_key] = n if right_key not in direct_hi else min(direct_hi[right_key], n)
+        elif left_key is not None and right_key is not None:
+            rel_eq.append((left_key, right_key))
 
 
 def infer_int_bounds(
     node: IRNode,
     constraint: Expression,
-) -> dict[str, tuple[int, int]]:
-    """Infer lower and upper bounds for each named unbounded integer in the tree."""
-    int_labels = _collect_unbounded_int_labels(node)
-    if not int_labels:
+) -> dict[RefKey, tuple[int, int]]:
+    """Infer lower and upper bounds for each addressable unbounded integer in the tree."""
+    int_targets = _collect_unbounded_ref_keys(node)
+    if not int_targets:
         return {}
 
     # None means "unbounded" (lo: −∞, hi: +∞). Using int|None avoids float
     # arithmetic entirely, which preserves precision for large integer constants.
-    lo: dict[str, int | None] = {label: None for label in int_labels}
-    hi: dict[str, int | None] = {label: None for label in int_labels}
+    lo: dict[RefKey, int | None] = {key: None for key in int_targets}
+    hi: dict[RefKey, int | None] = {key: None for key in int_targets}
 
-    direct_lo: dict[str, int] = {}
-    direct_hi: dict[str, int] = {}
-    rel_lt: list[tuple[str, str]] = []
-    rel_le: list[tuple[str, str]] = []
-    rel_eq: list[tuple[str, str]] = []
+    direct_lo: dict[RefKey, int] = {}
+    direct_hi: dict[RefKey, int] = {}
+    rel_lt: list[tuple[RefKey, RefKey]] = []
+    rel_le: list[tuple[RefKey, RefKey]] = []
+    rel_eq: list[tuple[RefKey, RefKey]] = []
 
     for conjunct in _flatten_and(constraint):
-        _try_extract_bound(conjunct, int_labels, direct_lo, direct_hi, rel_lt, rel_le, rel_eq)
+        _try_extract_bound(conjunct, int_targets, direct_lo, direct_hi, rel_lt, rel_le, rel_eq)
 
     for label, v in direct_lo.items():
         lo[label] = _max_bound(lo[label], v)
@@ -238,8 +244,8 @@ def infer_int_bounds(
     # Cycles are contradictions for integers, and must be caught before the
     # fixed-point loop because the loop makes no progress when no finite bounds
     # are present to propagate.
-    if any(x == y for (x, y) in rel_lt) or _has_cycle_in_rel_lt(rel_lt, int_labels):
-        return {label: (1, 0) for label in int_labels}
+    if any(x == y for (x, y) in rel_lt) or _has_cycle_in_rel_lt(rel_lt, int_targets):
+        return {key: (1, 0) for key in int_targets}
 
     # Propagate bounds to a fixed point.
     changed = True
@@ -286,54 +292,66 @@ def infer_int_bounds(
         # Short-circuit as soon as any bounds become contradictory (lo > hi).
         # Some unrelated labels may still have no bounds here, so return an
         # explicit unsatisfiable sentinel instead of propagating further.
-        for label in int_labels:
-            lo_v, hi_v = lo[label], hi[label]
+        for key in int_targets:
+            lo_v, hi_v = lo[key], hi[key]
             if lo_v is not None and hi_v is not None and lo_v > hi_v:
-                return {label: (1, 0) for label in int_labels}
+                return {target: (1, 0) for target in int_targets}
 
     missing: list[str] = []
-    for label in sorted(int_labels):
-        if lo[label] is None:
-            missing.append(f"lower bound for {label!r}")
-        if hi[label] is None:
-            missing.append(f"upper bound for {label!r}")
+    for key in sorted(int_targets):
+        if lo[key] is None:
+            missing.append(f"lower bound for Reference({key[0]!r}, {key[1]!r})")
+        if hi[key] is None:
+            missing.append(f"upper bound for Reference({key[0]!r}, {key[1]!r})")
 
     if missing:
         raise ValueError(
-            f"Could not derive bounds for the following integer labels from the constraint: "
+            f"Could not derive bounds for the following integer references from the constraint: "
             f"{', '.join(missing)}. "
-            "Add explicit bound constraints using Ge, Le, Gt, Lt, or Eq "
-            "(e.g. And(Ge(ref('X'), IntegerConstant(0)), Le(ref('X'), IntegerConstant(9))))."
+            "Add explicit bound constraints using Ge, Le, Gt, Lt, or Eq."
         )
 
     # At this point all bounds are confirmed non-None (missing is empty).
-    result: dict[str, tuple[int, int]] = {}
-    for label in int_labels:
-        lo_v = lo[label]
-        hi_v = hi[label]
+    result: dict[RefKey, tuple[int, int]] = {}
+    for key in int_targets:
+        lo_v = lo[key]
+        hi_v = hi[key]
         assert lo_v is not None and hi_v is not None  # guaranteed by missing-check above
-        result[label] = (lo_v, hi_v)
+        result[key] = (lo_v, hi_v)
     return result
 
 
-def fill_int_bounds(node: IRNode, bounds: dict[str, tuple[int, int]]) -> IRNode:
-    """Replace every NamedNode(label, UnboundedIntNode()) with NamedNode(label, IntRangeNode(lo, hi))."""
-    if isinstance(node, NamedNode):
-        if isinstance(node.inner, UnboundedIntNode):
-            lo, hi = bounds[node.label]
-            return NamedNode(node.label, IntRangeNode(lo, hi))
-        new_inner = fill_int_bounds(node.inner, bounds)
-        if new_inner is node.inner:
-            return node
-        return NamedNode(node.label, new_inner)
-    if isinstance(node, TupleNode):
-        new_items = tuple(fill_int_bounds(item, bounds) for item in node.items)
-        if new_items == node.items:
-            return node
-        return TupleNode(new_items)
-    if isinstance(node, UnionNode):
-        new_options = tuple(fill_int_bounds(opt, bounds) for opt in node.options)
-        if new_options == node.options:
-            return node
-        return UnionNode(new_options)
-    return node
+def fill_int_bounds(node: IRNode, bounds: dict[RefKey, tuple[int, int]]) -> IRNode:
+    """Replace each addressable ``UnboundedIntNode`` with ``IntRangeNode(lo, hi)``."""
+
+    def walk(n: IRNode, current_label: str | None, path_from_label: tuple[int, ...]) -> IRNode:
+        if isinstance(n, NamedNode):
+            new_inner = walk(n.inner, n.label, ())
+            if new_inner is n.inner:
+                return n
+            return NamedNode(n.label, new_inner)
+        if isinstance(n, UnboundedIntNode):
+            if current_label is None:
+                return n
+            lo, hi = bounds[(current_label, path_from_label)]
+            return IntRangeNode(lo, hi)
+        if isinstance(n, TupleNode):
+            new_items: tuple[IRNode, ...] = tuple(
+                walk(
+                    item,
+                    current_label,
+                    path_from_label + (idx,) if current_label is not None else (),
+                )
+                for idx, item in enumerate(n.items)
+            )
+            if new_items == n.items:
+                return n
+            return TupleNode(new_items)
+        if isinstance(n, UnionNode):
+            new_options = tuple(walk(opt, current_label, path_from_label) for opt in n.options)
+            if new_options == n.options:
+                return n
+            return UnionNode(new_options)
+        return n
+
+    return walk(node, None, ())

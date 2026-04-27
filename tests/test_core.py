@@ -73,7 +73,7 @@ def ref(label: str, path: tuple[int, ...] = ()) -> Any:  # noqa: D401
 
 
 def _int_bounds(label: str, lo: int, hi: int) -> Any:
-    """Return a bounds constraint for a named int label: lo <= label <= hi."""
+    """Return a bounds constraint for an integer reference: lo <= label <= hi."""
     return And(Ge(ref(label), int_const(lo)), Le(ref(label), int_const(hi)))
 
 
@@ -151,6 +151,37 @@ def test_generate_named_int_range_from_constraint():
     tree = Annotated[int, Name("X")]
     constraint = And(Ge(ref("X"), int_const(1)), Le(ref("X"), int_const(2)))
     assert generate(tree, constraint, {}) == {1, 2}
+
+
+def test_generate_named_tuple_with_plain_int_items_bounded_by_addresses():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    tree = Annotated[Tuple[int, int, int], Name("T")]
+    a = ref("T", (0,))
+    b = ref("T", (1,))
+    c = ref("T", (2,))
+    constraint = And(
+        And(And(Ge(a, int_const(1)), Le(a, int_const(10))), And(Ge(b, int_const(1)), Le(b, int_const(10)))),
+        And(And(Ge(c, int_const(1)), Le(c, int_const(10))), Eq(Add(Add(a, b), c), int_const(12))),
+    )
+    values = generate(tree, constraint, {"T": "all"})
+    assert (1, 1, 10) in values
+    assert all((x + y + z) == 12 for (x, y, z) in values)
+
+
+def test_generate_named_tuple_plain_int_items_arbitrary_witness_with_address_bounds():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    tree = Annotated[Tuple[int, int, int, int], Name("X")]
+    refs = [ref("X", (i,)) for i in range(4)]
+    bounded = And(
+        And(And(Ge(refs[0], int_const(0)), Le(refs[0], int_const(9))), And(Ge(refs[1], int_const(0)), Le(refs[1], int_const(9)))),
+        And(And(Ge(refs[2], int_const(0)), Le(refs[2], int_const(9))), And(Ge(refs[3], int_const(0)), Le(refs[3], int_const(9)))),
+    )
+    total = Add(Add(refs[0], refs[1]), Add(refs[2], refs[3]))
+    values = generate(tree, And(bounded, Eq(total, int_const(7))), {"X": "arbitrary"})
+    assert len(values) == 1
+    assert sum(next(iter(values))) == 7
 
 
 def test_generate_named_bool_arbitrary_picks_canonical_first():
@@ -444,14 +475,14 @@ def test_generate_rejects_non_string_name_label():
         generate(Annotated[bool, Name(1)], true_expr(), {})
 
 
-def test_generate_rejects_named_int_without_bounds():
+def test_generate_rejects_unbounded_integer_without_derived_bounds():
     generate = core_attr("generate")
     Name = core_attr("Name")
     with pytest.raises(ValueError):
         generate(Annotated[int, Name("X")], true_expr(), {})
 
 
-def test_generate_rejects_plain_int_in_core():
+def test_generate_rejects_unbounded_plain_int_in_core():
     generate = core_attr("generate")
     with pytest.raises(ValueError):
         generate(int, true_expr(), {})
