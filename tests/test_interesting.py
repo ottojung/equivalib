@@ -26,7 +26,7 @@ class TicketCode(Regex):
 
 
 def generate_pythagorean_triples(limit: int) -> set[tuple[int, int, int]]:
-    tree = type[tuple[int, int, int]]
+    tree = tuple[int, int, int]
     a = reference("T", 0)
     b = reference("T", 1)
     c = reference("T", 2)
