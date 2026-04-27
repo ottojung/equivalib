@@ -49,10 +49,7 @@ def normalize(t: object) -> IRNode:
         return BoolNode()
 
     if t is int:
-        raise ValueError(
-            "Plain 'int' is not supported. "
-            "Use Annotated[int, Name('X')] with bounds provided via the constraint parameter."
-        )
+        return UnboundedIntNode()
 
     if origin is typing.Literal:
         _SUPPORTED_LITERAL_TYPES = (type(None), bool, int, str)
@@ -113,11 +110,6 @@ def _normalize_annotated(base: object, metadata: list[object]) -> IRNode:
         raise ValueError("Name label must not be empty.")
 
     if base is int:
-        if name is None:
-            raise ValueError(
-                "An 'int' in Annotated requires a Name(...) annotation. "
-                "Use Annotated[int, Name('X')] and supply bounds via the constraint parameter."
-            )
         inner: IRNode = UnboundedIntNode()
     else:
         inner = normalize(base)

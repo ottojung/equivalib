@@ -26,7 +26,6 @@ from equivalib.core.expression import (
     Ne,
     Neg,
     Or,
-    Reference,
 )
 from equivalib.core.methods import apply_methods
 from equivalib.core.name import Name as CoreName
@@ -68,12 +67,16 @@ def int_const(value: int) -> Any:
     return core_attr("IntegerConstant")(value)
 
 
-def ref(label: str, path: tuple[int, ...] = ()) -> Any:  # noqa: D401
-    return core_attr("Reference")(label, path)
+def ref(first: Any, path: tuple[int, ...] = ()) -> Any:  # noqa: D401
+    if isinstance(first, str):
+        return core_attr("reference")(first, *path)
+    if isinstance(first, int):
+        return core_attr("reference")(first, *path)
+    raise TypeError("ref(...) first argument must be str or int")
 
 
 def _int_bounds(label: str, lo: int, hi: int) -> Any:
-    """Return a bounds constraint for a named int label: lo <= label <= hi."""
+    """Return bounds on an integer reference: lo <= ref(label) <= hi."""
     return And(Ge(ref(label), int_const(lo)), Le(ref(label), int_const(hi)))
 
 
@@ -84,6 +87,7 @@ def test_core_exports_generate_and_ast_surface():
     assert core_attr("BooleanConstant")
     assert core_attr("IntegerConstant")
     assert core_attr("Reference")
+    assert core_attr("reference")
     assert core_attr("Eq")
     assert core_attr("Ne")
     assert core_attr("Lt")
@@ -476,6 +480,89 @@ def test_generate_rejects_unknown_annotated_metadata():
         generate(Annotated[bool, "mystery"], true_expr(), {})
 
 
+def test_generate_accepts_address_bounded_ints_inside_named_tuple():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    tree = Annotated[Tuple[int, int], Name("T")]
+    a = ref("T", (0,))
+    b = ref("T", (1,))
+    constraint = And(
+        And(Ge(a, int_const(1)), Le(a, int_const(2))),
+        And(Ge(b, int_const(3)), Le(b, int_const(4))),
+    )
+    assert generate(tree, constraint, {"T": "all"}) == {
+        (1, 3),
+        (1, 4),
+        (2, 3),
+        (2, 4),
+    }
+
+
+def test_generate_accepts_address_bounded_ints_without_annotations():
+    generate = core_attr("generate")
+    tree = Tuple[int, int]
+    a = ref(0)
+    b = ref(1)
+    constraint = And(
+        And(Ge(a, int_const(1)), Le(a, int_const(2))),
+        And(Ge(b, int_const(3)), Le(b, int_const(4))),
+    )
+    assert generate(tree, constraint, {}) == {
+        (1, 3),
+        (1, 4),
+        (2, 3),
+        (2, 4),
+    }
+
+
+def test_generate_accepts_address_bounded_ints_inside_named_tuple_2():
+    generate = core_attr("generate")
+    tree = Tuple[int, int]
+    a = ref(0)
+    b = ref(1)
+    constraint = And(
+        And(Ge(a, int_const(1)), Le(a, int_const(2))),
+        And(Ge(b, int_const(3)), Le(b, int_const(4))),
+    )
+    assert generate(tree, constraint, {}) == {
+        (1, 3),
+        (1, 4),
+        (2, 3),
+        (2, 4),
+    }
+
+
+def test_generate_arbitrary_works_with_unannotated_address_bounded_ints():
+    generate = core_attr("generate")
+    tree = Tuple[int, int, int]
+    x = ref(0)
+    y = ref(1)
+    z = ref(2)
+    bounded = And(
+        And(Ge(x, int_const(0)), Le(x, int_const(9))),
+        And(And(Ge(y, int_const(0)), Le(y, int_const(9))), And(Ge(z, int_const(0)), Le(z, int_const(9)))),
+    )
+    values = generate(tree, And(bounded, Eq(Add(Add(x, y), z), int_const(7))), {})
+    assert len(values) == 36
+
+
+def test_generate_arbitrary_method_works_with_address_bounded_ints():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    tree = Annotated[Tuple[int, int, int], Name("T")]
+    x = ref("T", (0,))
+    y = ref("T", (1,))
+    z = ref("T", (2,))
+    bounded = And(
+        And(Ge(x, int_const(0)), Le(x, int_const(9))),
+        And(And(Ge(y, int_const(0)), Le(y, int_const(9))), And(Ge(z, int_const(0)), Le(z, int_const(9)))),
+    )
+    values = generate(tree, And(bounded, Eq(Add(Add(x, y), z), int_const(7))), {"T": "arbitrary"})
+    assert len(values) == 1
+    only = next(iter(values))
+    assert sum(only) == 7
+
+
 def test_generate_rejects_constraint_on_missing_label():
     generate = core_attr("generate")
     Name = core_attr("Name")
@@ -762,7 +849,7 @@ def test_validate_rejects_non_int_path_element():
     """A Reference with a non-int path element (e.g. str) must be rejected."""
     tree_node = NamedNode("X", TupleNode((BoolNode(),)))
     # Python does not enforce type annotations at runtime, so this constructs fine
-    expr = Reference("X", ("0",))  # type: ignore[arg-type]
+    expr = ref("X", ("0",))  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="plain int"):
         validate_expression(expr, tree_node)
 
@@ -770,7 +857,7 @@ def test_validate_rejects_non_int_path_element():
 def test_validate_rejects_bool_path_element():
     """A Reference with a bool path element must be rejected (bool is not a plain int index)."""
     tree_node = NamedNode("X", TupleNode((BoolNode(),)))
-    expr = Reference("X", (True,))  # bool is a subclass of int, so this type-checks
+    expr = ref("X", (True,))  # bool is a subclass of int, so this type-checks
     with pytest.raises(ValueError, match="plain int"):
         validate_expression(expr, tree_node)
 
@@ -897,32 +984,32 @@ def test_generate_rejects_ordering_on_any_typed_reference():
 
 
 def test_eval_full_expression_basic_arithmetic():
-    expr = Add(Mul(Reference("x"), IntegerConstant(3)), IntegerConstant(1))
+    expr = Add(Mul(ref("x"), IntegerConstant(3)), IntegerConstant(1))
     assert eval_expression(expr, {"x": 4}) == 13
 
 
 def test_eval_partial_and_short_circuits_on_false():
-    expr = And(BooleanConstant(False), Reference("y"))
+    expr = And(BooleanConstant(False), ref("y"))
     assert eval_expression_partial(expr, {}) is False
 
 
 def test_eval_partial_or_short_circuits_on_true():
-    expr = Or(BooleanConstant(True), Reference("y"))
+    expr = Or(BooleanConstant(True), ref("y"))
     assert eval_expression_partial(expr, {}) is True
 
 
 def test_eval_partial_unknown_propagates_through_arithmetic():
-    expr = Add(Reference("x"), IntegerConstant(1))
+    expr = Add(ref("x"), IntegerConstant(1))
     assert eval_expression_partial(expr, {}) is Unknown
 
 
 def test_eval_partial_and_both_unknown():
-    expr = And(Reference("x"), Reference("y"))
+    expr = And(ref("x"), ref("y"))
     assert eval_expression_partial(expr, {}) is Unknown
 
 
 def test_eval_partial_neg_of_unknown():
-    expr = Neg(Reference("x"))
+    expr = Neg(ref("x"))
     assert eval_expression_partial(expr, {}) is Unknown
 
 
@@ -1066,14 +1153,14 @@ def test_structural_eq_distinguishes_bool_from_int():
 
 def test_eval_eq_type_aware():
     """eval_expression(Eq(...)) must use structural equality."""
-    expr = Eq(Reference("X"), IntegerConstant(1))
+    expr = Eq(ref("X"), IntegerConstant(1))
     assert eval_expression(expr, {"X": 1}) is True
     assert eval_expression(expr, {"X": True}) is False  # True == 1 in Python, but Eq is structural
 
 
 def test_eval_ne_type_aware():
     """eval_expression(Ne(...)) must use structural equality."""
-    expr = Ne(Reference("X"), IntegerConstant(1))
+    expr = Ne(ref("X"), IntegerConstant(1))
     assert eval_expression(expr, {"X": 1}) is False
     assert eval_expression(expr, {"X": True}) is True  # True != 1 structurally
 
@@ -1143,13 +1230,13 @@ def test_is_label_closed_single_label():
 
 def test_is_constraint_independent_disjoint_labels():
     subtree = normalize(Annotated[bool, CoreName("X")])
-    constraint = Reference("Y")
+    constraint = ref("Y")
     assert is_constraint_independent(subtree, constraint) is True
 
 
 def test_is_constraint_independent_overlapping_labels():
     subtree = normalize(Annotated[bool, CoreName("X")])
-    constraint = Reference("X")
+    constraint = ref("X")
     assert is_constraint_independent(subtree, constraint) is False
 
 
@@ -1160,7 +1247,7 @@ def test_is_guaranteed_cacheable_unnamed():
 
 def test_is_guaranteed_cacheable_label_closed_and_independent():
     node = normalize(Annotated[bool, CoreName("X")])
-    constraint = Reference("Y")
+    constraint = ref("Y")
     assert is_guaranteed_cacheable(node, node, constraint) is True
 
 
@@ -2269,7 +2356,7 @@ def test_floordiv_undefined_divisor_no_duplicate_sat_assignments():
     (B, Y) label assignment, not one per (q, r) combination.
     """
     node = TupleNode((NamedNode("B", BoolNode()), NamedNode("Y", IntRangeNode(0, 1))))
-    constraint = Or(Reference("B", ()), Eq(FloorDiv(IntegerConstant(1), Reference("Y", ())), IntegerConstant(0)))
+    constraint = Or(ref("B"), Eq(FloorDiv(IntegerConstant(1), ref("Y")), IntegerConstant(0)))
     assignments = _sat_search(node, constraint)
     seen: set[frozenset[tuple[str, object]]] = set()
     for asgn in assignments:
@@ -2284,7 +2371,7 @@ def test_mod_undefined_divisor_no_duplicate_sat_assignments():
     Same as the FloorDiv test but using Mod.
     """
     node = TupleNode((NamedNode("B", BoolNode()), NamedNode("Y", IntRangeNode(0, 1))))
-    constraint = Or(Reference("B", ()), Eq(Mod(IntegerConstant(1), Reference("Y", ())), IntegerConstant(0)))
+    constraint = Or(ref("B"), Eq(Mod(IntegerConstant(1), ref("Y")), IntegerConstant(0)))
     assignments = _sat_search(node, constraint)
     seen: set[frozenset[tuple[str, object]]] = set()
     for asgn in assignments:
@@ -2314,7 +2401,7 @@ def test_reference_path_into_enum_tuple_in_reify_constraint():
         )
     )
     # T is always (True, False); T[0]=True, so Or(B, True) must admit B=False too.
-    constraint = Or(Reference("B", ()), Reference("T", (0,)))
+    constraint = Or(ref("B"), ref("T", (0,)))
     assignments = _sat_search(node, constraint)
     pairs = {(a["B"], a["T"]) for a in assignments}
     expected = {(True, (True, False)), (False, (True, False))}
@@ -2336,15 +2423,15 @@ def test_reference_path_into_enum_tuple_as_hard_constraint():
         )
     )
     # T[1] = False always → hard constraint is always False → no solutions.
-    constraint = Reference("T", (1,))
+    constraint = ref("T", (1,))
     assignments = _sat_search(node, constraint)
     assert assignments == [], f"Expected no solutions, got {assignments}"
 
 
 def test_eval_reference_path_uses_zero_based_tuple_indices():
-    expr = Reference("T", (0,))
+    expr = ref("T", (0,))
     assert eval_expression(expr, {"T": (11, 22)}) == 11
-    expr_second = Reference("T", (1,))
+    expr_second = ref("T", (1,))
     assert eval_expression(expr_second, {"T": (11, 22)}) == 22
 
 
@@ -2401,7 +2488,7 @@ def test_sat_search_arbitrary_matches_full_enumeration_plus_apply_methods():
         )
     )
     # Constraint: X == (Y > 1), i.e. X iff Y > 1
-    constraint = Eq(Reference("X", ()), Gt(Reference("Y", ()), IntegerConstant(1)))
+    constraint = Eq(ref("X"), Gt(ref("Y"), IntegerConstant(1)))
 
     label_order = list(labels_in_order(node))
 

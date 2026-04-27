@@ -12,8 +12,8 @@ from equivalib.core import (
     Le,
     Mul,
     Name,
-    Reference,
     Regex,
+    reference,
     generate,
 )
 from equivalib.core.expression import Expression
@@ -28,9 +28,9 @@ class TicketCode(Regex):
 
 def generate_pythagorean_triples(limit: int) -> set[tuple[int, int, int]]:
     tree = cast(type[tuple[int, int, int]], Annotated[tuple[int, int, int], Name("T")])
-    a = Reference("T", (0,))
-    b = Reference("T", (1,))
-    c = Reference("T", (2,))
+    a = reference("T", 0)
+    b = reference("T", 1)
+    c = reference("T", 2)
 
     bounds = And(
         And(Ge(a, IntegerConstant(1)), Le(a, IntegerConstant(limit))),
@@ -50,7 +50,7 @@ def generate_sum_to_hundred_witness() -> set[tuple[int, ...]]:
         type[tuple[int, ...]],
         Annotated[tuple[int, int, int, int, int, int, int, int, int, int], Name("X")],
     )
-    refs = [Reference("X", (i,)) for i in range(10)]
+    refs = [reference("X", i) for i in range(10)]
 
     bounded: And | None = None
     for ref in refs:

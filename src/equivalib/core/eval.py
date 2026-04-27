@@ -63,7 +63,7 @@ Unknown = _UnknownType()
 # Tuple path addressing helper
 # ---------------------------------------------------------------------------
 
-def _follow_reference_path(value: object, path: tuple[int, ...], label: str) -> object:
+def _follow_reference_path(value: object, path: tuple[int, ...], label: str | None) -> object:
     """Follow ``path`` into ``value`` using strict zero-based tuple indexing."""
     current = value
     for depth, idx in enumerate(path):
@@ -106,7 +106,7 @@ def _structural_eq(lv: object, rv: object) -> bool:
 # Full evaluation (all labels must be assigned)
 # ---------------------------------------------------------------------------
 
-def eval_expression(expr: Expression, assignment: dict[str, object]) -> object:
+def eval_expression(expr: Expression, assignment: dict[object, object]) -> object:
     """Evaluate ``expr`` against a complete assignment mapping.
 
     ``assignment`` maps label strings to runtime values.
@@ -115,7 +115,7 @@ def eval_expression(expr: Expression, assignment: dict[str, object]) -> object:
     return _eval(expr, assignment)
 
 
-def _eval(expr: Expression, assignment: dict[str, object]) -> object:
+def _eval(expr: Expression, assignment: dict[object, object]) -> object:
     if isinstance(expr, BooleanConstant):
         return expr.value
     if isinstance(expr, IntegerConstant):
@@ -158,7 +158,7 @@ def _eval(expr: Expression, assignment: dict[str, object]) -> object:
 # Partial evaluation (some labels may be unresolved)
 # ---------------------------------------------------------------------------
 
-def eval_expression_partial(expr: Expression, partial_assignment: dict[str, object]) -> object:
+def eval_expression_partial(expr: Expression, partial_assignment: dict[object, object]) -> object:
     """Evaluate ``expr`` against a partial assignment.
 
     Returns a concrete value if it can be determined, or ``Unknown`` if the
@@ -167,7 +167,7 @@ def eval_expression_partial(expr: Expression, partial_assignment: dict[str, obje
     return _eval_partial(expr, partial_assignment)
 
 
-def _eval_partial(expr: Expression, pa: dict[str, object]) -> object:
+def _eval_partial(expr: Expression, pa: dict[object, object]) -> object:
     if isinstance(expr, BooleanConstant):
         return expr.value
     if isinstance(expr, IntegerConstant):

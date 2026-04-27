@@ -5,11 +5,12 @@ Public API surface:
     values           – finite denotation for name-free types
     Name             – symbolic identity marker
     BooleanExpression – convenience constructor (returns BooleanConstant)
+    reference        – convenience constructor for Reference
     mentioned_labels  – collect labels from an expression
     impossible       – exhaustive-match sentinel (NoReturn)
 
 Expression AST constructors:
-    BooleanConstant, IntegerConstant, Reference
+    BooleanConstant, IntegerConstant, Reference, reference
     Neg, Add, Sub, Mul, FloorDiv, Mod
     Eq, Ne, Lt, Le, Gt, Ge
     And, Or
@@ -39,6 +40,7 @@ from equivalib.core.expression import (
     Or,
     Expression,
     BooleanExpression,
+    reference,
     impossible,
 )
 from equivalib.core.api import generate
@@ -55,6 +57,7 @@ __all__ = [
     "Name",
     "Expression",
     "BooleanExpression",
+    "reference",
     "BooleanConstant",
     "IntegerConstant",
     "Reference",
