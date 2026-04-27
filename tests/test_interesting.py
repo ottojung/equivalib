@@ -50,7 +50,7 @@ def generate_sum_to_hundred_witness() -> set[tuple[int, ...]]:
 
     bounded: And | None = None
     for ref in refs:
-        per_ref = And(Ge(ref, IntegerConstant(0)), Le(ref, IntegerConstant(9)))
+        per_ref = And(Ge(ref, IntegerConstant(0)), Le(ref, IntegerConstant(1)))
         bounded = per_ref if bounded is None else And(bounded, per_ref)
 
     sum_expr: Expression = refs[0]
@@ -58,7 +58,7 @@ def generate_sum_to_hundred_witness() -> set[tuple[int, ...]]:
         sum_expr = Add(sum_expr, ref)
 
     assert bounded is not None
-    constrained = And(bounded, Eq(sum_expr, IntegerConstant(10)))
+    constrained = And(bounded, Eq(sum_expr, IntegerConstant(5)))
     return generate(tree, constrained, {"[0]": "arbitrary", "[1]": "arbitrary", "[2]": "arbitrary", "[3]": "arbitrary", "[4]": "arbitrary", "[5]": "arbitrary", "[6]": "arbitrary", "[7]": "arbitrary", "[8]": "arbitrary", "[9]": "arbitrary"})
 
 
