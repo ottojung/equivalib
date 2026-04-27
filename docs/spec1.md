@@ -366,6 +366,7 @@ is also present).  If the root is not a `Tuple`, index-style keys are invalid la
 MUST be rejected.
 
 
+## Denotation of Unnamed Trees
 
 The core needs a finite denotation for every name-free subtree.
 

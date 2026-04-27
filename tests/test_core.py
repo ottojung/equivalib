@@ -664,7 +664,7 @@ def test_index_labels_with_constraint_returns_correct_value():
     assert sum(only) == 2
 
 
-def test_index_label_rejects_out_of_range():
+def test_index_labels_reject_out_of_range():
     """An index label referencing a non-existent tuple position is rejected."""
     generate = core_attr("generate")
     tree = Tuple[int, int]
