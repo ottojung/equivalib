@@ -1,58 +1,77 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Annotated, Tuple
+from typing import Iterator
 
-from equivalib import Super, ValueRange, generate_instances
-from equivalib.core import Regex, generate
+from equivalib.core import BooleanExpression, Extension, Regex, generate
+from equivalib.core.expression import Expression
 
 
-class HexPairWithDigit(Regex):
+class TicketCode(Regex):
     @staticmethod
     def expression() -> str:
-        return r"[A-F]{2}\d"
+        return r"(AB|CD)\d{2}"
 
 
-def test_interesting_regex_finite_language_is_enumerated():
-    values = generate(HexPairWithDigit)
+class PythagoreanTriple(Extension):
+    def __init__(self, value: tuple[int, int, int]):
+        self.value = value
 
-    assert len(values) == 6 * 6 * 10
-    assert HexPairWithDigit("AA0") in values
-    assert HexPairWithDigit("FF9") in values
+    def __hash__(self) -> int:
+        return hash(self.value)
 
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, PythagoreanTriple) and self.value == other.value
 
-def test_interesting_huge_boolean_tree_collapses_to_one_arbitrary_witness():
-    tree = Tuple[tuple(Annotated[bool, Super] for _ in range(20))]
+    @staticmethod
+    def initialize(tree: object, constraint: Expression) -> None:
+        del tree, constraint
 
-    values = set(generate_instances(tree))
+    @staticmethod
+    def enumerate_all(tree: object, constraint: Expression, address: str | None) -> Iterator[PythagoreanTriple]:
+        del tree, constraint, address
+        limit = 30
+        for a in range(1, limit + 1):
+            for b in range(a, limit + 1):
+                for c in range(b, limit + 1):
+                    if (a * a) + (b * b) == (c * c):
+                        yield PythagoreanTriple((a, b, c))
 
-    assert len(values) == 1
-    only = next(iter(values))
-    assert isinstance(only, tuple)
-    assert len(only) == 20
-    assert set(only).issubset({False, True})
+    @staticmethod
+    def arbitrary(tree: object, constraint: Expression, address: str | None) -> PythagoreanTriple | None:
+        del tree, constraint, address
+        return PythagoreanTriple((3, 4, 5))
 
-
-@dataclass(frozen=True)
-class SumToHundred:
-    x0: Annotated[int, ValueRange(0, 999), Super]
-    x1: Annotated[int, ValueRange(0, 999), Super]
-    x2: Annotated[int, ValueRange(0, 999), Super]
-    x3: Annotated[int, ValueRange(0, 999), Super]
-    x4: Annotated[int, ValueRange(0, 999), Super]
-    x5: Annotated[int, ValueRange(0, 999), Super]
-    x6: Annotated[int, ValueRange(0, 999), Super]
-    x7: Annotated[int, ValueRange(0, 999), Super]
-    x8: Annotated[int, ValueRange(0, 999), Super]
-    x9: Annotated[int, ValueRange(0, 999), Super]
-
-    def __post_init__(self):
-        assert self.x0 + self.x1 + self.x2 + self.x3 + self.x4 + self.x5 + self.x6 + self.x7 + self.x8 + self.x9 == 100
+    @staticmethod
+    def uniform_random(tree: object, constraint: Expression, address: str | None) -> PythagoreanTriple | None:
+        del tree, constraint, address
+        return PythagoreanTriple((8, 15, 17))
 
 
-def test_interesting_sat_constrained_large_domain_finds_a_witness():
-    values = set(generate_instances(SumToHundred))
+def test_interesting_single_boolean_value_generation():
+    values = generate(bool)
 
-    assert len(values) == 1
-    item = next(iter(values))
-    assert sum((item.x0, item.x1, item.x2, item.x3, item.x4, item.x5, item.x6, item.x7, item.x8, item.x9)) == 100
+    assert values == {False, True}
+
+
+def test_interesting_tuple_of_booleans_generation():
+    values = generate(tuple[bool, bool])
+
+    assert values == {(False, False), (False, True), (True, False), (True, True)}
+
+
+def test_interesting_ticket_code_regex_language():
+    values = generate(TicketCode)
+
+    assert len(values) == 200
+    assert TicketCode("AB00") in values
+    assert TicketCode("CD99") in values
+
+
+def test_interesting_pythagorean_triples_extension_generation():
+    triples = generate(PythagoreanTriple, BooleanExpression(True))
+
+    unpacked = {item.value for item in triples}
+    assert (3, 4, 5) in unpacked
+    assert (5, 12, 13) in unpacked
+    assert (20, 21, 29) in unpacked
+    assert all((a * a) + (b * b) == (c * c) for a, b, c in unpacked)
