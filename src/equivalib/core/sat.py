@@ -11,9 +11,17 @@ representing one satisfying assignment.
 
 from __future__ import annotations
 
-from typing import Any, Literal, Mapping
+from typing import Any, Literal, Mapping, TYPE_CHECKING
 
 from ortools.sat.python import cp_model
+
+if TYPE_CHECKING:
+    class _CpSolverSolutionCallbackBase:
+        def __init__(self) -> None: ...
+
+        def value(self, var: object) -> int: ...
+else:
+    _CpSolverSolutionCallbackBase = cp_model.CpSolverSolutionCallback
 
 from equivalib.core.expression import (
     BooleanConstant,
@@ -489,7 +497,7 @@ def _solve_sat(
 
     if needs_all_solutions:
         # Enumerate all solutions with a solution callback.
-        class _SolutionCollector(cp_model.CpSolverSolutionCallback):  # type: ignore[misc]
+        class _SolutionCollector(_CpSolverSolutionCallbackBase):
             def __init__(self, variables: dict[str, Any], kinds: dict[str, str]) -> None:
                 super().__init__()
                 self._variables = variables

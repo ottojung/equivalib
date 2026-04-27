@@ -2,13 +2,13 @@
 
 ## Slide 1 — Why this library exists
 
-- Most bugs live in **combinations**, not isolated values.
-- Hand-picking examples misses edge interactions.
-- `equivalib` lets us describe a value space and generate concrete cases systematically.
+- Most test failures come from **interactions**, not isolated values.
+- Handwritten fixtures miss combinations.
+- `equivalib` generates concrete cases from declarative models.
 
 ---
 
-## Slide 2 — Smallest possible example (one boolean)
+## Slide 2 — Easiest start: one boolean
 
 ```python
 from equivalib.core import generate
@@ -17,17 +17,14 @@ values = generate(bool)
 # => {False, True}
 ```
 
-This is the base mental model: describe a type, get the concrete values.
-
 ---
 
-## Slide 3 — Next step (tuple of booleans)
+## Slide 3 — Next: a tuple of booleans
 
 ```python
-from typing import Tuple
 from equivalib.core import generate
 
-values = generate(Tuple[bool, bool])
+values = generate(tuple[bool, bool])
 # => {
 #      (False, False),
 #      (False, True),
@@ -36,26 +33,21 @@ values = generate(Tuple[bool, bool])
 #    }
 ```
 
-Now we already see interaction coverage (all pairwise boolean combinations).
-
 ---
 
-## Slide 4 — Direct indexing on generated structures
+## Slide 4 — Direct indexing on generated values
 
 ```python
-from typing import Tuple
 from equivalib.core import generate
 
-values = generate(Tuple[bool, bool])
-only_true_first = {item for item in values if item[0] is True}
+values = generate(tuple[bool, bool])
+only_true_first = {item for item in values if item[0]}
 # => {(True, False), (True, True)}
 ```
 
-Use direct indexing (`item[0]`, `item[1]`) when discussing tuple positions.
-
 ---
 
-## Slide 5 — Core extension example: finite regex language
+## Slide 5 — Extension example: finite regex language
 
 ```python
 from equivalib.core import Regex, generate
@@ -66,71 +58,38 @@ class TicketCode(Regex):
         return r"(AB|CD)\d{2}"
 
 codes = generate(TicketCode)
-# 200 total values: AB00..AB99 and CD00..CD99
+# => 200 values: AB00..AB99 and CD00..CD99
 ```
-
-This is great for IDs/tokens without hardcoding large fixture lists.
 
 ---
 
-## Slide 6 — Harder extension: Pythagorean triples
+## Slide 6 — SAT example: Pythagorean triples in a large integer domain
 
 ```python
-from typing import Iterator
-from equivalib.core import Extension, BooleanExpression, generate
-from equivalib.core.expression import Expression
-
-class PythagoreanTriple(Extension):
-    def __init__(self, value: tuple[int, int, int]):
-        self.value = value
-
-    def __hash__(self) -> int:
-        return hash(self.value)
-
-    def __eq__(self, other: object) -> bool:
-        return isinstance(other, PythagoreanTriple) and self.value == other.value
-
-    @staticmethod
-    def initialize(tree: object, constraint: Expression) -> None:
-        del tree, constraint
-
-    @staticmethod
-    def enumerate_all(tree: object, constraint: Expression, address: str | None) -> Iterator["PythagoreanTriple"]:
-        del tree, constraint, address
-        for a in range(1, 31):
-            for b in range(a, 31):
-                for c in range(b, 31):
-                    if (a * a) + (b * b) == (c * c):
-                        yield PythagoreanTriple((a, b, c))
-
-    @staticmethod
-    def arbitrary(tree: object, constraint: Expression, address: str | None) -> "PythagoreanTriple" | None:
-        del tree, constraint, address
-        return PythagoreanTriple((3, 4, 5))
-
-    @staticmethod
-    def uniform_random(tree: object, constraint: Expression, address: str | None) -> "PythagoreanTriple" | None:
-        del tree, constraint, address
-        return PythagoreanTriple((8, 15, 17))
-
-triples = generate(PythagoreanTriple, BooleanExpression(True))
+triples = generate_pythagorean_triples(limit=30)
 # includes (3, 4, 5), (5, 12, 13), (20, 21, 29), ...
 ```
 
-This shows how to encode mathematical domains as reusable generators.
+`generate_pythagorean_triples` is implemented with core integer constraints and direct tuple-path indexing (`T[0]`, `T[1]`, `T[2]`) so SAT performs the search.
 
 ---
 
-## Slide 7 — Why this is practical for testing
+## Slide 7 — Large domain, one canonical witness
 
-- Start tiny (`bool`, then tuples).
-- Scale to realistic domains (regexes, math structures).
-- Keep examples executable as tests.
+```python
+values = generate_sum_to_hundred_witness()
+# => exactly one tuple witness with sum(value) == 100
+```
+
+This demonstrates the practical exhaustive-vs-canonical tradeoff on a huge constrained space.
 
 ---
 
 ## Slide 8 — Takeaway
 
-**equivalib helps teams move from ad-hoc examples to structured, reproducible value generation.**
+- Start small (`bool` → tuples).
+- Add realistic domains (regex).
+- Use SAT-backed constraints for hard spaces (Pythagorean triples, constrained sums).
+- Keep every example executable in tests.
 
-The examples above are intentionally ordered from easy to harder, and each one is mirrored in `tests/test_interesting.py`.
+All examples above are mirrored in `tests/test_interesting.py`.
