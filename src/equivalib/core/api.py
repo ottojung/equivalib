@@ -159,10 +159,12 @@ def generate(
 
     # 8. Fast path: no named nodes
     if not contains_name(node):
-        satisfied = eval_expression(constraint_eff, {})
-        if satisfied is not True:
-            return set()
-        return cast("set[GenerateT]", set(_values_node(node)))
+        result: set[GenerateT] = set()
+        for value in _values_node(node):
+            satisfied = eval_expression(constraint_eff, {None: value})
+            if satisfied is True:
+                result.add(cast(GenerateT, value))
+        return result
 
     # 9. Exact satisfying-assignment search (S0)
     assignments = search(node, constraint_eff, methods)

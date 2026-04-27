@@ -5,6 +5,7 @@ Public API surface:
     values           – finite denotation for name-free types
     Name             – symbolic identity marker
     BooleanExpression – convenience constructor (returns BooleanConstant)
+    reference        – convenience reference constructor
     mentioned_labels  – collect labels from an expression
     impossible       – exhaustive-match sentinel (NoReturn)
 
@@ -23,6 +24,7 @@ from equivalib.core.expression import (
     BooleanConstant,
     IntegerConstant,
     Reference,
+    reference,
     Neg,
     Add,
     Sub,
@@ -58,6 +60,7 @@ __all__ = [
     "BooleanConstant",
     "IntegerConstant",
     "Reference",
+    "reference",
     "Neg",
     "Add",
     "Sub",

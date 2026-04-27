@@ -117,10 +117,17 @@ The canonical constraints on `Annotated[...]` are:
 - it MAY contain at most one `ValueRange(...)`
 - it MAY contain at most one `Name(...)`
 - if it contains `ValueRange(min, max)`, then `base` MUST be `int`
-- plain `int` MUST NOT appear unless it is immediately annotated with exactly one `ValueRange(...)`
+- every integer leaf MUST be finitely bounded, either directly (for example via
+  `ValueRange(min, max)`) or via numeric constraints on a valid `Reference(label, path)`
+  that points to that leaf
 - `label` MUST be a non-empty string
 
 The value space is finite by construction.
+
+Integer bounds are about the referenced leaf, not about whether the leaf itself
+has a `Name(...)`. For example, in `Annotated[Tuple[int, int], Name("T")]`,
+`Reference("T", (0,))` and `Reference("T", (1,))` MAY provide the required
+bounds for both integer components.
 
 ### Examples of valid trees
 
@@ -261,7 +268,7 @@ Expression :=
 Where:
 
 - `value` is a boolean or integer constant
-- `label` is a `Label`
+- `label` is either a `Label` or `None` (root reference)
 - `path` is a finite tuple of zero-based tuple indices (`0` = first element, `1` = second, etc.)
 
 Examples:
@@ -269,7 +276,10 @@ Examples:
 ```python
 Reference("X", ())
 Reference("X", (0,))
-Reference("X", (1, 0))
+Reference(None, (1, 0))
+reference("X")
+reference("X", 0)
+reference(1, 0)
 Eq(Reference("X", ()), Reference("Y", ()))
 And(Lt(Reference("X", ()), Reference("Y", ())), Gt(Reference("X", ()), IntegerConstant(0)))
 Or(
@@ -290,7 +300,7 @@ Or(
 
 `Reference(label, path)` means:
 
-- first take the assigned runtime value of `label`
+- if `label is None`, start from the root generated value; otherwise start from the assigned runtime value of `label`
 - then follow the tuple indices in `path`
 
 Address evaluation MUST fail if any step:
@@ -301,7 +311,7 @@ Address evaluation MUST fail if any step:
 
 ### Mentioned labels
 
-Define `mentioned_labels(expr)` recursively as the set of labels occurring in `Reference(label, path)` nodes.
+Define `mentioned_labels(expr)` recursively as the set of non-`None` labels occurring in `Reference(label, path)` nodes.
 
 This notion is used later when defining which labels must participate in constraint solving.
 
