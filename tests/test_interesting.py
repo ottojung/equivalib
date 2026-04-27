@@ -27,9 +27,9 @@ class TicketCode(Regex):
 
 def generate_pythagorean_triples(limit: int) -> set[tuple[int, int, int]]:
     tree = tuple[int, int, int]
-    a = reference("T", 0)
-    b = reference("T", 1)
-    c = reference("T", 2)
+    a = reference(0)
+    b = reference(1)
+    c = reference(2)
 
     bounds = And(
         And(Ge(a, IntegerConstant(1)), Le(a, IntegerConstant(limit))),
@@ -41,7 +41,7 @@ def generate_pythagorean_triples(limit: int) -> set[tuple[int, int, int]]:
     ordered = And(Le(a, b), Le(b, c))
     pythagorean = Eq(Add(Mul(a, a), Mul(b, b)), Mul(c, c))
 
-    return generate(tree, And(bounds, And(ordered, pythagorean)), {"T": "all"})
+    return generate(tree, And(bounds, And(ordered, pythagorean)))
 
 
 def generate_sum_to_hundred_witness() -> set[tuple[int, ...]]:
