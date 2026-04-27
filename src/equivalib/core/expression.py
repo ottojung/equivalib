@@ -34,10 +34,7 @@ class Reference:
     """
 
     label: Optional[str]
-    path: Sequence[int] = ()
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "path", tuple(self.path))
+    path: Sequence[int]
 
 
 def reference(first: str | int, *rest: int) -> Reference:
