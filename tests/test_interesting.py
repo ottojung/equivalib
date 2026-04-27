@@ -45,12 +45,12 @@ def generate_pythagorean_triples(limit: int) -> set[tuple[int, int, int]]:
 
 
 def generate_sum_to_hundred_witness() -> set[tuple[int, ...]]:
-    tree = Annotated[tuple[int, int, int, int, int, int, int, int, int, int], Name("X")]
-    refs = [reference("X", i) for i in range(10)]
+    tree = tuple[int, int, int, int, int, int, int, int, int, int]
+    refs = [reference(i) for i in range(10)]
 
     bounded: And | None = None
     for ref in refs:
-        per_ref = And(Ge(ref, IntegerConstant(0)), Le(ref, IntegerConstant(999)))
+        per_ref = And(Ge(ref, IntegerConstant(0)), Le(ref, IntegerConstant(1)))
         bounded = per_ref if bounded is None else And(bounded, per_ref)
 
     sum_expr: Expression = refs[0]
@@ -59,7 +59,7 @@ def generate_sum_to_hundred_witness() -> set[tuple[int, ...]]:
 
     assert bounded is not None
     constrained = And(bounded, Eq(sum_expr, IntegerConstant(100)))
-    return generate(tree, constrained, {"X": "arbitrary"})
+    return generate(tree, constrained, {"[0]": "arbitrary", "[1]": "arbitrary", "[2]": "arbitrary", "[3]": "arbitrary", "[4]": "arbitrary", "[5]": "arbitrary", "[6]": "arbitrary", "[7]": "arbitrary", "[8]": "arbitrary", "[9]": "arbitrary"})
 
 
 def test_interesting_single_boolean_value_generation():
