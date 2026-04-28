@@ -8,6 +8,7 @@ from typing import Annotated, Any, Literal, Tuple, Union, cast
 import pytest
 
 from equivalib.core.cache import is_constraint_independent, is_guaranteed_cacheable, is_label_closed
+from equivalib.core.line_intervals_set import LineIntervalsSet, _canonical_signature, _relation_code
 from equivalib.core.domains import _type_aware_intersect, domain_map
 from equivalib.core.eval import Unknown, _structural_eq, eval_expression, eval_expression_partial
 from equivalib.core.expression import (
@@ -1914,6 +1915,166 @@ def test_generate_arbitrary_integer_equality_class_representatives_up_to_four_va
     assert {
         _canonical_integer_equality_signature(representative) for representative in representatives
     } == expected_signatures
+
+
+# -------------------------------------------------------------------------
+# LineIntervalsSet tests
+# -------------------------------------------------------------------------
+
+
+class _ZeroIntervalsUpTo5(LineIntervalsSet):
+    @classmethod
+    def number_of_intervals(cls) -> int:
+        return 0
+
+    @classmethod
+    def range_minimum(cls) -> int:
+        return 0
+
+    @classmethod
+    def range_maximum(cls) -> int:
+        return 5
+
+
+class _OneIntervalUpTo5(LineIntervalsSet):
+    @classmethod
+    def number_of_intervals(cls) -> int:
+        return 1
+
+    @classmethod
+    def range_minimum(cls) -> int:
+        return 0
+
+    @classmethod
+    def range_maximum(cls) -> int:
+        return 5
+
+
+class _TwoIntervalsUpTo5(LineIntervalsSet):
+    @classmethod
+    def number_of_intervals(cls) -> int:
+        return 2
+
+    @classmethod
+    def range_minimum(cls) -> int:
+        return 0
+
+    @classmethod
+    def range_maximum(cls) -> int:
+        return 5
+
+
+class _ThreeIntervalsUpTo10(LineIntervalsSet):
+    @classmethod
+    def number_of_intervals(cls) -> int:
+        return 3
+
+    @classmethod
+    def range_minimum(cls) -> int:
+        return 0
+
+    @classmethod
+    def range_maximum(cls) -> int:
+        return 10
+
+
+def test_line_intervals_set_zero_intervals_yields_one_empty_representative():
+    generate = core_attr("generate")
+    result = generate(_ZeroIntervalsUpTo5)
+    assert result == {_ZeroIntervalsUpTo5(())}
+
+
+def test_line_intervals_set_one_interval_yields_one_representative():
+    generate = core_attr("generate")
+    result = generate(_OneIntervalUpTo5)
+    assert len(result) == 1
+    only = next(iter(result))
+    assert isinstance(only, _OneIntervalUpTo5)
+    assert len(only.intervals) == 1
+    start, end = only.intervals[0]
+    assert 0 <= start <= end <= 5
+
+
+def test_line_intervals_set_two_intervals_yields_four_representatives():
+    """Two intervals produce exactly 4 equivalence classes: touch, kiss, overlap, disjoint."""
+    generate = core_attr("generate")
+    result = generate(_TwoIntervalsUpTo5)
+    assert len(result) == 4
+    signatures = {_canonical_signature(r.intervals) for r in result}
+    assert len(signatures) == 4
+
+
+def test_line_intervals_set_representatives_are_all_distinct_equivalence_classes():
+    """No two representatives from generate() share the same canonical signature."""
+    generate = core_attr("generate")
+    result = generate(_TwoIntervalsUpTo5)
+    signatures = [_canonical_signature(r.intervals) for r in result]
+    assert len(signatures) == len(set(signatures))
+
+
+def test_line_intervals_set_three_intervals_covers_expected_equivalence_classes():
+    """Three-interval representatives match the equivalence classes from the manual computation."""
+    generate = core_attr("generate")
+    result = generate(_ThreeIntervalsUpTo10)
+    # Each representative must have valid intervals (start <= end, in range)
+    for rep in result:
+        assert isinstance(rep, _ThreeIntervalsUpTo10)
+        assert len(rep.intervals) == 3
+        for start, end in rep.intervals:
+            assert 0 <= start <= end <= 10
+    # All canonical signatures must be distinct
+    signatures = [_canonical_signature(r.intervals) for r in result]
+    assert len(signatures) == len(set(signatures))
+
+
+def test_line_intervals_set_three_intervals_count_matches_manual_computation():
+    """LineIntervalsSet with 3 intervals must produce the same number of classes as the manual approach."""
+    generate = core_attr("generate")
+    result = generate(_ThreeIntervalsUpTo10)
+    # Expected: signatures for 3-interval sets using _independent_interval_relation_signatures
+    expected_3_interval_signatures = {
+        sig for sig in _independent_interval_relation_signatures(reduced_coordinate_max=10) if sig[0] == 3
+    }
+    assert len(result) == len(expected_3_interval_signatures)
+
+
+def test_line_intervals_set_relation_code_helper_identifies_all_four_types():
+    assert _relation_code((0, 1), (1, 2)) == 0  # touch
+    assert _relation_code((0, 0), (1, 1)) == 1  # kiss
+    assert _relation_code((0, 2), (1, 3)) == 2  # overlap
+    assert _relation_code((0, 0), (2, 2)) == 3  # disjoint
+
+
+def test_line_intervals_set_arbitrary_returns_one_result():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+
+    tree = Annotated[_TwoIntervalsUpTo5, Name("I")]
+    result = generate(tree, methods={"I": "arbitrary"})
+    assert len(result) == 1
+    only = next(iter(result))
+    assert isinstance(only, _TwoIntervalsUpTo5)
+    assert len(only.intervals) == 2
+
+
+def test_line_intervals_set_uniform_random_returns_one_result():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+
+    tree = Annotated[_TwoIntervalsUpTo5, Name("I")]
+    with random_seed(0):
+        result = generate(tree, methods={"I": "uniform_random"})
+    assert len(result) == 1
+    only = next(iter(result))
+    assert isinstance(only, _TwoIntervalsUpTo5)
+    assert len(only.intervals) == 2
+
+
+def test_line_intervals_set_canonical_signature_is_invariant_under_permutation():
+    intervals = ((0, 1), (2, 3), (1, 2))
+    sig_original = _canonical_signature(intervals)
+    for perm in permutations(intervals):
+        assert _canonical_signature(perm) == sig_original
 
 
 def test_example13():

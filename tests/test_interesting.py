@@ -10,6 +10,7 @@ from equivalib.core import (
     Ge,
     IntegerConstant,
     Le,
+    LineIntervalsSet,
     Mul,
     Name,
     Regex,
@@ -128,3 +129,36 @@ def test_interesting_boolean_expression_true_is_unconstrained():
     values = generate(bool, BooleanExpression(True))
 
     assert values == {False, True}
+
+
+class PairsUpTo5(LineIntervalsSet):
+    @classmethod
+    def number_of_intervals(cls) -> int:
+        return 2
+
+    @classmethod
+    def range_minimum(cls) -> int:
+        return 0
+
+    @classmethod
+    def range_maximum(cls) -> int:
+        return 5
+
+
+def test_interesting_line_intervals_set_two_intervals_four_classes():
+    """Generating PairsUpTo5 yields one representative per equivalence class.
+
+    Two integer intervals can relate in exactly four ways:
+    touch (shared endpoint), kiss (adjacent but not overlapping), overlap,
+    or disjoint — so there are exactly 4 representatives.
+    """
+    representatives = generate(PairsUpTo5)
+
+    assert len(representatives) == 4
+    for rep in representatives:
+        start_a, end_a = rep.intervals[0]
+        start_b, end_b = rep.intervals[1]
+        assert start_a <= end_a
+        assert start_b <= end_b
+        assert 0 <= start_a and end_a <= 5
+        assert 0 <= start_b and end_b <= 5

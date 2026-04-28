@@ -9,6 +9,11 @@ Public API surface:
     mentioned_labels  – collect labels from an expression
     impossible       – exhaustive-match sentinel (NoReturn)
 
+Extension base classes:
+    Extension        – abstract base for custom leaf types
+    Regex            – base for finite regex languages
+    LineIntervalsSet – base for generating non-equivalent integer interval sets
+
 Expression AST constructors:
     BooleanConstant, IntegerConstant, Reference
     Neg, Add, Sub, Mul, FloorDiv, Mod
@@ -48,12 +53,14 @@ from equivalib.core.domains import values
 from equivalib.core.cache import mentioned_labels
 from equivalib.core.extension import Extension
 from equivalib.core.regex import Regex
+from equivalib.core.line_intervals_set import LineIntervalsSet
 
 __all__ = [
     "generate",
     "values",
     "Extension",
     "Regex",
+    "LineIntervalsSet",
     "Name",
     "Expression",
     "BooleanExpression",
