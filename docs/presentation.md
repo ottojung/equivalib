@@ -96,7 +96,7 @@ values = generate(Union[Literal[1, 2, 3], bool])
 # => {False, True, 1, 2, 3}
 ```
 
-Union deduplicates across branches using Python's standard identity rules.
+Union deduplicates across branches using normal Python set semantics (hash/equality).
 
 ---
 
@@ -166,7 +166,7 @@ values = generate_sum_to_hundred_witness()
 # => exactly one tuple witness (10 binary values summing to 5)
 ```
 
-Using `{"X": "arbitrary"}` asks for one deterministic witness instead of exhaustive enumeration.
+Using `{"[0]": "arbitrary", "[1]": "arbitrary", ...}` asks for one deterministic witness instead of exhaustive enumeration.
 
 ---
 
@@ -174,7 +174,7 @@ Using `{"X": "arbitrary"}` asks for one deterministic witness instead of exhaust
 
 ```python
 from typing import Annotated
-from equivalib.core import generate, And, Gt, Name
+from equivalib.core import generate, And, Ge, Gt, IntegerConstant, Le, Name
 from equivalib.core.expression import reference
 
 tree = tuple[Annotated[int, Name("X")], Annotated[int, Name("Y")]]

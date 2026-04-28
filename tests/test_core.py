@@ -8,7 +8,7 @@ from typing import Annotated, Any, Literal, Tuple, Union, cast
 import pytest
 
 from equivalib.core.cache import is_constraint_independent, is_guaranteed_cacheable, is_label_closed
-from equivalib.core.line_intervals_set import LineIntervalsSet, _canonical_signature, _relation_code
+from equivalib.core.line_intervals_set import LineIntervalsSet, _MAX_INTERVALS_FOR_CANONICALIZATION, _canonical_signature, _relation_code
 from equivalib.core.domains import _type_aware_intersect, domain_map
 from equivalib.core.eval import Unknown, _structural_eq, eval_expression, eval_expression_partial
 from equivalib.core.expression import (
@@ -2075,6 +2075,86 @@ def test_line_intervals_set_canonical_signature_is_invariant_under_permutation()
     sig_original = _canonical_signature(intervals)
     for perm in permutations(intervals):
         assert _canonical_signature(perm) == sig_original
+
+
+def test_line_intervals_set_uniform_random_is_not_always_same():
+    """uniform_random must not always return the same representative."""
+
+    class _FourIntervals(LineIntervalsSet):
+        @classmethod
+        def number_of_intervals(cls) -> int:
+            return 2
+
+        @classmethod
+        def range_minimum(cls) -> int:
+            return 0
+
+        @classmethod
+        def range_maximum(cls) -> int:
+            return 5
+
+    results: set[tuple[tuple[int, int], ...]] = set()
+    for seed in range(50):
+        with random_seed(seed):
+            val = _FourIntervals.uniform_random(None, BooleanConstant(True), None)
+        assert val is not None
+        results.add(val.intervals)
+    # With 4 equivalence classes and 50 different seeds we must see at least 2 distinct outcomes
+    assert len(results) >= 2
+
+
+def test_line_intervals_set_negative_count_raises_value_error():
+    class _Bad(LineIntervalsSet):
+        @classmethod
+        def number_of_intervals(cls) -> int:
+            return -1
+
+        @classmethod
+        def range_minimum(cls) -> int:
+            return 0
+
+        @classmethod
+        def range_maximum(cls) -> int:
+            return 5
+
+    with pytest.raises(ValueError, match="number_of_intervals"):
+        list(_Bad._enumerate_representatives())
+
+
+def test_line_intervals_set_min_gt_max_raises_value_error():
+    class _Bad(LineIntervalsSet):
+        @classmethod
+        def number_of_intervals(cls) -> int:
+            return 1
+
+        @classmethod
+        def range_minimum(cls) -> int:
+            return 5
+
+        @classmethod
+        def range_maximum(cls) -> int:
+            return 3
+
+    with pytest.raises(ValueError, match="range_minimum"):
+        list(_Bad._enumerate_representatives())
+
+
+def test_line_intervals_set_too_many_intervals_raises_value_error():
+    class _Bad(LineIntervalsSet):
+        @classmethod
+        def number_of_intervals(cls) -> int:
+            return _MAX_INTERVALS_FOR_CANONICALIZATION + 1
+
+        @classmethod
+        def range_minimum(cls) -> int:
+            return 0
+
+        @classmethod
+        def range_maximum(cls) -> int:
+            return 5
+
+    with pytest.raises(ValueError, match="number_of_intervals"):
+        list(_Bad._enumerate_representatives())
 
 
 def test_example13():
