@@ -54,10 +54,21 @@ ExprType: TypeAlias = str
 
 
 def _is_index_label(key: str) -> bool:
-    """Return True if ``key`` is an index-style method key like ``'[0]'``, ``'[42]'``."""
+    """Return True if ``key`` is a canonical index-style method key like ``'[0]'``, ``'[42]'``.
+
+    Only canonical decimal representations are accepted: ``'[0]'`` is valid,
+    but ``'[00]'`` or ``'[01]'`` are not (no leading zeros allowed).
+    """
     if not (key.startswith("[") and key.endswith("]")):
         return False
-    return key[1:-1].isdigit()
+    inner = key[1:-1]
+    if not inner.isdigit():
+        return False
+    # Reject leading-zero forms: "00", "01", etc.  The only valid single-char
+    # case is "0" itself; multi-char strings must not start with "0".
+    if len(inner) > 1 and inner[0] == "0":
+        return False
+    return True
 
 
 def _validate_unnamed_methods(node: IRNode, index_keys: set[str], has_root: bool) -> None:

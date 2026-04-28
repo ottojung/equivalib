@@ -92,6 +92,28 @@ def _parse_index_methods(methods: Mapping[Label, Method]) -> dict[int, str]:
     return result
 
 
+def _needs_unnamed_filtering(methods: Mapping[Label, Method]) -> bool:
+    """Return True if ``methods`` contains any non-``"all"`` unnamed-tree key.
+
+    When this returns False the entire satisfying set can be streamed directly
+    to a ``set`` without materializing an intermediate list.
+    """
+    if not isinstance(methods, Mapping):
+        return False
+    root_method = methods.get("")
+    if root_method is not None and root_method != "all":
+        return True
+    for key, method in methods.items():
+        if (
+            isinstance(key, str)
+            and key.startswith("[")
+            and key.endswith("]")
+            and key[1:-1].isdigit()
+            and method != "all"
+        ):
+            return True
+    return False
+
 def _pick_witness(values: list[object], method: str) -> object:
     """Return a single representative value from ``values`` according to ``method``.
 
@@ -253,13 +275,18 @@ def generate(
     # 7. Validate tree (requires bounds to have been filled)
     validate_tree(node)
 
-    # 8. Unnamed-tree path (no named nodes): enumerate satisfying values and
-    #    apply any index/root method selection on the result set.
+    # 8. Unnamed-tree path (no named nodes): enumerate satisfying values.
+    #    When no index/root filtering is needed we stream directly into a set
+    #    to avoid a redundant list allocation; otherwise we materialise a list
+    #    so that _apply_unnamed_methods can select a positional witness.
     if not contains_name(node):
-        satisfying = [
+        satisfying_iter = (
             value for value in _values_node(node)
             if eval_expression(constraint_eff, {None: value}) is True
-        ]
+        )
+        if not _needs_unnamed_filtering(methods):
+            return cast(set[GenerateT], set(satisfying_iter))
+        satisfying = list(satisfying_iter)
         return cast(set[GenerateT], set(_apply_unnamed_methods(satisfying, methods, node)))
 
     # 9. Exact satisfying-assignment search (S0)
