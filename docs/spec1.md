@@ -360,10 +360,19 @@ unknown label.
 
 ### Priority rule
 
-If the root is a `Tuple` and the `methods` dict contains any index-style key `"[i]"`,
-index-style label translation takes priority over root-label translation (even if `""`
-is also present).  If the root is not a `Tuple`, index-style keys are invalid labels and
-MUST be rejected.
+Combining root and index labels on the same unnamed tuple root is invalid.
+
+If the root is a `Tuple` and `methods` contains any index-style key `"[i]"`,
+the root label `""` MUST NOT also be present in `methods`.  A compliant implementation
+MUST reject this combination with a `ValueError`.
+
+If `methods` contains only index-style keys (no `""`), index-style label translation is
+applied: each tuple element `i` is wrapped in `NamedNode(f"[{i}]", ...)`.
+
+If `methods` contains only `""` (no index-style keys), or if the root is not a `Tuple`,
+the whole root is wrapped in `NamedNode("", ...)`.
+
+If the root is not a `Tuple`, index-style keys are invalid labels and MUST be rejected.
 
 
 ## Denotation of Unnamed Trees

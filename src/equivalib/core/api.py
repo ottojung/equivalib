@@ -91,7 +91,7 @@ def _is_index_label(label: str) -> bool:
 
 def _rewrite_refs(
     expr: Expression,
-    index_map: dict[int, str],
+    index_mode: bool,
     has_root: bool,
 ) -> Expression:
     """Recursively rewrite ``Reference(None, path)`` to use virtual label names.
@@ -99,25 +99,28 @@ def _rewrite_refs(
     When ``has_root`` is True, ``Reference(None, path)`` becomes
     ``Reference("", path)`` (root label).
 
-    When ``index_map`` is non-empty, ``Reference(None, (i, *rest))`` becomes
-    ``Reference("[i]", rest)`` for every ``i`` present in ``index_map``.
+    When ``index_mode`` is True, every ``Reference(None, (i, *rest))`` becomes
+    ``Reference(f"[{i}]", rest)``.  This includes out-of-range indices so that
+    normal label validation can report the real error ("unknown label '[5]'")
+    rather than the misleading "root/index-only references are not supported
+    when the tree has named labels" message.
     """
     if isinstance(expr, (BooleanConstant, IntegerConstant)):
         return expr
     if isinstance(expr, Reference):
         if expr.label is None:
             path = tuple(expr.path)
-            if path and path[0] in index_map:
-                return Reference(index_map[path[0]], path[1:])
+            if index_mode and path and isinstance(path[0], int):
+                return Reference(f"[{path[0]}]", path[1:])
             if has_root:
                 return Reference("", path)
         return expr
     if isinstance(expr, Neg):
-        new_op = _rewrite_refs(expr.operand, index_map, has_root)
+        new_op = _rewrite_refs(expr.operand, index_mode, has_root)
         return Neg(new_op) if new_op is not expr.operand else expr
     if isinstance(expr, (Add, Sub, Mul, FloorDiv, Mod, Eq, Ne, Lt, Le, Gt, Ge, And, Or)):
-        new_l = _rewrite_refs(expr.left, index_map, has_root)
-        new_r = _rewrite_refs(expr.right, index_map, has_root)
+        new_l = _rewrite_refs(expr.left, index_mode, has_root)
+        new_r = _rewrite_refs(expr.right, index_mode, has_root)
         if new_l is expr.left and new_r is expr.right:
             return expr
         return type(expr)(new_l, new_r)
@@ -155,22 +158,35 @@ def _translate_virtual_labels(
     annotations), because named-label and virtual-label addressing must not
     be mixed on the same tree.
     """
-    if not methods:
+    # Guard: if methods is not a Mapping or has non-str keys, let validate_methods
+    # handle it with the correct error type/message.
+    if not isinstance(methods, Mapping):
+        return node, constraint
+    str_keys = {lbl for lbl in methods if isinstance(lbl, str)}
+
+    if not str_keys:
         return node, constraint
 
     # Don't interfere when the tree already carries explicit named labels.
     if _tree_labels(node):
         return node, constraint
 
-    has_root = "" in methods
-    index_labels = {lbl for lbl in methods if _is_index_label(lbl)}
+    has_root = "" in str_keys
+    index_labels = {lbl for lbl in str_keys if _is_index_label(lbl)}
 
     if not has_root and not index_labels:
         return node, constraint
 
-    index_map: dict[int, str] = {}
-
     if index_labels and isinstance(node, TupleNode):
+        # Reject the combination of root label and index labels on the same
+        # unnamed tuple root with a targeted error message.
+        if has_root:
+            raise ValueError(
+                "Cannot combine the root label \"\" with index-style labels "
+                f"({sorted(index_labels)!r}) on the same unnamed tuple root. "
+                "Use either \"\" (for the tuple as a whole) or \"[i]\" labels "
+                "(for individual elements), but not both."
+            )
         # Wrap ALL tuple elements with virtual NamedNodes so that root-index
         # References in the constraint can be rewritten uniformly, even when
         # only a subset of elements appear in methods (partial coverage).
@@ -180,15 +196,14 @@ def _translate_virtual_labels(
             label = f"[{idx}]"
             if not isinstance(item, NamedNode):
                 items[idx] = NamedNode(label, item)
-                index_map[idx] = label
         new_node: IRNode = TupleNode(tuple(items))
-        new_constraint = _rewrite_refs(constraint, index_map, False)
+        new_constraint = _rewrite_refs(constraint, True, False)
         return new_node, new_constraint
 
     if has_root and not isinstance(node, NamedNode):
         # Wrap the whole root in a virtual NamedNode("").
         new_node = NamedNode("", node)
-        new_constraint = _rewrite_refs(constraint, {}, True)
+        new_constraint = _rewrite_refs(constraint, False, True)
         return new_node, new_constraint
 
     return node, constraint
@@ -302,11 +317,11 @@ def generate(
         return set()
 
     # 11. Concretize each assignment into runtime values.
-    result: set[object] = set()
+    concrete_results: set[object] = set()
     for asgn in reduced:
-        result.update(concretize(node, asgn))
+        concrete_results.update(concretize(node, asgn))
 
-    return result  # type: ignore[return-value]
+    return concrete_results  # type: ignore[return-value]
 
 
 def _effective_constraint(node: IRNode, tree: Type[GenerateT], constraint: Expression) -> Expression:

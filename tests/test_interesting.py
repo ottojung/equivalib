@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, cast
+from typing import Annotated, Tuple, cast
 
 from equivalib.core import (
     Add,
@@ -26,7 +26,7 @@ class TicketCode(Regex):
 
 
 def generate_pythagorean_triples(limit: int) -> set[tuple[int, int, int]]:
-    tree = tuple[int, int, int]
+    tree = Tuple[int, int, int]
     a = reference(0)
     b = reference(1)
     c = reference(2)
@@ -41,11 +41,11 @@ def generate_pythagorean_triples(limit: int) -> set[tuple[int, int, int]]:
     ordered = And(Le(a, b), Le(b, c))
     pythagorean = Eq(Add(Mul(a, a), Mul(b, b)), Mul(c, c))
 
-    return generate(tree, And(bounds, And(ordered, pythagorean)))
+    return generate(tree, And(bounds, And(ordered, pythagorean)))  # type: ignore[arg-type]
 
 
 def generate_sum_to_hundred_witness() -> set[tuple[int, ...]]:
-    tree = tuple[int, int, int, int, int, int, int, int, int, int]
+    tree = Tuple[int, int, int, int, int, int, int, int, int, int]
     refs = [reference(i) for i in range(10)]
 
     bounded: And | None = None
@@ -59,7 +59,7 @@ def generate_sum_to_hundred_witness() -> set[tuple[int, ...]]:
 
     assert bounded is not None
     constrained = And(bounded, Eq(sum_expr, IntegerConstant(5)))
-    return generate(tree, constrained, {"[0]": "arbitrary", "[1]": "arbitrary", "[2]": "arbitrary", "[3]": "arbitrary", "[4]": "arbitrary", "[5]": "arbitrary", "[6]": "arbitrary", "[7]": "arbitrary", "[8]": "arbitrary", "[9]": "arbitrary"})
+    return generate(tree, constrained, {"[0]": "arbitrary", "[1]": "arbitrary", "[2]": "arbitrary", "[3]": "arbitrary", "[4]": "arbitrary", "[5]": "arbitrary", "[6]": "arbitrary", "[7]": "arbitrary", "[8]": "arbitrary", "[9]": "arbitrary"})  # type: ignore[arg-type]
 
 
 def test_interesting_single_boolean_value_generation():

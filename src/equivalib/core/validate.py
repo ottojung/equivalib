@@ -236,8 +236,8 @@ def _check_expr_type(
                 raise ValueError(
                     "Root/index-only references are only supported when the tree has no Name(...) labels."
                 )
-            _validate_address(None, expr.path, root_shape)
-            resolved_root = _resolve_shape(root_shape, expr.path)
+            _validate_address(None, tuple(expr.path), root_shape)
+            resolved_root = _resolve_shape(root_shape, tuple(expr.path))
             return _shape_type(resolved_root)
         if expr.label not in known_labels:
             raise ValueError(
@@ -245,8 +245,8 @@ def _check_expr_type(
                 f"Known labels: {sorted(known_labels)!r}."
             )
         if expr.label in label_shapes:
-            _validate_address(expr.label, expr.path, label_shapes[expr.label])
-            resolved = _resolve_shape(label_shapes[expr.label], expr.path)
+            _validate_address(expr.label, tuple(expr.path), label_shapes[expr.label])
+            resolved = _resolve_shape(label_shapes[expr.label], tuple(expr.path))
             return _shape_type(resolved)
         elif expr.path:
             raise ValueError(

@@ -673,6 +673,15 @@ def test_index_labels_reject_out_of_range():
         generate(tree, constraint, {"[5]": "all"})
 
 
+def test_index_labels_and_root_label_combination_rejected():
+    """Combining the root label "" with index-style labels on the same unnamed tuple is rejected."""
+    generate = core_attr("generate")
+    tree = Tuple[int, int]
+    constraint = And(Ge(ref(0), int_const(0)), Le(ref(0), int_const(1)))
+    with pytest.raises(ValueError, match='""'):
+        generate(tree, constraint, {"": "all", "[0]": "arbitrary"})
+
+
 
 def test_generate_rejects_constraint_on_missing_label():
     generate = core_attr("generate")
