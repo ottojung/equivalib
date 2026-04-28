@@ -15,8 +15,8 @@ _RELATION_KISS = 1
 _RELATION_OVERLAP = 2
 _RELATION_DISJOINT = 3
 
-# Canonicalization visits n! permutations.  Beyond this count the runtime becomes
-# noticeable; subclasses that need more intervals should override _canonical_signature.
+# Canonicalization visits n! permutations. Beyond this count the runtime becomes
+# noticeable, so keep representative generation to small interval counts.
 _MAX_INTERVALS_FOR_CANONICALIZATION = 8
 
 

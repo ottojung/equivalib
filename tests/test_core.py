@@ -2080,7 +2080,7 @@ def test_line_intervals_set_canonical_signature_is_invariant_under_permutation()
 def test_line_intervals_set_uniform_random_is_not_always_same():
     """uniform_random must not always return the same representative."""
 
-    class _FourIntervals(LineIntervalsSet):
+    class _TwoIntervals(LineIntervalsSet):
         @classmethod
         def number_of_intervals(cls) -> int:
             return 2
@@ -2096,7 +2096,7 @@ def test_line_intervals_set_uniform_random_is_not_always_same():
     results: set[tuple[tuple[int, int], ...]] = set()
     for seed in range(50):
         with random_seed(seed):
-            val = _FourIntervals.uniform_random(None, BooleanConstant(True), None)
+            val = _TwoIntervals.uniform_random(None, BooleanConstant(True), None)
         assert val is not None
         results.add(val.intervals)
     # With 4 equivalence classes and 50 different seeds we must see at least 2 distinct outcomes

@@ -92,8 +92,8 @@ values = generate(Literal["red", "green", "blue"])
 from typing import Literal, Union
 from equivalib.core import generate
 
-values = generate(Union[Literal[1, 2, 3], bool])
-# => {False, True, 1, 2, 3}
+values = generate(Union[Literal[2, 3, 4], bool])
+# => {False, True, 2, 3, 4}
 ```
 
 Union deduplicates across branches using normal Python set semantics (hash/equality).
