@@ -33,7 +33,7 @@ from equivalib.core.expression import (
     impossible,
 )
 from equivalib.core.normalize import normalize
-from equivalib.core.validate import validate_tree, validate_methods, validate_expression
+from equivalib.core.validate import validate_tree, validate_methods, validate_expression, _is_index_label
 from equivalib.core.types import (
     NoneNode,
     BoolNode,
@@ -87,7 +87,7 @@ def _parse_index_methods(methods: Mapping[Label, Method]) -> dict[int, str]:
     """Parse ``'[i]'``-style method keys into ``{position: method}`` pairs."""
     result: dict[int, str] = {}
     for key, method in methods.items():
-        if isinstance(key, str) and key.startswith("[") and key.endswith("]") and key[1:-1].isdigit():
+        if isinstance(key, str) and _is_index_label(key):
             result[int(key[1:-1])] = method
     return result
 
@@ -104,13 +104,7 @@ def _needs_unnamed_filtering(methods: Mapping[Label, Method]) -> bool:
     if root_method is not None and root_method != "all":
         return True
     for key, method in methods.items():
-        if (
-            isinstance(key, str)
-            and key.startswith("[")
-            and key.endswith("]")
-            and key[1:-1].isdigit()
-            and method != "all"
-        ):
+        if isinstance(key, str) and _is_index_label(key) and method != "all":
             return True
     return False
 
@@ -277,7 +271,7 @@ def generate(
 
     # 8. Unnamed-tree path (no named nodes): enumerate satisfying values.
     #    When no index/root filtering is needed we stream directly into a set
-    #    to avoid a redundant list allocation; otherwise we materialise a list
+    #    to avoid a redundant list allocation; otherwise we materialize a list
     #    so that _apply_unnamed_methods can select a positional witness.
     if not contains_name(node):
         satisfying_iter = (
