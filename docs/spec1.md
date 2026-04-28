@@ -331,8 +331,8 @@ compliant implementation MUST treat the whole root type as if it were wrapped in
 `Annotated[tree, Name("")]`.  That is, the root value is assigned the label `""` and the
 method `methods[""]` is applied to it as a unit.
 
-All `Reference(None, path)` expressions in the constraint are implicitly rewritten to
-`Reference("", path)` under this convention.
+Constraints over a root-labeled tree MUST use `reference("", i)` (i.e. `Reference("", (i,))`)
+to address element `i` of a tuple root, not the anonymous form `reference(i)`.
 
 The user MAY also make the root label explicit by writing `Annotated[base, Name("")]`.
 A `Name("")` annotation is only valid when it appears at the outermost (root) position of
@@ -340,20 +340,16 @@ the type tree; using it at any inner position MUST be rejected.
 
 ### Index-style labels
 
-For an unnamed `Tuple[t0, t1, ..., t_{n-1}]` root, each element `i` carries the
-**index-style label** `f"[{i}]"` (for example `"[0]"`, `"[1]"`, `"[9]"`, etc.).
+For an unnamed `Tuple[t0, t1, ..., t_{n-1}]` root, each element `i` can be addressed with
+the **index-style label** `f"[{i}]"` (for example `"[0]"`, `"[1]"`, `"[9]"`, etc.).
 
-When `methods` contains any key of the form `"[i]"` and the root is an unnamed
-`Tuple`, a compliant implementation MUST:
+When `methods` contains any key of the form `"[i]"` and the root is an unnamed `Tuple`,
+a compliant implementation MUST wrap every tuple element `i` in `NamedNode(f"[{i}]", ...)`.
+Elements not mentioned in `methods` still receive a label and default to method `"all"`.
 
-1. Treat element `i` as if it were wrapped in `Annotated[t_i, Name("[i]")]`.  Elements
-   that are not mentioned in `methods` also receive virtual labels (for constraint
-   rewriting purposes) and default to method `"all"`.
-2. Rewrite every `Reference(None, (i, *rest))` in the constraint to
-   `Reference("[i]", rest)` before validation and solving.
-
-This rewriting allows `reference(i)` (the short form `Reference(None, (i,))`) to address
-individual elements of an unnamed tuple by index, while still applying per-element methods.
+Constraints over an index-labeled tuple MUST use `reference("[i]")` (i.e.
+`Reference("[i]", ())`) to address each element.  The anonymous form `reference(i)` (which
+produces `Reference(None, (i,))`) is only valid for unnamed trees without any method labels.
 
 A method key `"[i]"` where `i` is out of range for the tuple MUST be rejected as an
 unknown label.
@@ -366,7 +362,7 @@ If the root is a `Tuple` and `methods` contains any index-style key `"[i]"`,
 the root label `""` MUST NOT also be present in `methods`.  A compliant implementation
 MUST reject this combination with a `ValueError`.
 
-If `methods` contains only index-style keys (no `""`), index-style label translation is
+If `methods` contains only index-style keys (no `""`), index-style label wrapping is
 applied: each tuple element `i` is wrapped in `NamedNode(f"[{i}]", ...)`.
 
 If `methods` contains only `""` (no index-style keys), or if the root is not a `Tuple`,

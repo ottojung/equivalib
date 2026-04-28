@@ -79,7 +79,7 @@ _EXPR_TYPES = (
 
 
 # ---------------------------------------------------------------------------
-# Virtual-label translation helpers
+# Label-injection helpers
 # ---------------------------------------------------------------------------
 
 def _is_index_label(label: str) -> bool:
@@ -89,93 +89,41 @@ def _is_index_label(label: str) -> bool:
     return label[1:-1].isdigit()
 
 
-def _rewrite_refs(
-    expr: Expression,
-    index_mode: bool,
-    has_root: bool,
-) -> Expression:
-    """Recursively rewrite ``Reference(None, path)`` to use virtual label names.
-
-    When ``has_root`` is True, ``Reference(None, path)`` becomes
-    ``Reference("", path)`` (root label).
-
-    When ``index_mode`` is True, every ``Reference(None, (i, *rest))`` becomes
-    ``Reference(f"[{i}]", rest)``.  This includes out-of-range indices so that
-    normal label validation can report the real error ("unknown label '[5]'")
-    rather than the misleading "root/index-only references are not supported
-    when the tree has named labels" message.
-    """
-    if isinstance(expr, (BooleanConstant, IntegerConstant)):
-        return expr
-    if isinstance(expr, Reference):
-        if expr.label is None:
-            path = tuple(expr.path)
-            if index_mode and path and isinstance(path[0], int):
-                return Reference(f"[{path[0]}]", path[1:])
-            if has_root:
-                return Reference("", path)
-        return expr
-    if isinstance(expr, Neg):
-        new_op = _rewrite_refs(expr.operand, index_mode, has_root)
-        return Neg(new_op) if new_op is not expr.operand else expr
-    if isinstance(expr, (Add, Sub, Mul, FloorDiv, Mod, Eq, Ne, Lt, Le, Gt, Ge, And, Or)):
-        new_l = _rewrite_refs(expr.left, index_mode, has_root)
-        new_r = _rewrite_refs(expr.right, index_mode, has_root)
-        if new_l is expr.left and new_r is expr.right:
-            return expr
-        return type(expr)(new_l, new_r)
-    return expr
-
-
-def _translate_virtual_labels(
+def _inject_label_nodes(
     node: IRNode,
-    constraint: Expression,
     methods: Mapping[Label, Method],
-) -> tuple[IRNode, Expression]:
-    """Insert virtual NamedNodes and rewrite the constraint for index/root method labels.
+) -> IRNode:
+    """Inject ``NamedNode`` wrappers for index-style or root method labels.
 
     When ``methods`` contains the root label ``""`` or index-style labels
     ``"[0]"``, ``"[1]"``, etc., and the tree has no existing named labels,
-    this function:
+    this function wraps the corresponding subtrees in ``NamedNode`` wrappers
+    so that the standard named-label machinery (SAT encoding, ``apply_methods``,
+    ``concretize``) can process them.
 
-    1. Wraps the corresponding unnamed subtrees in ``NamedNode`` wrappers so
-       that the standard named-label machinery (SAT encoding, ``apply_methods``,
-       ``concretize``) can process them.
-    2. Rewrites every ``Reference(None, ...)`` in the constraint so that its
-       label matches the newly added ``NamedNode`` label.
+    The caller is responsible for writing constraints that use label-style
+    references (``reference("[i]")`` / ``reference("", i)``) matching the
+    injected labels — no constraint rewriting is performed here.
 
-    Index labels take priority: if any ``"[i]"`` keys are present and the root
-    is a ``TupleNode``, per-element ``NamedNode`` wrappers are added for each
-    referenced index and root-index references of the form
-    ``Reference(None, (i, *rest))`` are rewritten to ``Reference("[i]", rest)``.
-
-    If only ``""`` is present (no index labels, or the root is not a
-    ``TupleNode``), the whole root is wrapped in ``NamedNode("")`` and every
-    ``Reference(None, path)`` is rewritten to ``Reference("", path)``.
-
-    The translation is skipped entirely when the tree already has explicit
-    named labels (i.e. contains ``NamedNode`` wrappers from ``Name(...)``
-    annotations), because named-label and virtual-label addressing must not
-    be mixed on the same tree.
+    Skipped when the tree already has explicit named labels.
     """
-    # Guard: if methods is not a Mapping or has non-str keys, let validate_methods
-    # handle it with the correct error type/message.
     if not isinstance(methods, Mapping):
-        return node, constraint
+        # Not a Mapping at all: skip injection and let validate_methods report the error.
+        return node
     str_keys = {lbl for lbl in methods if isinstance(lbl, str)}
 
     if not str_keys:
-        return node, constraint
+        return node
 
     # Don't interfere when the tree already carries explicit named labels.
     if _tree_labels(node):
-        return node, constraint
+        return node
 
     has_root = "" in str_keys
     index_labels = {lbl for lbl in str_keys if _is_index_label(lbl)}
 
     if not has_root and not index_labels:
-        return node, constraint
+        return node
 
     if index_labels and isinstance(node, TupleNode):
         # Reject the combination of root label and index labels on the same
@@ -187,26 +135,20 @@ def _translate_virtual_labels(
                 "Use either \"\" (for the tuple as a whole) or \"[i]\" labels "
                 "(for individual elements), but not both."
             )
-        # Wrap ALL tuple elements with virtual NamedNodes so that root-index
-        # References in the constraint can be rewritten uniformly, even when
-        # only a subset of elements appear in methods (partial coverage).
+        # Wrap ALL tuple elements with NamedNodes so that per-element methods
+        # can be applied even when only a subset of elements appear in methods.
         # Elements absent from methods default to method "all".
-        items = list(node.items)
-        for idx, item in enumerate(items):
-            label = f"[{idx}]"
-            if not isinstance(item, NamedNode):
-                items[idx] = NamedNode(label, item)
-        new_node: IRNode = TupleNode(tuple(items))
-        new_constraint = _rewrite_refs(constraint, True, False)
-        return new_node, new_constraint
+        items = tuple(
+            item if isinstance(item, NamedNode) else NamedNode(f"[{idx}]", item)
+            for idx, item in enumerate(node.items)
+        )
+        return TupleNode(items)
 
     if has_root and not isinstance(node, NamedNode):
-        # Wrap the whole root in a virtual NamedNode("").
-        new_node = NamedNode("", node)
-        new_constraint = _rewrite_refs(constraint, False, True)
-        return new_node, new_constraint
+        # Wrap the whole root in a NamedNode("").
+        return NamedNode("", node)
 
-    return node, constraint
+    return node
 
 
 # ---------------------------------------------------------------------------
@@ -267,11 +209,12 @@ def generate(
     # 3. Resolve extension leaves according to methods/addresses.
     node = _resolve_extensions(node, tree, constraint_eff, methods)
 
-    # 3.5. Insert virtual NamedNodes for index/root method labels and rewrite
-    #      root-index References in the constraint so that the standard named-label
-    #      machinery (bounds inference, SAT encoding, apply_methods, concretize)
-    #      can process the formerly anonymous tree.
-    node, constraint_eff = _translate_virtual_labels(node, constraint_eff, methods)
+    # 3.5. Inject NamedNodes for index/root method labels so that the standard
+    #      named-label machinery (bounds inference, SAT encoding, apply_methods,
+    #      concretize) can process the formerly anonymous tree.
+    #      Constraints must already use label-style references (reference("[i]")
+    #      / reference("", i)) matching the injected labels.
+    node = _inject_label_nodes(node, methods)
 
     # 4. Validate expression against the (still-unfilled) tree so that
     #    malformed or non-boolean constraints raise TypeError/ValueError
