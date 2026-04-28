@@ -6,6 +6,7 @@ Public entry point:
 
 from __future__ import annotations
 
+import random
 from typing import Mapping, Optional, Type, TypeVar, cast
 
 from equivalib.core.extension import Extension
@@ -32,7 +33,7 @@ from equivalib.core.expression import (
     impossible,
 )
 from equivalib.core.normalize import normalize
-from equivalib.core.validate import validate_tree, validate_methods, validate_expression
+from equivalib.core.validate import validate_tree, validate_methods, validate_expression, _is_index_label
 from equivalib.core.types import (
     NoneNode,
     BoolNode,
@@ -50,8 +51,9 @@ from equivalib.core.types import (
 from equivalib.core.bounds_inference import infer_int_bounds, fill_int_bounds
 from equivalib.core.domains import _values_node
 from equivalib.core.eval import eval_expression
+from equivalib.core.order import canonical_first
 from equivalib.core.search import search
-from equivalib.core.methods import apply_methods, Label, Method
+from equivalib.core.methods import apply_methods, Label, Method, tag_value, structural_eq
 
 GenerateT = TypeVar("GenerateT")
 
@@ -75,6 +77,116 @@ _EXPR_TYPES = (
     And,
     Or,
 )
+
+
+# ---------------------------------------------------------------------------
+# Unnamed-tree method helpers
+# ---------------------------------------------------------------------------
+
+def _parse_index_methods(methods: Mapping[Label, Method]) -> dict[int, str]:
+    """Parse ``'[i]'``-style method keys into ``{position: method}`` pairs."""
+    result: dict[int, str] = {}
+    for key, method in methods.items():
+        if isinstance(key, str) and _is_index_label(key):
+            result[int(key[1:-1])] = method
+    return result
+
+
+def _needs_unnamed_filtering(methods: Mapping[Label, Method]) -> bool:
+    """Return True if ``methods`` contains any non-``"all"`` unnamed-tree key.
+
+    When this returns False the entire satisfying set can be streamed directly
+    to a ``set`` without materializing an intermediate list.
+    """
+    if not isinstance(methods, Mapping):
+        return False
+    root_method = methods.get("")
+    if root_method is not None and root_method != "all":
+        return True
+    for key, method in methods.items():
+        if isinstance(key, str) and _is_index_label(key) and method != "all":
+            return True
+    return False
+
+def _pick_witness(values: list[object], method: str) -> object:
+    """Return a single representative value from ``values`` according to ``method``.
+
+    Args:
+        values:  Non-empty list of satisfying values to choose from.
+        method:  One of ``"arbitrary"`` (canonical-minimum) or
+                 ``"uniform_random"`` (random element with replacement).
+
+    Raises:
+        ValueError: if ``method`` is not a recognised method string.
+    """
+    distinct: list[object] = []
+    seen: set[object] = set()
+    for v in values:
+        tag = tag_value(v)
+        if tag not in seen:
+            seen.add(tag)
+            distinct.append(v)
+    if method == "arbitrary":
+        return canonical_first(distinct)
+    if method == "uniform_random":
+        return random.choices(values, k=1)[0]
+    raise ValueError(f"Unknown method {method!r}.")
+
+
+def _apply_unnamed_methods(
+    values: list[object],
+    methods: Mapping[Label, Method],
+    node: IRNode,
+) -> list[object]:
+    """Apply root (``""``) or positional (``"[i]"``) methods to satisfying values.
+
+    Used for trees that have no ``Name(...)`` labels.  Constraints use the
+    standard anonymous integer-index references — ``reference(i)`` producing
+    ``Reference(None, (i,))`` — for tuple elements; no tree modification or
+    constraint rewriting is needed.
+
+    * Index methods ``"[i]"``: applied element-by-element, left-to-right, to
+      the list of satisfying tuples.  Elements without an explicit method
+      default to ``"all"`` (no filtering).
+    * Root method ``""``: applied to the whole list of satisfying values as
+      a single unit.
+    * Empty or irrelevant methods: values are returned unchanged.
+    """
+    if not values or not isinstance(methods, Mapping):
+        return values
+
+    index_methods = _parse_index_methods(methods)
+
+    if index_methods and isinstance(node, TupleNode):
+        return _apply_positional_methods(values, len(node.items), index_methods)
+
+    root_method = methods.get("")
+    if root_method is None or root_method == "all":
+        return values
+
+    witness = _pick_witness(values, root_method)
+    return [v for v in values if structural_eq(v, witness)]
+
+
+def _apply_positional_methods(
+    values: list[object],
+    n_elements: int,
+    index_methods: dict[int, str],
+) -> list[object]:
+    """Filter tuples by per-element methods, processing elements left-to-right."""
+    current = values
+    for i in range(n_elements):
+        method = index_methods.get(i, "all")
+        if method == "all":
+            continue
+        projection = [cast(tuple[object, ...], t)[i] for t in current]
+        if not projection:
+            return []
+        witness = _pick_witness(projection, method)
+        current = [t for t in current if structural_eq(cast(tuple[object, ...], t)[i], witness)]
+        if not current:
+            return []
+    return current
 
 
 # ---------------------------------------------------------------------------
@@ -157,14 +269,19 @@ def generate(
     # 7. Validate tree (requires bounds to have been filled)
     validate_tree(node)
 
-    # 8. Fast path: no named nodes
+    # 8. Unnamed-tree path (no named nodes): enumerate satisfying values.
+    #    When no index/root filtering is needed we stream directly into a set
+    #    to avoid a redundant list allocation; otherwise we materialize a list
+    #    so that _apply_unnamed_methods can select a positional witness.
     if not contains_name(node):
-        result: set[GenerateT] = set()
-        for value in _values_node(node):
-            satisfied = eval_expression(constraint_eff, {None: value})
-            if satisfied is True:
-                result.add(cast(GenerateT, value))
-        return result
+        satisfying_iter = (
+            value for value in _values_node(node)
+            if eval_expression(constraint_eff, {None: value}) is True
+        )
+        if not _needs_unnamed_filtering(methods):
+            return cast(set[GenerateT], set(satisfying_iter))
+        satisfying = list(satisfying_iter)
+        return cast(set[GenerateT], set(_apply_unnamed_methods(satisfying, methods, node)))
 
     # 9. Exact satisfying-assignment search (S0)
     assignments = search(node, constraint_eff, methods)
@@ -179,11 +296,11 @@ def generate(
         return set()
 
     # 11. Concretize each assignment into runtime values.
-    result: set[object] = set()
+    concrete_results: set[object] = set()
     for asgn in reduced:
-        result.update(concretize(node, asgn))
+        concrete_results.update(concretize(node, asgn))
 
-    return result  # type: ignore[return-value]
+    return concrete_results  # type: ignore[return-value]
 
 
 def _effective_constraint(node: IRNode, tree: Type[GenerateT], constraint: Expression) -> Expression:

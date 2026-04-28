@@ -11,7 +11,7 @@ representing one satisfying assignment.
 
 from __future__ import annotations
 
-from typing import Any, Literal, Mapping
+from typing import Any, Literal, Mapping, cast
 
 from ortools.sat.python import cp_model
 
@@ -374,7 +374,7 @@ def _enum_backtrack(
             # assignment may short-circuit the offending sub-expression (e.g.
             # Or(B=True, Eq(FloorDiv(X, 0), 1)) is True for any X).
             try:
-                partial = eval_expression_partial(constraint, enum_assignment)
+                partial = eval_expression_partial(constraint, cast(dict[str | None, object], enum_assignment))
             except ZeroDivisionError:
                 partial = None
             if partial is not False:
@@ -391,7 +391,7 @@ def _enum_backtrack(
     if not sat_kinds:
         # No CP-SAT labels: evaluate the constraint directly in Python.
         try:
-            result = eval_expression_partial(constraint, enum_assignment)
+            result = eval_expression_partial(constraint, cast(dict[str | None, object], enum_assignment))
         except ZeroDivisionError:
             result = False
         if result is True:
@@ -589,7 +589,7 @@ def _add_constraint(
             model.add_bool_and([sat_vars[label]])
             return
         if label in enum_assignment:
-            v = _follow_reference_path(enum_assignment[label], expr.path, label)
+            v = _follow_reference_path(enum_assignment[label], tuple(expr.path), label)
             if v is False:
                 model.add_bool_or([])  # constraint is False → unsatisfiable
             # v is True → no constraint needed
@@ -648,7 +648,7 @@ def _reify_constraint(
             # Reify the boolean SAT variable directly.
             model.add(sat_vars[label] == b)
         elif label in enum_assignment:
-            v = _follow_reference_path(enum_assignment[label], expr.path, label)
+            v = _follow_reference_path(enum_assignment[label], tuple(expr.path), label)
             if v is True:
                 model.add_bool_and([b])
             else:
@@ -741,7 +741,7 @@ def _encode_arith(
             return (sat_vars[label], sat_kinds[label], False, True)
         if label in enum_assignment:
             # Navigate the path in the Python value.
-            v = _follow_reference_path(enum_assignment[label], expr.path, label)
+            v = _follow_reference_path(enum_assignment[label], tuple(expr.path), label)
             if isinstance(v, bool):
                 return (int(v), _BOOL, True, True)
             if isinstance(v, int):
@@ -1020,7 +1020,7 @@ def _compute_bounds(
         if label in sat_bounds:
             return sat_bounds[label]
         if label in enum_assignment:
-            v2 = _follow_reference_path(enum_assignment[label], expr.path, label)
+            v2 = _follow_reference_path(enum_assignment[label], tuple(expr.path), label)
             if isinstance(v2, int):  # includes bool
                 iv = int(v2)
                 return (iv, iv)

@@ -294,11 +294,11 @@ def infer_int_bounds(
                 return {rkey: (1, 0) for rkey in int_refs}
 
     missing: list[str] = []
-    for label, path in sorted(int_refs, key=lambda k: (repr(k[0]), k[1])):
-        target = f"{label!r}{path!r}"
-        if lo[(label, path)] is None:
+    for key in sorted(int_refs, key=lambda k: (repr(k[0]), k[1])):
+        target = f"{key[0]!r}{key[1]!r}"
+        if lo[key] is None:
             missing.append(f"lower bound for {target}")
-        if hi[(label, path)] is None:
+        if hi[key] is None:
             missing.append(f"upper bound for {target}")
 
     if missing:

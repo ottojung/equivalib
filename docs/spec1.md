@@ -120,7 +120,9 @@ The canonical constraints on `Annotated[...]` are:
 - every integer leaf MUST be finitely bounded, either directly (for example via
   `ValueRange(min, max)`) or via numeric constraints on a valid `Reference(label, path)`
   that points to that leaf
-- `label` MUST be a non-empty string
+- `label` MUST be a string; the empty string `""` is only permitted when `base` is the
+  root of the entire type tree (the outermost `Annotated` expression)
+- a `Name(label)` that is not at the root MUST use a non-empty label
 
 The value space is finite by construction.
 
@@ -140,6 +142,8 @@ Annotated[bool, Name("X")]
 Annotated[int, ValueRange(3, 9), Name("X")]
 Annotated[Tuple[bool, bool], Name("X")]
 Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
+Annotated[bool, Name("")]                       # root label: valid at outermost position
+Annotated[Tuple[bool, bool], Name("")]          # root label wrapping a tuple
 ```
 
 ### Named occurrences
@@ -223,11 +227,12 @@ A compliant implementation MUST enforce type-aware structural equality at every 
 A compliant implementation MUST reject invalid trees, including at least:
 
 - `ValueRange(min, max)` with `min > max`
-- `Name("")`
+- `Name("")` used at a non-root position (i.e. inside a `Tuple`, `Union`, or nested `Annotated`)
 - plain `int` without a `ValueRange(...)`
 - `Annotated[...]` with more than one `ValueRange(...)`
 - `Annotated[...]` with more than one `Name(...)`
-- `methods` containing a label that does not appear in the tree
+- `methods` containing a label that does not appear in the tree (after index/root label
+  translation — see "Index-Style and Root Labels" below)
 - a constraint referring to a label that does not appear in the tree
 
 The implementation MAY reject additional malformed inputs if they are outside this spec.
@@ -314,6 +319,60 @@ Address evaluation MUST fail if any step:
 Define `mentioned_labels(expr)` recursively as the set of non-`None` labels occurring in `Reference(label, path)` nodes.
 
 This notion is used later when defining which labels must participate in constraint solving.
+
+## Index-Style and Root Labels
+
+### Root label
+
+The empty string `""` is reserved as the **root label**.
+
+When `methods` contains the key `""` and the tree has no existing `Name(...)` labels, the
+method `methods[""]` is applied to the whole set of satisfying root values as a unit:
+`"all"` returns all of them, `"arbitrary"` returns exactly one (canonical-minimum), and
+`"uniform_random"` returns one chosen at random.
+
+Constraints over an unnamed root-labeled tree use the standard anonymous integer-index
+references — `reference(i)` (i.e. `Reference(None, (i,))`) for element `i` of a tuple
+root.  The `""` key in `methods` controls *how many* satisfying values are returned; it
+does not change the constraint syntax.
+
+The user MAY also make the root label explicit by writing `Annotated[base, Name("")]`.
+A `Name("")` annotation is only valid when it appears at the outermost (root) position of
+the type tree; using it at any inner position MUST be rejected.
+
+### Index-style labels
+
+For an unnamed `Tuple[t0, t1, ..., t_{n-1}]` root, each element `i` can be addressed with
+the **index-style label** `f"[{i}]"` (for example `"[0]"`, `"[1]"`, `"[9]"`, etc.).
+
+When `methods` contains any key of the form `"[i]"` and the root is an unnamed `Tuple`,
+a compliant implementation MUST apply per-element method selection to the list of
+satisfying tuples, processing elements left-to-right.  Elements not mentioned in `methods`
+default to method `"all"` (no filtering).
+
+Constraints over an index-labeled tuple use exactly the same anonymous integer-index
+references as for any unnamed tree: `reference(i)` (i.e. `Reference(None, (i,))`) for
+element `i`.  Index-style labels are a purely user-facing convention in the `methods` dict
+and MUST NOT appear as string labels inside the IR tree or the constraint.
+
+A method key `"[i]"` where `i` is out of range for the tuple MUST be rejected as invalid.
+
+### Priority rule
+
+Combining root and index labels on the same unnamed tuple root is invalid.
+
+If the root is a `Tuple` and `methods` contains any index-style key `"[i]"`,
+the root label `""` MUST NOT also be present in `methods`.  A compliant implementation
+MUST reject this combination with a `ValueError`.
+
+If `methods` contains only index-style keys (no `""`), index-style per-element method
+selection is applied to the satisfying tuples.
+
+If `methods` contains only `""` (no index-style keys), or if the root is not a `Tuple`,
+the root method is applied to the whole list of satisfying values.
+
+If the root is not a `Tuple`, index-style keys are invalid and MUST be rejected.
+
 
 ## Denotation of Unnamed Trees
 

@@ -53,12 +53,55 @@ LabelShapes: TypeAlias = dict[str, IRNode]
 ExprType: TypeAlias = str
 
 
+def _is_index_label(key: str) -> bool:
+    """Return True if ``key`` is a canonical index-style method key like ``'[0]'``, ``'[42]'``.
+
+    Only canonical decimal representations are accepted: ``'[0]'`` is valid,
+    but ``'[00]'`` or ``'[01]'`` are not (no leading zeros allowed).
+    """
+    if not (key.startswith("[") and key.endswith("]")):
+        return False
+    inner = key[1:-1]
+    if not inner.isdigit():
+        return False
+    # Reject leading-zero forms: "00", "01", etc.  The only valid single-char
+    # case is "0" itself; multi-char strings must not start with "0".
+    if len(inner) > 1 and inner[0] == "0":
+        return False
+    return True
+
+
+def _validate_unnamed_methods(node: IRNode, index_keys: set[str], has_root: bool) -> None:
+    """Validate index/root method combinations for unnamed (label-free) trees."""
+    if has_root and index_keys and isinstance(node, TupleNode):
+        raise ValueError(
+            'Cannot combine the root label "" with index-style labels '
+            f"({sorted(index_keys)!r}) on the same unnamed tuple root. "
+            'Use either "" (for the tuple as a whole) or "[i]" labels '
+            "(for individual elements), but not both."
+        )
+    if index_keys:
+        if not isinstance(node, TupleNode):
+            raise ValueError(
+                f"Index-style method keys {sorted(index_keys)!r} are only valid "
+                "for an unnamed tuple root, but the root is not a tuple."
+            )
+        n = len(node.items)
+        for key in index_keys:
+            i = int(key[1:-1])
+            if i >= n:
+                raise ValueError(
+                    f"Index method key {key!r} is out of range for a "
+                    f"{n}-element tuple (valid indices: 0..{n - 1})."
+                )
+
+
 def validate_tree(node: IRNode) -> None:
     """Raise ValueError if the IR node tree contains structural problems."""
-    _check_node(node)
+    _check_node(node, is_root=True)
 
 
-def _check_node(node: IRNode) -> None:
+def _check_node(node: IRNode, is_root: bool = False) -> None:
     if isinstance(node, NoneNode):
         return
     if isinstance(node, BoolNode):
@@ -82,8 +125,11 @@ def _check_node(node: IRNode) -> None:
             _check_node(opt)
         return
     if isinstance(node, NamedNode):
-        if node.label == "":
-            raise ValueError("Name label must not be empty.")
+        if node.label == "" and not is_root:
+            raise ValueError(
+                "The root label '' can only be used at the top level of the type tree. "
+                "Use Name('') only on the outermost type annotation."
+            )
         if contains_name(node.inner):
             raise ValueError(
                 f"Nested Name annotations are not allowed inside Name({node.label!r}). "
@@ -102,26 +148,29 @@ def _check_node(node: IRNode) -> None:
 def validate_methods(node: IRNode, methods: Mapping[Label, Method]) -> None:
     """Raise TypeError or ValueError if any method key or value is invalid.
 
+    For trees that have no ``Name(...)`` labels (unnamed trees), the special
+    keys ``""`` (root method) and ``"[i]"`` (index methods, e.g. ``"[0]"``,
+    ``"[1]"``) are also accepted.
+
     Raises:
         TypeError:  if ``methods`` is not a ``Mapping`` or a key is not a
                     string label.
-        ValueError: if a key is not a label in the tree, or a value is not a
-                    recognised method string.
+        ValueError: if a key is not a label in the tree (and not a valid
+                    unnamed-tree key), or a value is not a recognised method
+                    string.
     """
     if not isinstance(methods, Mapping):
         raise TypeError(
             f"'methods' must be a Mapping[str, str], got {type(methods).__name__!r}."
         )
     known_labels = tree_labels(node)
+    index_keys: set[str] = set()
+    has_root_method = False
+
     for key, method in methods.items():
         if not isinstance(key, str):
             raise TypeError(
                 f"Method key must be a string label, got {type(key).__name__!r}."
-            )
-        if key not in known_labels:
-            raise ValueError(
-                f"Method key {key!r} is not a label in the tree. "
-                f"Known labels: {sorted(known_labels)!r}."
             )
         if not isinstance(method, str):
             raise TypeError(
@@ -133,6 +182,23 @@ def validate_methods(node: IRNode, methods: Mapping[Label, Method]) -> None:
                 f"Unknown method {method!r} for label {key!r}. "
                 f"Valid methods are: {sorted(_VALID_METHODS)!r}."
             )
+        if key in known_labels:
+            continue
+        # Not a named label.  For unnamed trees, '' and '[i]' are allowed.
+        if not known_labels:
+            if key == "":
+                has_root_method = True
+                continue
+            if _is_index_label(key):
+                index_keys.add(key)
+                continue
+        raise ValueError(
+            f"Method key {key!r} is not a label in the tree. "
+            f"Known labels: {sorted(known_labels)!r}."
+        )
+
+    if has_root_method or index_keys:
+        _validate_unnamed_methods(node, index_keys, has_root_method)
 
 
 def validate_expression(expr: Expression, node: IRNode) -> None:
@@ -233,8 +299,8 @@ def _check_expr_type(
                 raise ValueError(
                     "Root/index-only references are only supported when the tree has no Name(...) labels."
                 )
-            _validate_address(None, expr.path, root_shape)
-            resolved_root = _resolve_shape(root_shape, expr.path)
+            _validate_address(None, tuple(expr.path), root_shape)
+            resolved_root = _resolve_shape(root_shape, tuple(expr.path))
             return _shape_type(resolved_root)
         if expr.label not in known_labels:
             raise ValueError(
@@ -242,8 +308,8 @@ def _check_expr_type(
                 f"Known labels: {sorted(known_labels)!r}."
             )
         if expr.label in label_shapes:
-            _validate_address(expr.label, expr.path, label_shapes[expr.label])
-            resolved = _resolve_shape(label_shapes[expr.label], expr.path)
+            _validate_address(expr.label, tuple(expr.path), label_shapes[expr.label])
+            resolved = _resolve_shape(label_shapes[expr.label], tuple(expr.path))
             return _shape_type(resolved)
         elif expr.path:
             raise ValueError(

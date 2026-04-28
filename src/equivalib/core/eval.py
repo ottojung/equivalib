@@ -122,7 +122,7 @@ def _eval(expr: Expression, assignment: dict[str | None, object]) -> object:
         return expr.value
     if isinstance(expr, Reference):
         value: object = assignment[expr.label]
-        return _follow_reference_path(value, expr.path, expr.label)
+        return _follow_reference_path(value, tuple(expr.path), expr.label)
     if isinstance(expr, Neg):
         return -_eval(expr.operand, assignment)  # type: ignore[operator]
     if isinstance(expr, Add):
