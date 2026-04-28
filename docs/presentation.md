@@ -163,7 +163,7 @@ SAT-backed integer constraints scale to large search spaces with precise semanti
 
 ```python
 values = generate_sum_to_hundred_witness()
-# => exactly one tuple witness with sum(value) == 5
+# => exactly one tuple witness (10 binary values summing to 5)
 ```
 
 Using `{"X": "arbitrary"}` asks for one deterministic witness instead of exhaustive enumeration.
@@ -262,10 +262,10 @@ class PairsUpTo5(LineIntervalsSet):
 
 representatives = generate(PairsUpTo5)
 # => 4 representatives, one per equivalence class:
-#    touch   – intervals share exactly one endpoint, e.g. ([0,1], [1,2])
-#    kiss    – intervals are adjacent but not overlapping, e.g. ([0,0], [1,1])
+#    touch   – one interval ends exactly where the other begins, e.g. ([0,1], [1,2])
+#    kiss    – endpoints differ by exactly 1, e.g. ([0,0], [1,1])
 #    overlap – intervals share a non-degenerate interior, e.g. ([0,2], [1,3])
-#    disjoint – intervals do not interact, e.g. ([0,0], [2,2])
+#    disjoint – no interaction at all, e.g. ([0,0], [2,2])
 ```
 
 `LineIntervalsSet` enumerates exactly one representative from every equivalence class of

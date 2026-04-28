@@ -149,7 +149,9 @@ def test_interesting_line_intervals_set_two_intervals_four_classes():
     """Generating PairsUpTo5 yields one representative per equivalence class.
 
     Two integer intervals can relate in exactly four ways:
-    touch (shared endpoint), kiss (adjacent but not overlapping), overlap,
+    touch (one interval ends exactly where the other begins),
+    kiss (endpoints are adjacent, differing by exactly 1),
+    overlap (intervals share a non-degenerate interior),
     or disjoint — so there are exactly 4 representatives.
     """
     representatives = generate(PairsUpTo5)
