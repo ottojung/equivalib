@@ -53,7 +53,7 @@ from equivalib.core.domains import _values_node
 from equivalib.core.eval import eval_expression
 from equivalib.core.order import canonical_first
 from equivalib.core.search import search
-from equivalib.core.methods import apply_methods, Label, Method
+from equivalib.core.methods import apply_methods, Label, Method, _tag_value, _structural_eq
 
 GenerateT = TypeVar("GenerateT")
 
@@ -90,22 +90,6 @@ def _parse_index_methods(methods: Mapping[Label, Method]) -> dict[int, str]:
         if isinstance(key, str) and key.startswith("[") and key.endswith("]") and key[1:-1].isdigit():
             result[int(key[1:-1])] = method
     return result
-
-
-def _tag_value(v: object) -> object:
-    """Recursively type-tagged value for type-aware equality (bool vs int are distinct)."""
-    if isinstance(v, bool):
-        return (bool, v)
-    if isinstance(v, int):
-        return (int, v)
-    if isinstance(v, tuple):
-        return (tuple, tuple(_tag_value(e) for e in v))
-    return (type(v), v)
-
-
-def _value_eq(lhs: object, rhs: object) -> bool:
-    """Type-aware structural equality."""
-    return _tag_value(lhs) == _tag_value(rhs)
 
 
 def _pick_witness(values: list[object], method: str) -> object:
@@ -156,7 +140,7 @@ def _apply_unnamed_methods(
         return values
 
     witness = _pick_witness(values, root_method)
-    return [v for v in values if _value_eq(v, witness)]
+    return [v for v in values if _structural_eq(v, witness)]
 
 
 def _apply_positional_methods(
@@ -174,7 +158,7 @@ def _apply_positional_methods(
         if not projection:
             return []
         witness = _pick_witness(projection, method)
-        current = [t for t in current if _value_eq(cast(tuple[object, ...], t)[i], witness)]
+        current = [t for t in current if _structural_eq(cast(tuple[object, ...], t)[i], witness)]
         if not current:
             return []
     return current
