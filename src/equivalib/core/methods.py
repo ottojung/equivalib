@@ -64,7 +64,7 @@ def apply_methods(assignments: list[dict[str, object]], methods: Mapping[Label, 
 
         witness = _choose_witness(method, label, projection)
         current = [
-            a for a in current if label in a and _structural_eq(a[label], witness)
+            a for a in current if label in a and structural_eq(a[label], witness)
         ]
 
     return current
@@ -80,7 +80,7 @@ def _choose_witness(method: str, label: str, projection: list[object]) -> object
     distinct: list[object] = []
     seen: set[object] = set()
     for value in projection:
-        tagged = _tag_value(value)
+        tagged = tag_value(value)
         if tagged in seen:
             continue
         seen.add(tagged)
@@ -96,7 +96,7 @@ def _choose_witness(method: str, label: str, projection: list[object]) -> object
     raise ValueError(f"Unknown method {method!r} for label {label!r}.")
 
 
-def _tag_value(v: object) -> object:
+def tag_value(v: object) -> object:
     """Return a recursively type-tagged representation for type-aware equality."""
     # bool is a subclass of int, so this check must come first.
     if isinstance(v, bool):
@@ -104,10 +104,10 @@ def _tag_value(v: object) -> object:
     if isinstance(v, int):
         return (int, v)
     if isinstance(v, tuple):
-        return (tuple, tuple(_tag_value(elem) for elem in v))
+        return (tuple, tuple(tag_value(elem) for elem in v))
     return (type(v), v)
 
 
-def _structural_eq(lhs: object, rhs: object) -> bool:
+def structural_eq(lhs: object, rhs: object) -> bool:
     """Type-aware structural equality (bool/int are distinct, incl. tuples)."""
-    return _tag_value(lhs) == _tag_value(rhs)
+    return tag_value(lhs) == tag_value(rhs)

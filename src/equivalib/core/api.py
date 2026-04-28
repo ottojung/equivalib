@@ -53,7 +53,7 @@ from equivalib.core.domains import _values_node
 from equivalib.core.eval import eval_expression
 from equivalib.core.order import canonical_first
 from equivalib.core.search import search
-from equivalib.core.methods import apply_methods, Label, Method, _tag_value, _structural_eq
+from equivalib.core.methods import apply_methods, Label, Method, tag_value, structural_eq
 
 GenerateT = TypeVar("GenerateT")
 
@@ -93,11 +93,20 @@ def _parse_index_methods(methods: Mapping[Label, Method]) -> dict[int, str]:
 
 
 def _pick_witness(values: list[object], method: str) -> object:
-    """Return a single representative value from ``values`` according to ``method``."""
+    """Return a single representative value from ``values`` according to ``method``.
+
+    Args:
+        values:  Non-empty list of satisfying values to choose from.
+        method:  One of ``"arbitrary"`` (canonical-minimum) or
+                 ``"uniform_random"`` (random element with replacement).
+
+    Raises:
+        ValueError: if ``method`` is not a recognised method string.
+    """
     distinct: list[object] = []
     seen: set[object] = set()
     for v in values:
-        tag = _tag_value(v)
+        tag = tag_value(v)
         if tag not in seen:
             seen.add(tag)
             distinct.append(v)
@@ -140,7 +149,7 @@ def _apply_unnamed_methods(
         return values
 
     witness = _pick_witness(values, root_method)
-    return [v for v in values if _structural_eq(v, witness)]
+    return [v for v in values if structural_eq(v, witness)]
 
 
 def _apply_positional_methods(
@@ -158,7 +167,7 @@ def _apply_positional_methods(
         if not projection:
             return []
         witness = _pick_witness(projection, method)
-        current = [t for t in current if _structural_eq(cast(tuple[object, ...], t)[i], witness)]
+        current = [t for t in current if structural_eq(cast(tuple[object, ...], t)[i], witness)]
         if not current:
             return []
     return current
