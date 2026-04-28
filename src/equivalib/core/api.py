@@ -6,6 +6,7 @@ Public entry point:
 
 from __future__ import annotations
 
+import random
 from typing import Mapping, Optional, Type, TypeVar, cast
 
 from equivalib.core.extension import Extension
@@ -44,13 +45,13 @@ from equivalib.core.types import (
     ExtensionNode,
     NamedNode,
     IRNode,
-    labels as _tree_labels,
     contains_name,
     labels_in_order,
 )
 from equivalib.core.bounds_inference import infer_int_bounds, fill_int_bounds
 from equivalib.core.domains import _values_node
 from equivalib.core.eval import eval_expression
+from equivalib.core.order import canonical_first
 from equivalib.core.search import search
 from equivalib.core.methods import apply_methods, Label, Method
 
@@ -79,76 +80,104 @@ _EXPR_TYPES = (
 
 
 # ---------------------------------------------------------------------------
-# Label-injection helpers
+# Unnamed-tree method helpers
 # ---------------------------------------------------------------------------
 
-def _is_index_label(label: str) -> bool:
-    """Return True if ``label`` is an index-style label like '[0]', '[42]', etc."""
-    if not (label.startswith("[") and label.endswith("]")):
-        return False
-    return label[1:-1].isdigit()
+def _parse_index_methods(methods: Mapping[Label, Method]) -> dict[int, str]:
+    """Parse ``'[i]'``-style method keys into ``{position: method}`` pairs."""
+    result: dict[int, str] = {}
+    for key, method in methods.items():
+        if isinstance(key, str) and key.startswith("[") and key.endswith("]") and key[1:-1].isdigit():
+            result[int(key[1:-1])] = method
+    return result
 
 
-def _inject_label_nodes(
-    node: IRNode,
+def _tag_value(v: object) -> object:
+    """Recursively type-tagged value for type-aware equality (bool vs int are distinct)."""
+    if isinstance(v, bool):
+        return (bool, v)
+    if isinstance(v, int):
+        return (int, v)
+    if isinstance(v, tuple):
+        return (tuple, tuple(_tag_value(e) for e in v))
+    return (type(v), v)
+
+
+def _value_eq(lhs: object, rhs: object) -> bool:
+    """Type-aware structural equality."""
+    return _tag_value(lhs) == _tag_value(rhs)
+
+
+def _pick_witness(values: list[object], method: str) -> object:
+    """Return a single representative value from ``values`` according to ``method``."""
+    distinct: list[object] = []
+    seen: set[object] = set()
+    for v in values:
+        tag = _tag_value(v)
+        if tag not in seen:
+            seen.add(tag)
+            distinct.append(v)
+    if method == "arbitrary":
+        return canonical_first(distinct)
+    if method == "uniform_random":
+        return random.choices(values, k=1)[0]
+    raise ValueError(f"Unknown method {method!r}.")
+
+
+def _apply_unnamed_methods(
+    values: list[object],
     methods: Mapping[Label, Method],
-) -> IRNode:
-    """Inject ``NamedNode`` wrappers for index-style or root method labels.
+    node: IRNode,
+) -> list[object]:
+    """Apply root (``""``) or positional (``"[i]"``) methods to satisfying values.
 
-    When ``methods`` contains the root label ``""`` or index-style labels
-    ``"[0]"``, ``"[1]"``, etc., and the tree has no existing named labels,
-    this function wraps the corresponding subtrees in ``NamedNode`` wrappers
-    so that the standard named-label machinery (SAT encoding, ``apply_methods``,
-    ``concretize``) can process them.
+    Used for trees that have no ``Name(...)`` labels.  Constraints use the
+    standard anonymous integer-index references — ``reference(i)`` producing
+    ``Reference(None, (i,))`` — for tuple elements; no tree modification or
+    constraint rewriting is needed.
 
-    The caller is responsible for writing constraints that use label-style
-    references (``reference("[i]")`` / ``reference("", i)``) matching the
-    injected labels — no constraint rewriting is performed here.
-
-    Skipped when the tree already has explicit named labels.
+    * Index methods ``"[i]"``: applied element-by-element, left-to-right, to
+      the list of satisfying tuples.  Elements without an explicit method
+      default to ``"all"`` (no filtering).
+    * Root method ``""``: applied to the whole list of satisfying values as
+      a single unit.
+    * Empty or irrelevant methods: values are returned unchanged.
     """
-    if not isinstance(methods, Mapping):
-        # Not a Mapping at all: skip injection and let validate_methods report the error.
-        return node
-    str_keys = {lbl for lbl in methods if isinstance(lbl, str)}
+    if not values or not isinstance(methods, Mapping):
+        return values
 
-    if not str_keys:
-        return node
+    index_methods = _parse_index_methods(methods)
 
-    # Don't interfere when the tree already carries explicit named labels.
-    if _tree_labels(node):
-        return node
+    if index_methods and isinstance(node, TupleNode):
+        return _apply_positional_methods(values, len(node.items), index_methods)
 
-    has_root = "" in str_keys
-    index_labels = {lbl for lbl in str_keys if _is_index_label(lbl)}
+    root_method = methods.get("")
+    if root_method is None or root_method == "all":
+        return values
 
-    if not has_root and not index_labels:
-        return node
+    witness = _pick_witness(values, root_method)
+    return [v for v in values if _value_eq(v, witness)]
 
-    if index_labels and isinstance(node, TupleNode):
-        # Reject the combination of root label and index labels on the same
-        # unnamed tuple root with a targeted error message.
-        if has_root:
-            raise ValueError(
-                "Cannot combine the root label \"\" with index-style labels "
-                f"({sorted(index_labels)!r}) on the same unnamed tuple root. "
-                "Use either \"\" (for the tuple as a whole) or \"[i]\" labels "
-                "(for individual elements), but not both."
-            )
-        # Wrap ALL tuple elements with NamedNodes so that per-element methods
-        # can be applied even when only a subset of elements appear in methods.
-        # Elements absent from methods default to method "all".
-        items = tuple(
-            item if isinstance(item, NamedNode) else NamedNode(f"[{idx}]", item)
-            for idx, item in enumerate(node.items)
-        )
-        return TupleNode(items)
 
-    if has_root and not isinstance(node, NamedNode):
-        # Wrap the whole root in a NamedNode("").
-        return NamedNode("", node)
-
-    return node
+def _apply_positional_methods(
+    values: list[object],
+    n_elements: int,
+    index_methods: dict[int, str],
+) -> list[object]:
+    """Filter tuples by per-element methods, processing elements left-to-right."""
+    current = values
+    for i in range(n_elements):
+        method = index_methods.get(i, "all")
+        if method == "all":
+            continue
+        projection = [cast(tuple[object, ...], t)[i] for t in current]
+        if not projection:
+            return []
+        witness = _pick_witness(projection, method)
+        current = [t for t in current if _value_eq(cast(tuple[object, ...], t)[i], witness)]
+        if not current:
+            return []
+    return current
 
 
 # ---------------------------------------------------------------------------
@@ -209,13 +238,6 @@ def generate(
     # 3. Resolve extension leaves according to methods/addresses.
     node = _resolve_extensions(node, tree, constraint_eff, methods)
 
-    # 3.5. Inject NamedNodes for index/root method labels so that the standard
-    #      named-label machinery (bounds inference, SAT encoding, apply_methods,
-    #      concretize) can process the formerly anonymous tree.
-    #      Constraints must already use label-style references (reference("[i]")
-    #      / reference("", i)) matching the injected labels.
-    node = _inject_label_nodes(node, methods)
-
     # 4. Validate expression against the (still-unfilled) tree so that
     #    malformed or non-boolean constraints raise TypeError/ValueError
     #    before bounds inference has a chance to emit a misleading error.
@@ -238,14 +260,14 @@ def generate(
     # 7. Validate tree (requires bounds to have been filled)
     validate_tree(node)
 
-    # 8. Fast path: no named nodes
+    # 8. Unnamed-tree path (no named nodes): enumerate satisfying values and
+    #    apply any index/root method selection on the result set.
     if not contains_name(node):
-        result: set[GenerateT] = set()
-        for value in _values_node(node):
-            satisfied = eval_expression(constraint_eff, {None: value})
-            if satisfied is True:
-                result.add(cast(GenerateT, value))
-        return result
+        satisfying = [
+            value for value in _values_node(node)
+            if eval_expression(constraint_eff, {None: value}) is True
+        ]
+        return cast(set[GenerateT], set(_apply_unnamed_methods(satisfying, methods, node)))
 
     # 9. Exact satisfying-assignment search (S0)
     assignments = search(node, constraint_eff, methods)

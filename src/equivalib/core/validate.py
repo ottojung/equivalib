@@ -53,6 +53,38 @@ LabelShapes: TypeAlias = dict[str, IRNode]
 ExprType: TypeAlias = str
 
 
+def _is_index_label(key: str) -> bool:
+    """Return True if ``key`` is an index-style method key like ``'[0]'``, ``'[42]'``."""
+    if not (key.startswith("[") and key.endswith("]")):
+        return False
+    return key[1:-1].isdigit()
+
+
+def _validate_unnamed_methods(node: IRNode, index_keys: set[str], has_root: bool) -> None:
+    """Validate index/root method combinations for unnamed (label-free) trees."""
+    if has_root and index_keys and isinstance(node, TupleNode):
+        raise ValueError(
+            'Cannot combine the root label "" with index-style labels '
+            f"({sorted(index_keys)!r}) on the same unnamed tuple root. "
+            'Use either "" (for the tuple as a whole) or "[i]" labels '
+            "(for individual elements), but not both."
+        )
+    if index_keys:
+        if not isinstance(node, TupleNode):
+            raise ValueError(
+                f"Index-style method keys {sorted(index_keys)!r} are only valid "
+                "for an unnamed tuple root, but the root is not a tuple."
+            )
+        n = len(node.items)
+        for key in index_keys:
+            i = int(key[1:-1])
+            if i >= n:
+                raise ValueError(
+                    f"Index method key {key!r} is out of range for a "
+                    f"{n}-element tuple (valid indices: 0..{n - 1})."
+                )
+
+
 def validate_tree(node: IRNode) -> None:
     """Raise ValueError if the IR node tree contains structural problems."""
     _check_node(node, is_root=True)
@@ -105,26 +137,29 @@ def _check_node(node: IRNode, is_root: bool = False) -> None:
 def validate_methods(node: IRNode, methods: Mapping[Label, Method]) -> None:
     """Raise TypeError or ValueError if any method key or value is invalid.
 
+    For trees that have no ``Name(...)`` labels (unnamed trees), the special
+    keys ``""`` (root method) and ``"[i]"`` (index methods, e.g. ``"[0]"``,
+    ``"[1]"``) are also accepted.
+
     Raises:
         TypeError:  if ``methods`` is not a ``Mapping`` or a key is not a
                     string label.
-        ValueError: if a key is not a label in the tree, or a value is not a
-                    recognised method string.
+        ValueError: if a key is not a label in the tree (and not a valid
+                    unnamed-tree key), or a value is not a recognised method
+                    string.
     """
     if not isinstance(methods, Mapping):
         raise TypeError(
             f"'methods' must be a Mapping[str, str], got {type(methods).__name__!r}."
         )
     known_labels = tree_labels(node)
+    index_keys: set[str] = set()
+    has_root_method = False
+
     for key, method in methods.items():
         if not isinstance(key, str):
             raise TypeError(
                 f"Method key must be a string label, got {type(key).__name__!r}."
-            )
-        if key not in known_labels:
-            raise ValueError(
-                f"Method key {key!r} is not a label in the tree. "
-                f"Known labels: {sorted(known_labels)!r}."
             )
         if not isinstance(method, str):
             raise TypeError(
@@ -136,6 +171,23 @@ def validate_methods(node: IRNode, methods: Mapping[Label, Method]) -> None:
                 f"Unknown method {method!r} for label {key!r}. "
                 f"Valid methods are: {sorted(_VALID_METHODS)!r}."
             )
+        if key in known_labels:
+            continue
+        # Not a named label.  For unnamed trees, '' and '[i]' are allowed.
+        if not known_labels:
+            if key == "":
+                has_root_method = True
+                continue
+            if _is_index_label(key):
+                index_keys.add(key)
+                continue
+        raise ValueError(
+            f"Method key {key!r} is not a label in the tree. "
+            f"Known labels: {sorted(known_labels)!r}."
+        )
+
+    if has_root_method or index_keys:
+        _validate_unnamed_methods(node, index_keys, has_root_method)
 
 
 def validate_expression(expr: Expression, node: IRNode) -> None:

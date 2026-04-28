@@ -46,7 +46,7 @@ def generate_pythagorean_triples(limit: int) -> set[tuple[int, int, int]]:
 
 def generate_sum_to_hundred_witness() -> set[tuple[int, ...]]:
     tree = Tuple[int, int, int, int, int, int, int, int, int, int]
-    refs = [reference(f"[{i}]") for i in range(10)]
+    refs = [reference(i) for i in range(10)]
 
     bounded: And | None = None
     for ref in refs:
