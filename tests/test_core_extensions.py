@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import inspect
+import random
 from dataclasses import dataclass
 from typing import Annotated, Any, ClassVar, Iterator, cast
 
@@ -71,7 +72,7 @@ class Palette(Extension):
     @staticmethod
     def uniform_random(tree: object, constraint: Expression, address: str | None) -> "Palette" | None:
         del tree, constraint, address
-        return Palette("orange")
+        return random.choice([Palette("red"), Palette("orange")])
 
 
 class InvalidInitialize(Extension):
@@ -174,7 +175,10 @@ def test_named_custom_class_arbitrary_uses_arbitrary_hook():
 
 def test_named_custom_class_uniform_random_uses_uniform_random_hook():
     tree = Annotated[Palette, CoreName("P")]
-    assert generate_core(tree, methods={"P": "uniform_random"}) == {Palette("orange")}
+    result = generate_core(tree, methods={"P": "uniform_random"})
+    # uniform_random returns exactly one value (not the full enumerate_all set)
+    assert len(result) == 1
+    assert next(iter(result)) in {Palette("red"), Palette("orange")}
 
 
 # ---------------------------------------------------------------------------

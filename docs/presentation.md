@@ -205,6 +205,7 @@ Use per-label methods to mix exhaustive and witness-oriented generation.
 ## Slide 14 — Custom Extension: non-regex leaf types
 
 ```python
+import random
 from dataclasses import dataclass
 from equivalib.core import Extension, generate
 from equivalib.core.expression import Expression
@@ -232,7 +233,7 @@ class Greeting(Extension):
     @staticmethod
     def uniform_random(tree: object, constraint: Expression, address: str | None) -> "Greeting | None":
         del tree, constraint, address
-        return Greeting("hi")
+        return random.choice([Greeting("hello"), Greeting("hi")])
 
 greetings = generate(Greeting)
 # => {Greeting("hello"), Greeting("hi")}
