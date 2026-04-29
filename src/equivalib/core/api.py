@@ -9,51 +9,50 @@ from __future__ import annotations
 import random
 from typing import Mapping, Optional, Type, TypeVar, cast
 
-from equivalib.core.extension import Extension
+from equivalib.core.bounds_inference import fill_int_bounds, infer_int_bounds
+from equivalib.core.domains import _values_node
+from equivalib.core.eval import eval_expression
 from equivalib.core.expression import (
-    BooleanExpression,
-    Expression,
+    Add,
     And,
     BooleanConstant,
-    IntegerConstant,
-    Reference,
-    Neg,
-    Add,
-    Sub,
-    Mul,
-    FloorDiv,
-    Mod,
+    BooleanExpression,
     Eq,
-    Ne,
-    Lt,
-    Le,
-    Gt,
+    Expression,
+    FloorDiv,
     Ge,
+    Gt,
+    IntegerConstant,
+    Le,
+    Lt,
+    Mod,
+    Mul,
+    Ne,
+    Neg,
     Or,
-    impossible,
+    Reference,
+    Sub,
 )
+from equivalib.core.extension import Extension
+from equivalib.core.methods import Label, Method, apply_methods, structural_eq, tag_value
 from equivalib.core.normalize import normalize
-from equivalib.core.validate import validate_tree, validate_methods, validate_expression, _is_index_label
+from equivalib.core.order import canonical_first
+from equivalib.core.search import search
 from equivalib.core.types import (
-    NoneNode,
     BoolNode,
-    LiteralNode,
-    UnboundedIntNode,
-    IntRangeNode,
-    TupleNode,
-    UnionNode,
     ExtensionNode,
-    NamedNode,
+    IntRangeNode,
     IRNode,
+    LiteralNode,
+    NamedNode,
+    NoneNode,
+    TupleNode,
+    UnboundedIntNode,
+    UnionNode,
     contains_name,
     labels_in_order,
 )
-from equivalib.core.bounds_inference import infer_int_bounds, fill_int_bounds
-from equivalib.core.domains import _values_node
-from equivalib.core.eval import eval_expression
-from equivalib.core.order import canonical_first
-from equivalib.core.search import search
-from equivalib.core.methods import apply_methods, Label, Method, tag_value, structural_eq
+from equivalib.core.validate import _is_index_label, validate_expression, validate_methods, validate_tree
 
 GenerateT = TypeVar("GenerateT")
 
@@ -83,6 +82,7 @@ _EXPR_TYPES = (
 # Unnamed-tree method helpers
 # ---------------------------------------------------------------------------
 
+
 def _parse_index_methods(methods: Mapping[Label, Method]) -> dict[int, str]:
     """Parse ``'[i]'``-style method keys into ``{position: method}`` pairs."""
     result: dict[int, str] = {}
@@ -107,6 +107,7 @@ def _needs_unnamed_filtering(methods: Mapping[Label, Method]) -> bool:
         if isinstance(key, str) and _is_index_label(key) and method != "all":
             return True
     return False
+
 
 def _pick_witness(values: list[object], method: str) -> object:
     """Return a single representative value from ``values`` according to ``method``.
@@ -193,6 +194,7 @@ def _apply_positional_methods(
 # Concretize
 # ---------------------------------------------------------------------------
 
+
 def concretize(node: IRNode, assignment: Mapping[str, object]) -> frozenset[object]:
     """Return the set of all runtime values that ``node`` can produce under ``assignment``."""
     if isinstance(node, NamedNode):
@@ -214,7 +216,9 @@ def concretize(node: IRNode, assignment: Mapping[str, object]) -> frozenset[obje
         for item in node.items:
             item_vals = concretize(item, assignment)
             result = frozenset(
-                existing + (v,) for existing in result for v in item_vals  # type: ignore[operator]
+                existing + (v,)
+                for existing in result
+                for v in item_vals  # type: ignore[operator]
             )
         return result
     if isinstance(node, UnionNode):
@@ -228,6 +232,7 @@ def concretize(node: IRNode, assignment: Mapping[str, object]) -> frozenset[obje
 # ---------------------------------------------------------------------------
 # Generate
 # ---------------------------------------------------------------------------
+
 
 def generate(
     tree: Type[GenerateT],
@@ -275,8 +280,7 @@ def generate(
     #    so that _apply_unnamed_methods can select a positional witness.
     if not contains_name(node):
         satisfying_iter = (
-            value for value in _values_node(node)
-            if eval_expression(constraint_eff, {None: value}) is True
+            value for value in _values_node(node) if eval_expression(constraint_eff, {None: value}) is True
         )
         if not _needs_unnamed_filtering(methods):
             return cast(set[GenerateT], set(satisfying_iter))
@@ -380,7 +384,9 @@ def _resolve_extensions(
             items.append(_resolve_extensions(item, tree, constraint, methods, child_address, current_label))
         return TupleNode(tuple(items))
     if isinstance(node, UnionNode):
-        return UnionNode(tuple(_resolve_extensions(opt, tree, constraint, methods, address, current_label) for opt in node.options))
+        return UnionNode(
+            tuple(_resolve_extensions(opt, tree, constraint, methods, address, current_label) for opt in node.options)
+        )
     if isinstance(node, NamedNode):
         return NamedNode(node.label, _resolve_extensions(node.inner, tree, constraint, methods, node.label, node.label))
     return node
