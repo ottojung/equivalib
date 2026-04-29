@@ -270,7 +270,7 @@ The string expression grammar (EBNF):
 expr        = or_expr
 or_expr     = and_expr ("or" and_expr)*
 and_expr    = cmp_expr ("and" cmp_expr)*
-cmp_expr    = sum_expr (cmp_op sum_expr)?
+cmp_expr    = sum_expr (cmp_op sum_expr)*
 cmp_op      = "==" | "!=" | "<" | "<=" | ">" | ">="
 sum_expr    = mul_expr (("+"|"-") mul_expr)*
 mul_expr    = neg_expr (("*"|"//"|"%") neg_expr)*
@@ -283,6 +283,11 @@ INT         = /0|[1-9][0-9]*/
 ```
 
 Operator precedence (lowest to highest): `or`, `and`, comparisons, `+`/`-`, `*`/`//`/`%`, unary `-`.
+
+Comparisons are associative (Python-style chaining): consecutive comparison operators are
+lowered to pairwise `And` nodes.  For example, `1 < X < 10` is parsed as
+`And(Lt(IntegerConstant(1), X), Lt(X, IntegerConstant(10)))`, and `a == b == c` becomes
+`And(Eq(a, b), Eq(b, c))`.
 
 Reserved keywords (not valid as label names in string expressions): `true`, `false`, `and`, `or`.
 
@@ -300,6 +305,7 @@ String expression examples:
 "-X"                                # Neg(Reference("X", ()))
 "X + Y"                             # Add(Reference("X",()), Reference("Y",()))
 "X >= 0 and X <= 9"                 # And(Ge(...), Le(...))
+"0 <= X <= 9"                       # And(Le(0, X), Le(X, 9))  — chained comparison
 "[0] != [1]"                        # Ne(Reference(None,(0,)), Reference(None,(1,)))
 "[0]*[0] + [1]*[1] == [2]*[2]"     # Pythagorean constraint
 ```
