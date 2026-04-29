@@ -163,8 +163,15 @@ class _ExprTransformer(Transformer):  # type: ignore[type-arg]
         return Or(args[0], args[1])
 
 
-_parser = Lark(_GRAMMAR, parser="lalr", start="start")
+_parser: Lark | None = None
 _transformer = _ExprTransformer()
+
+
+def _get_parser() -> Lark:
+    global _parser
+    if _parser is None:
+        _parser = Lark(_GRAMMAR, parser="lalr", start="start")
+    return _parser
 
 
 def parse(text: str) -> ParsedExpression:
@@ -196,5 +203,5 @@ def parse(text: str) -> ParsedExpression:
     Raises:
         lark.exceptions.LarkError: if the input is not a valid expression.
     """
-    tree = _parser.parse(text)
+    tree = _get_parser().parse(text)
     return _transformer.transform(tree)
