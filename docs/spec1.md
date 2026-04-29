@@ -50,19 +50,32 @@ The words MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY are to be interpreted as n
 ```python
 Label: TypeAlias = str
 Method: TypeAlias = Literal["all", "arbitrary", "uniform_random"]
-Expression: TypeAlias = Union[
+ParsedExpression: TypeAlias = Union[
     BooleanConstant, IntegerConstant, Reference,
     Neg, Add, Sub, Mul, FloorDiv, Mod,
     Eq, Ne, Lt, Le, Gt, Ge,
     And, Or,
 ]
+RawExpression: TypeAlias = str
 
-generate(tree: Type[T], constraint: Expression = BooleanExpression(True), methods: Optional[Mapping[Label, Method]] = None) -> Set[T]
+generate(tree: Type[T], constraint: Union[ParsedExpression, RawExpression] = BooleanExpression(True), methods: Optional[Mapping[Label, Method]] = None) -> Set[T]
+parse(text: str) -> ParsedExpression
 ```
 
 The extension-aware superset of this interface adds an optional `extensions` registry; see [extensions.md](extensions.md).
 
 Here `T` is the runtime type denoted by `tree`.
+
+The `constraint` parameter accepts either a `ParsedExpression` AST node or a `RawExpression` string.  When a string is passed, `generate` parses it automatically via `parse()` before use:
+
+```python
+if isinstance(constraint, str):
+    parsedConstraint = parse(constraint)
+elif isinstance(constraint, ParsedExpression):
+    parsedConstraint = constraint
+else:
+    impossible(constraint)
+```
 
 Default behavior:
 
@@ -89,6 +102,54 @@ generate(tree, BooleanExpression(True), None)
 ```
 
 When the extension-aware surface is used, omitted examples in this document should also be read as omitting the `extensions` argument.
+
+## Expression String Syntax
+
+The `parse` function accepts constraint strings in the following syntax.
+
+### Atoms
+
+| Syntax       | Meaning                                               |
+|--------------|-------------------------------------------------------|
+| `True`       | `BooleanConstant(True)`                               |
+| `False`      | `BooleanConstant(False)`                              |
+| `42`         | `IntegerConstant(42)` (non-negative decimal integer)  |
+| `X`          | `reference("X")` – named label with no path           |
+| `X[0]`       | `reference("X", 0)` – named label with one-level path |
+| `X[0][1]`    | `reference("X", 0, 1)` – named label with two-level path |
+| `[0]`        | `reference(0)` – anonymous (root) reference           |
+| `[0][1]`     | `reference(0, 1)` – anonymous reference with path     |
+| `(expr)`     | Parenthesised sub-expression                          |
+
+### Operators (low to high precedence)
+
+| Operator        | AST node   |
+|-----------------|------------|
+| `X or Y`        | `Or`       |
+| `X and Y`       | `And`      |
+| `X == Y`        | `Eq`       |
+| `X != Y`        | `Ne`       |
+| `X < Y`         | `Lt`       |
+| `X <= Y`        | `Le`       |
+| `X > Y`         | `Gt`       |
+| `X >= Y`        | `Ge`       |
+| `X + Y`         | `Add`      |
+| `X - Y`         | `Sub`      |
+| `X * Y`         | `Mul`      |
+| `X // Y`        | `FloorDiv` |
+| `X % Y`         | `Mod`      |
+| `-X` (unary)    | `Neg`      |
+
+### Examples
+
+```python
+parse("True")                          # BooleanConstant(True)
+parse("X == Y")                        # Eq(Reference("X", ()), Reference("Y", ()))
+parse("X[0] != X[1]")                  # Ne(Reference("X", (0,)), Reference("X", (1,)))
+parse("[0] < [1]")                     # Lt(Reference(None, (0,)), Reference(None, (1,)))
+parse("X >= 0 and X <= 9")             # And(Ge(X, 0), Le(X, 9))
+parse("a * a + b * b == c * c")        # Eq(Add(Mul(a,a), Mul(b,b)), Mul(c,c))
+```
 
 ## TypeTree
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import NoReturn, Optional, Sequence, Union
+from typing import NoReturn, Optional, Sequence, TypeAlias, Union
 
 
 # ---------------------------------------------------------------------------
@@ -174,6 +174,15 @@ Expression = Union[
     And,
     Or,
 ]
+
+# ``ParsedExpression`` is the algebraic (AST) form of a constraint — the
+# result of parsing or of constructing nodes directly.
+ParsedExpression: TypeAlias = Expression
+
+# ``RawExpression`` is an unparsed constraint string.  The ``generate``
+# function accepts either form and converts ``RawExpression`` to
+# ``ParsedExpression`` via ``parse()``.
+RawExpression: TypeAlias = str
 
 
 # ---------------------------------------------------------------------------

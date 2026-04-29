@@ -2,6 +2,7 @@
 
 Public API surface:
     generate         – the main generation function
+    parse            – parse a constraint string into a ParsedExpression AST
     values           – finite denotation for name-free types
     Name             – symbolic identity marker
     BooleanExpression – convenience constructor (returns BooleanConstant)
@@ -21,6 +22,8 @@ Expression AST constructors:
     And, Or
 
 Type aliases:
+    ParsedExpression – Union of all expression node types (algebraic form)
+    RawExpression    – str (unparsed constraint string)
     Expression       – Union of all expression node types
 """
 
@@ -45,10 +48,12 @@ from equivalib.core.expression import (
     And,
     Or,
     Expression,
+    ParsedExpression,
+    RawExpression,
     BooleanExpression,
     impossible,
 )
-from equivalib.core.api import generate
+from equivalib.core.api import generate, parse
 from equivalib.core.domains import values
 from equivalib.core.cache import mentioned_labels
 from equivalib.core.extension import Extension
@@ -57,12 +62,15 @@ from equivalib.core.line_intervals_set import LineIntervalsSet
 
 __all__ = [
     "generate",
+    "parse",
     "values",
     "Extension",
     "Regex",
     "LineIntervalsSet",
     "Name",
     "Expression",
+    "ParsedExpression",
+    "RawExpression",
     "BooleanExpression",
     "BooleanConstant",
     "IntegerConstant",

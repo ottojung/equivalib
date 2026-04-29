@@ -27,6 +27,8 @@ from equivalib.core.expression import (
     Ne,
     Neg,
     Or,
+    Reference,
+    Sub,
     reference,
 )
 from equivalib.core.methods import apply_methods
@@ -36,6 +38,7 @@ from equivalib.core.order import canonical_first, canonical_sorted
 from equivalib.core.sat import sat_search as _sat_search
 from equivalib.core.types import BoolNode, IntRangeNode, LiteralNode, NamedNode, TupleNode, UnionNode, labels_in_order
 from equivalib.core.validate import validate_expression, validate_methods, validate_tree
+from equivalib.core.parser import parse as _parse_expr
 
 
 def random_seed(seed):
@@ -803,11 +806,11 @@ def test_generate_rejects_invalid_expression_operand_types():
         generate(Annotated[bool, Name("X")], Lt(ref("X"), bool_const(True)), {"X": "all"})
 
 
-def test_expression_ast_is_required_not_source_string():
+def test_generate_accepts_string_constraint():
     generate = core_attr("generate")
     Name = core_attr("Name")
-    with pytest.raises((TypeError, ValueError)):
-        generate(Annotated[bool, Name("X")], "X == True", {"X": "all"})
+    result = generate(Annotated[bool, Name("X")], "X == True", {"X": "all"})
+    assert result == {True}
 
 
 def test_generate_supports_default_arguments():
@@ -2864,3 +2867,295 @@ def test_sat_search_arbitrary_matches_full_enumeration_plus_apply_methods():
     assert arb_solutions == expected, (
         f"sequential minimization produced {arb_solutions}, but full-enum + apply_methods produced {expected}"
     )
+
+
+# ==========================================================================
+# Parser (string-to-Expression) tests
+# ==========================================================================
+
+
+# --------------------------------------------------------------------------
+# Boolean constants
+# --------------------------------------------------------------------------
+
+
+def test_parse_boolean_true():
+    assert _parse_expr("True") == BooleanConstant(True)
+
+
+def test_parse_boolean_false():
+    assert _parse_expr("False") == BooleanConstant(False)
+
+
+# --------------------------------------------------------------------------
+# Integer constants
+# --------------------------------------------------------------------------
+
+
+def test_parse_integer_zero():
+    assert _parse_expr("0") == IntegerConstant(0)
+
+
+def test_parse_integer_positive():
+    assert _parse_expr("42") == IntegerConstant(42)
+
+
+def test_parse_integer_unary_neg():
+    assert _parse_expr("-7") == Neg(IntegerConstant(7))
+
+
+# --------------------------------------------------------------------------
+# References
+# --------------------------------------------------------------------------
+
+
+def test_parse_named_reference_bare():
+    assert _parse_expr("X") == Reference("X", ())
+
+
+def test_parse_named_reference_one_subscript():
+    assert _parse_expr("X[0]") == Reference("X", (0,))
+
+
+def test_parse_named_reference_two_subscripts():
+    assert _parse_expr("X[0][1]") == Reference("X", (0, 1))
+
+
+def test_parse_anonymous_reference_single():
+    assert _parse_expr("[0]") == Reference(None, (0,))
+
+
+def test_parse_anonymous_reference_two_levels():
+    assert _parse_expr("[0][1]") == Reference(None, (0, 1))
+
+
+# --------------------------------------------------------------------------
+# Arithmetic operators
+# --------------------------------------------------------------------------
+
+
+def test_parse_add():
+    assert _parse_expr("X + Y") == Add(Reference("X", ()), Reference("Y", ()))
+
+
+def test_parse_sub():
+    assert _parse_expr("X - Y") == Sub(Reference("X", ()), Reference("Y", ()))
+
+
+def test_parse_mul():
+    assert _parse_expr("X * Y") == Mul(Reference("X", ()), Reference("Y", ()))
+
+
+def test_parse_floordiv():
+    assert _parse_expr("X // Y") == FloorDiv(Reference("X", ()), Reference("Y", ()))
+
+
+def test_parse_mod():
+    assert _parse_expr("X % Y") == Mod(Reference("X", ()), Reference("Y", ()))
+
+
+def test_parse_neg():
+    assert _parse_expr("-X") == Neg(Reference("X", ()))
+
+
+def test_parse_arithmetic_precedence_mul_before_add():
+    # X * Y + Z should be (X * Y) + Z
+    assert _parse_expr("X * Y + Z") == Add(
+        Mul(Reference("X", ()), Reference("Y", ())),
+        Reference("Z", ()),
+    )
+
+
+def test_parse_arithmetic_precedence_add_left_assoc():
+    # X + Y + Z should be (X + Y) + Z
+    assert _parse_expr("X + Y + Z") == Add(
+        Add(Reference("X", ()), Reference("Y", ())),
+        Reference("Z", ()),
+    )
+
+
+def test_parse_parentheses_override_precedence():
+    # X * (Y + Z) should be X * (Y + Z)
+    assert _parse_expr("X * (Y + Z)") == Mul(
+        Reference("X", ()),
+        Add(Reference("Y", ()), Reference("Z", ())),
+    )
+
+
+# --------------------------------------------------------------------------
+# Comparison operators
+# --------------------------------------------------------------------------
+
+
+def test_parse_eq():
+    assert _parse_expr("X == Y") == Eq(Reference("X", ()), Reference("Y", ()))
+
+
+def test_parse_ne():
+    assert _parse_expr("X != Y") == Ne(Reference("X", ()), Reference("Y", ()))
+
+
+def test_parse_lt():
+    assert _parse_expr("X < Y") == Lt(Reference("X", ()), Reference("Y", ()))
+
+
+def test_parse_le():
+    assert _parse_expr("X <= Y") == Le(Reference("X", ()), Reference("Y", ()))
+
+
+def test_parse_gt():
+    assert _parse_expr("X > Y") == Gt(Reference("X", ()), Reference("Y", ()))
+
+
+def test_parse_ge():
+    assert _parse_expr("X >= Y") == Ge(Reference("X", ()), Reference("Y", ()))
+
+
+def test_parse_le_not_confused_with_lt():
+    # "X <= Y" must not be parsed as Lt followed by "= Y"
+    assert _parse_expr("X <= Y") == Le(Reference("X", ()), Reference("Y", ()))
+
+
+def test_parse_ge_not_confused_with_gt():
+    assert _parse_expr("X >= Y") == Ge(Reference("X", ()), Reference("Y", ()))
+
+
+# --------------------------------------------------------------------------
+# Boolean logic
+# --------------------------------------------------------------------------
+
+
+def test_parse_and():
+    assert _parse_expr("X and Y") == And(Reference("X", ()), Reference("Y", ()))
+
+
+def test_parse_or():
+    assert _parse_expr("X or Y") == Or(Reference("X", ()), Reference("Y", ()))
+
+
+def test_parse_and_lower_precedence_than_comparison():
+    # "X > 0 and Y < 5" should be "And(Gt(X, 0), Lt(Y, 5))"
+    assert _parse_expr("X > 0 and Y < 5") == And(
+        Gt(Reference("X", ()), IntegerConstant(0)),
+        Lt(Reference("Y", ()), IntegerConstant(5)),
+    )
+
+
+def test_parse_or_lower_precedence_than_and():
+    # "A and B or C" should be "(A and B) or C"
+    assert _parse_expr("A and B or C") == Or(
+        And(Reference("A", ()), Reference("B", ())),
+        Reference("C", ()),
+    )
+
+
+def test_parse_and_left_assoc():
+    assert _parse_expr("A and B and C") == And(
+        And(Reference("A", ()), Reference("B", ())),
+        Reference("C", ()),
+    )
+
+
+# --------------------------------------------------------------------------
+# Complex real-world-style expressions
+# --------------------------------------------------------------------------
+
+
+def test_parse_bounds_expression():
+    assert _parse_expr("X >= 0 and X <= 9") == And(
+        Ge(Reference("X", ()), IntegerConstant(0)),
+        Le(Reference("X", ()), IntegerConstant(9)),
+    )
+
+
+def test_parse_pythagorean_constraint():
+    # a * a + b * b == c * c
+    a, b, c = Reference("a", ()), Reference("b", ()), Reference("c", ())
+    expected = Eq(
+        Add(Mul(a, a), Mul(b, b)),
+        Mul(c, c),
+    )
+    assert _parse_expr("a * a + b * b == c * c") == expected
+
+
+# --------------------------------------------------------------------------
+# Error cases
+# --------------------------------------------------------------------------
+
+
+def test_parse_invalid_expression_raises_value_error():
+    with pytest.raises(ValueError, match="Failed to parse"):
+        _parse_expr("X ===  Y")
+
+
+def test_parse_empty_string_raises_value_error():
+    with pytest.raises(ValueError):
+        _parse_expr("")
+
+
+def test_parse_partial_expression_raises_value_error():
+    with pytest.raises(ValueError):
+        _parse_expr("X +")
+
+
+# --------------------------------------------------------------------------
+# generate() with string constraints (integration)
+# --------------------------------------------------------------------------
+
+
+def test_generate_string_true_unconstrained():
+    generate = core_attr("generate")
+    assert generate(bool, "True") == {False, True}
+
+
+def test_generate_string_false_empty_result():
+    generate = core_attr("generate")
+    assert generate(bool, "False") == set()
+
+
+def test_generate_string_ne_on_tuple_of_bools():
+    generate = core_attr("generate")
+    result = generate(tuple[bool, bool], "[0] != [1]")
+    assert result == {(False, True), (True, False)}
+
+
+def test_generate_string_eq_on_tuple_of_bools():
+    generate = core_attr("generate")
+    result = generate(tuple[bool, bool], "[0] == [1]")
+    assert result == {(False, False), (True, True)}
+
+
+def test_generate_string_named_bounds():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    tree = Annotated[int, Name("X")]
+    result = generate(tree, "X >= 1 and X <= 3")
+    assert result == {1, 2, 3}
+
+
+def test_generate_string_named_constraint_gt():
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    tree = Tuple[Annotated[int, Name("X")], Annotated[int, Name("Y")]]
+    result = generate(tree, "X >= 0 and X <= 2 and Y >= 0 and Y <= 2 and X > Y")
+    assert result == {(1, 0), (2, 0), (2, 1)}
+
+
+def test_generate_string_and_ast_produce_same_result():
+    """String constraint and equivalent AST constraint produce identical results."""
+    generate = core_attr("generate")
+    Name = core_attr("Name")
+    tree = Tuple[Annotated[int, Name("X")], Annotated[int, Name("Y")]]
+
+    string_result = generate(tree, "X >= 0 and X <= 5 and Y >= 0 and Y <= 5 and X == Y")
+
+    ast_constraint = And(
+        And(Ge(ref("X"), IntegerConstant(0)), Le(ref("X"), IntegerConstant(5))),
+        And(
+            And(Ge(ref("Y"), IntegerConstant(0)), Le(ref("Y"), IntegerConstant(5))),
+            Eq(ref("X"), ref("Y")),
+        ),
+    )
+    ast_result = generate(tree, ast_constraint)
+
+    assert string_result == ast_result

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import random
-from typing import Mapping, Optional, Type, TypeVar, cast
+from typing import Mapping, Optional, Type, TypeVar, Union, cast
 
 from equivalib.core.bounds_inference import fill_int_bounds, infer_int_bounds
 from equivalib.core.concretize import concretize
@@ -25,13 +25,17 @@ from equivalib.core.expression import (
     Ne,
     Neg,
     Or,
+    ParsedExpression,
+    RawExpression,
     Reference,
     Sub,
+    impossible,
 )
 from equivalib.core.extension import Extension
 from equivalib.core.methods import Label, Method, apply_methods, structural_eq, tag_value
 from equivalib.core.normalize import normalize
 from equivalib.core.order import canonical_first
+from equivalib.core.parser import parse
 from equivalib.core.search import search
 from equivalib.core.types import (
     ExtensionNode,
@@ -283,18 +287,37 @@ def _resolve_extensions(
 
 def generate(
     tree: Type[GenerateT],
-    constraint: Expression = _DEFAULT_CONSTRAINT,
+    constraint: Union[ParsedExpression, RawExpression] = _DEFAULT_CONSTRAINT,
     methods: Optional[Mapping[Label, Method]] = None,
 ) -> set[GenerateT]:
-    """Generate all runtime values of type ``tree`` satisfying ``constraint``."""
+    """Generate all runtime values of type ``tree`` satisfying ``constraint``.
+
+    Args:
+        tree:       The type whose values to generate.
+        constraint: Either a :data:`ParsedExpression` AST node or a
+                    :data:`RawExpression` string.  Strings are parsed via
+                    :func:`~equivalib.core.parser.parse` before use.
+        methods:    Optional per-label generation methods.
+
+    Returns:
+        The set of all values of type ``tree`` that satisfy ``constraint``.
+    """
     if methods is None:
         methods = {}
+
+    # 0. Resolve raw string constraints
+    if isinstance(constraint, str):
+        parsed_constraint: ParsedExpression = parse(constraint)
+    elif isinstance(constraint, _EXPR_TYPES):
+        parsed_constraint = constraint
+    else:
+        impossible(constraint)  # type: ignore[arg-type]
 
     # 1. Normalize
     node = normalize(tree)
 
     # 2. Extension initialize hooks and effective constraint
-    constraint_eff = _effective_constraint(node, tree, constraint)
+    constraint_eff = _effective_constraint(node, tree, parsed_constraint)
 
     # 3. Resolve extension leaves according to methods/addresses.
     node = _resolve_extensions(node, tree, constraint_eff, methods)

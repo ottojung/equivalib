@@ -54,11 +54,27 @@ Great for demos, quick checks, and building intuition.
 
 ---
 
-## Slide 5 — In-model constraints via named trees + `reference`
+## Slide 5 — In-model constraints via string expressions
 
 ```python
-from typing import Annotated, cast
-from equivalib.core import Ne, generate, reference
+from equivalib.core import generate
+
+tree = tuple[bool, bool]
+
+values = generate(tree, "[0] != [1]")
+# => {(False, True), (True, False)}
+```
+
+Instead of filtering after generation, we encode relationships directly into the solver input.
+The constraint string `"[0] != [1]"` means "the first element must not equal the second".
+
+---
+
+## Slide 5b — String syntax: named trees
+
+```python
+from typing import Annotated
+from equivalib.core import Ne, generate, reference, Name
 
 tree = tuple[bool, bool]
 constraint = Ne(reference(0), reference(1))
@@ -67,7 +83,7 @@ values = generate(tree, constraint, {"B": "all"})
 # => {(False, True), (True, False)}
 ```
 
-Instead of filtering after generation, we encode relationships directly into the solver input.
+The `ParsedExpression` AST form is also accepted — strings and AST nodes are interchangeable.
 
 ---
 
@@ -135,25 +151,25 @@ This pattern keeps generation declarative while still allowing business-level su
 ## Slide 10 — SAT-backed integer relations: Pythagorean triples
 
 ```python
-from equivalib.core import generate, And, Ge, Le, Eq, Add, Mul, IntegerConstant, reference
+from equivalib.core import generate
 
 def generate_pythagorean_triples(limit: int):
     tree = tuple[int, int, int]
-    a, b, c = reference(0), reference(1), reference(2)
-    bounds = And(
-        And(Ge(a, IntegerConstant(1)), Le(a, IntegerConstant(limit))),
-        And(Ge(b, IntegerConstant(1)), Le(b, IntegerConstant(limit))),
-        And(Ge(c, IntegerConstant(1)), Le(c, IntegerConstant(limit))),
+    bounds = (
+        f"[0] >= 1 and [0] <= {limit} and "
+        f"[1] >= 1 and [1] <= {limit} and "
+        f"[2] >= 1 and [2] <= {limit}"
     )
-    ordered    = And(Le(a, b), Le(b, c))
-    pythagorean = Eq(Add(Mul(a, a), Mul(b, b)), Mul(c, c))
-    return generate(tree, And(bounds, And(ordered, pythagorean)))
+    ordered     = "[0] <= [1] and [1] <= [2]"
+    pythagorean = "[0] * [0] + [1] * [1] == [2] * [2]"
+    return generate(tree, f"({bounds}) and ({ordered}) and ({pythagorean})")
 
 triples = generate_pythagorean_triples(limit=30)
 # includes (3, 4, 5), (5, 12, 13), (20, 21, 29), ...
 ```
 
 SAT-backed integer constraints scale to large search spaces with precise semantics.
+The same constraint can also be written as a `ParsedExpression` AST for programmatic construction.
 
 ---
 
@@ -172,16 +188,15 @@ Using `{"[0]": "arbitrary", "[1]": "arbitrary", ...}` asks for one deterministic
 
 ```python
 from typing import Annotated
-from equivalib.core import generate, And, Ge, Gt, IntegerConstant, Le, Name, reference
+from equivalib.core import generate, Name
 
 tree = tuple[Annotated[int, Name("X")], Annotated[int, Name("Y")]]
-constraint = And(
-    And(Ge(reference("X"), IntegerConstant(0)), Le(reference("X"), IntegerConstant(9))),
-    And(Ge(reference("Y"), IntegerConstant(0)), Le(reference("Y"), IntegerConstant(9))),
-    Gt(reference("X"), reference("Y")),
-)
 
-result = generate(tree, constraint, {"X": "all", "Y": "arbitrary"})
+result = generate(
+    tree,
+    "X >= 0 and X <= 9 and Y >= 0 and Y <= 9 and X > Y",
+    {"X": "all", "Y": "arbitrary"},
+)
 # => {(1,0), (2,0), (3,0), (4,0), (5,0), (6,0), (7,0), (8,0), (9,0)}
 ```
 
@@ -275,8 +290,8 @@ the other with the same pairwise relations (touch / kiss / overlap / disjoint).
 ## Slide 16 — Testing strategy in this repository
 
 - Each interesting slide example has a corresponding executable test.
-- Constraints are expressed using AST nodes (`Eq`, `And`, `Add`, ...), not strings.
-- Addressing into named tuples uses `reference("Label", index, ...)`.
+- Constraints are expressed as strings (`"X == Y"`, `"[0] != [1]"`, ...) or as AST nodes (`Eq`, `And`, `Add`, ...).
+- Addressing into named tuples uses `reference("Label", index, ...)` in AST form, or `Label[index]` in string form.
 - `LineIntervalsSet` replaces hand-written equivalence-class enumeration loops in tests.
 
 This keeps examples both educational and regression-safe.

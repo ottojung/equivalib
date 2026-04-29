@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Annotated, cast
 
 from equivalib.core import (
-    Add,
     And,
     BooleanExpression,
     Eq,
@@ -11,12 +10,21 @@ from equivalib.core import (
     IntegerConstant,
     Le,
     LineIntervalsSet,
-    Mul,
+    Add,
     Name,
     Regex,
     generate,
+    parse,
 )
-from equivalib.core.expression import Expression, reference
+from equivalib.core.expression import (
+    And as _And,
+    Expression,
+    Ge as _Ge,
+    IntegerConstant as _IC,
+    Le as _Le,
+    Reference as _Ref,
+    reference,
+)
 
 
 
@@ -28,21 +36,14 @@ class TicketCode(Regex):
 
 def generate_pythagorean_triples(limit: int) -> set[tuple[int, int, int]]:
     tree = tuple[int, int, int]
-    a = reference(0)
-    b = reference(1)
-    c = reference(2)
-
-    bounds = And(
-        And(Ge(a, IntegerConstant(1)), Le(a, IntegerConstant(limit))),
-        And(
-            And(Ge(b, IntegerConstant(1)), Le(b, IntegerConstant(limit))),
-            And(Ge(c, IntegerConstant(1)), Le(c, IntegerConstant(limit))),
-        ),
+    bounds = (
+        f"[0] >= 1 and [0] <= {limit} and "
+        f"[1] >= 1 and [1] <= {limit} and "
+        f"[2] >= 1 and [2] <= {limit}"
     )
-    ordered = And(Le(a, b), Le(b, c))
-    pythagorean = Eq(Add(Mul(a, a), Mul(b, b)), Mul(c, c))
-
-    return generate(tree, And(bounds, And(ordered, pythagorean)))  # type: ignore[arg-type]
+    ordered = "[0] <= [1] and [1] <= [2]"
+    pythagorean = "[0] * [0] + [1] * [1] == [2] * [2]"
+    return generate(tree, f"({bounds}) and ({ordered}) and ({pythagorean})")  # type: ignore[return-value]
 
 
 def generate_sum_to_hundred_witness() -> set[tuple[int, ...]]:
@@ -82,11 +83,27 @@ def test_interesting_direct_indexing_on_generated_tuple_values():
     assert only_true_first == {(True, False), (True, True)}
 
 
+def test_interesting_tuple_constraint_with_string_ne():
+    """String constraint: tuple elements must differ."""
+    values = generate(tuple[bool, bool], "[0] != [1]")
+
+    assert values == {(False, True), (True, False)}
+
+
 def test_interesting_tuple_constraint_with_reference_paths():
     tree = cast(type[tuple[bool, bool]], Annotated[tuple[bool, bool], Name("B")])
     same_value = Eq(reference("B", 0), reference("B", 1))
 
     values = generate(tree, same_value, {"B": "all"})
+
+    assert values == {(False, False), (True, True)}
+
+
+def test_interesting_tuple_constraint_string_eq_on_named_tree():
+    """String constraint with named label path syntax."""
+    tree = cast(type[tuple[bool, bool]], Annotated[tuple[bool, bool], Name("B")])
+
+    values = generate(tree, "B[0] == B[1]", {"B": "all"})
 
     assert values == {(False, False), (True, True)}
 
@@ -129,6 +146,19 @@ def test_interesting_boolean_expression_true_is_unconstrained():
     values = generate(bool, BooleanExpression(True))
 
     assert values == {False, True}
+
+
+def test_interesting_string_true_is_unconstrained():
+    """String 'True' behaves identically to BooleanExpression(True)."""
+    values = generate(bool, "True")
+
+    assert values == {False, True}
+
+
+def test_interesting_parse_returns_expression_ast():
+    """parse() can be called standalone to inspect the resulting AST."""
+    expr = parse("X >= 0 and X <= 9")
+    assert expr == _And(_Ge(_Ref("X", ()), _IC(0)), _Le(_Ref("X", ()), _IC(9)))
 
 
 class PairsUpTo5(LineIntervalsSet):
