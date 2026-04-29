@@ -58,8 +58,7 @@ Great for demos, quick checks, and building intuition.
 
 ```python
 from typing import Annotated, cast
-from equivalib.core import Ne, generate
-from equivalib.core.expression import reference
+from equivalib.core import Ne, generate, reference
 
 tree = tuple[bool, bool]
 constraint = Ne(reference(0), reference(1))
@@ -136,8 +135,7 @@ This pattern keeps generation declarative while still allowing business-level su
 ## Slide 10 — SAT-backed integer relations: Pythagorean triples
 
 ```python
-from equivalib.core import generate, And, Ge, Le, Eq, Add, Mul, IntegerConstant
-from equivalib.core.expression import reference
+from equivalib.core import generate, And, Ge, Le, Eq, Add, Mul, IntegerConstant, reference
 
 def generate_pythagorean_triples(limit: int):
     tree = tuple[int, int, int]
@@ -174,8 +172,7 @@ Using `{"[0]": "arbitrary", "[1]": "arbitrary", ...}` asks for one deterministic
 
 ```python
 from typing import Annotated
-from equivalib.core import generate, And, Ge, Gt, IntegerConstant, Le, Name
-from equivalib.core.expression import reference
+from equivalib.core import generate, And, Ge, Gt, IntegerConstant, Le, Name, reference
 
 tree = tuple[Annotated[int, Name("X")], Annotated[int, Name("Y")]]
 constraint = And(
