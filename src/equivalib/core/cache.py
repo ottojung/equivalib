@@ -51,7 +51,7 @@ from equivalib.core.expression import (
     Ge,
     And,
     Or,
-    Expression,
+    ParsedExpression,
     impossible,
 )
 
@@ -60,14 +60,14 @@ from equivalib.core.expression import (
 # mentioned_labels
 # ---------------------------------------------------------------------------
 
-def mentioned_labels(expr: Expression) -> set[str]:
+def mentioned_labels(expr: ParsedExpression) -> set[str]:
     """Return the set of label strings referenced in ``expr``."""
     result: set[str] = set()
     _collect_labels(expr, result)
     return result
 
 
-def _collect_labels(expr: Expression, out: set[str]) -> None:
+def _collect_labels(expr: ParsedExpression, out: set[str]) -> None:
     if isinstance(expr, (BooleanConstant, IntegerConstant)):
         return
     if isinstance(expr, Reference):
@@ -124,7 +124,7 @@ def _labels_outside(subtree: IRNode, node: IRNode) -> frozenset[str]:
     impossible(node)
 
 
-def is_constraint_independent(subtree: IRNode, constraint: Expression) -> bool:
+def is_constraint_independent(subtree: IRNode, constraint: ParsedExpression) -> bool:
     """True iff no label in ``subtree`` is referenced in ``constraint``."""
     sub_labels = tree_labels(subtree)
     if not sub_labels:
@@ -133,7 +133,7 @@ def is_constraint_independent(subtree: IRNode, constraint: Expression) -> bool:
     return not (sub_labels & expr_labels)
 
 
-def is_guaranteed_cacheable(subtree: IRNode, whole_tree: IRNode, constraint: Expression) -> bool:
+def is_guaranteed_cacheable(subtree: IRNode, whole_tree: IRNode, constraint: ParsedExpression) -> bool:
     """True iff ``subtree`` is safe to cache independently.
 
     Guaranteed-cacheable cases (from the spec):

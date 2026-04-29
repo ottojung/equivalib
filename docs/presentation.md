@@ -54,20 +54,17 @@ Great for demos, quick checks, and building intuition.
 
 ---
 
-## Slide 5 — In-model constraints via named trees + `reference`
+## Slide 5 — In-model constraints via named trees + string expressions
 
 ```python
-from typing import Annotated, cast
-from equivalib.core import Ne, generate, reference
+from equivalib.core import generate
 
 tree = tuple[bool, bool]
-constraint = Ne(reference(0), reference(1))
-
-values = generate(tree, constraint, {"B": "all"})
+values = generate(tree, "[0] != [1]")
 # => {(False, True), (True, False)}
 ```
 
-Instead of filtering after generation, we encode relationships directly into the solver input.
+Instead of filtering after generation, we encode relationships directly as a string expression.
 
 ---
 
@@ -135,19 +132,18 @@ This pattern keeps generation declarative while still allowing business-level su
 ## Slide 10 — SAT-backed integer relations: Pythagorean triples
 
 ```python
-from equivalib.core import generate, And, Ge, Le, Eq, Add, Mul, IntegerConstant, reference
+from equivalib.core import generate
 
 def generate_pythagorean_triples(limit: int):
     tree = tuple[int, int, int]
-    a, b, c = reference(0), reference(1), reference(2)
-    bounds = And(
-        And(Ge(a, IntegerConstant(1)), Le(a, IntegerConstant(limit))),
-        And(Ge(b, IntegerConstant(1)), Le(b, IntegerConstant(limit))),
-        And(Ge(c, IntegerConstant(1)), Le(c, IntegerConstant(limit))),
+    bounds = (
+        f"1 <= [0] and [0] <= {limit} and "
+        f"1 <= [1] and [1] <= {limit} and "
+        f"1 <= [2] and [2] <= {limit}"
     )
-    ordered    = And(Le(a, b), Le(b, c))
-    pythagorean = Eq(Add(Mul(a, a), Mul(b, b)), Mul(c, c))
-    return generate(tree, And(bounds, And(ordered, pythagorean)))
+    ordered = "[0] <= [1] and [1] <= [2]"
+    pythagorean = "[0]*[0] + [1]*[1] == [2]*[2]"
+    return generate(tree, f"{bounds} and {ordered} and {pythagorean}")
 
 triples = generate_pythagorean_triples(limit=30)
 # includes (3, 4, 5), (5, 12, 13), (20, 21, 29), ...
@@ -172,14 +168,10 @@ Using `{"[0]": "arbitrary", "[1]": "arbitrary", ...}` asks for one deterministic
 
 ```python
 from typing import Annotated
-from equivalib.core import generate, And, Ge, Gt, IntegerConstant, Le, Name, reference
+from equivalib.core import generate, Name
 
 tree = tuple[Annotated[int, Name("X")], Annotated[int, Name("Y")]]
-constraint = And(
-    And(Ge(reference("X"), IntegerConstant(0)), Le(reference("X"), IntegerConstant(9))),
-    And(Ge(reference("Y"), IntegerConstant(0)), Le(reference("Y"), IntegerConstant(9))),
-    Gt(reference("X"), reference("Y")),
-)
+constraint = "X >= 0 and X <= 9 and Y >= 0 and Y <= 9 and X > Y"
 
 result = generate(tree, constraint, {"X": "all", "Y": "arbitrary"})
 # => {(1,0), (2,0), (3,0), (4,0), (5,0), (6,0), (7,0), (8,0), (9,0)}
@@ -205,7 +197,7 @@ Use per-label methods to mix exhaustive and witness-oriented generation.
 import random
 from dataclasses import dataclass
 from equivalib.core import Extension, generate
-from equivalib.core.expression import Expression
+from equivalib.core.expression import ParsedExpression
 from typing import Iterator
 
 @dataclass(frozen=True)
@@ -213,22 +205,22 @@ class Greeting(Extension):
     text: str
 
     @staticmethod
-    def initialize(tree: object, constraint: Expression) -> None:
+    def initialize(tree: object, constraint: ParsedExpression) -> None:
         del tree, constraint
 
     @staticmethod
-    def enumerate_all(tree: object, constraint: Expression, address: str | None) -> Iterator["Greeting"]:
+    def enumerate_all(tree: object, constraint: ParsedExpression, address: str | None) -> Iterator["Greeting"]:
         del tree, constraint, address
         yield Greeting("hello")
         yield Greeting("hi")
 
     @staticmethod
-    def arbitrary(tree: object, constraint: Expression, address: str | None) -> "Greeting | None":
+    def arbitrary(tree: object, constraint: ParsedExpression, address: str | None) -> "Greeting | None":
         del tree, constraint, address
         return Greeting("hello")
 
     @staticmethod
-    def uniform_random(tree: object, constraint: Expression, address: str | None) -> "Greeting | None":
+    def uniform_random(tree: object, constraint: ParsedExpression, address: str | None) -> "Greeting | None":
         del tree, constraint, address
         return random.choice([Greeting("hello"), Greeting("hi")])
 
@@ -275,8 +267,8 @@ the other with the same pairwise relations (touch / kiss / overlap / disjoint).
 ## Slide 16 — Testing strategy in this repository
 
 - Each interesting slide example has a corresponding executable test.
-- Constraints are expressed using AST nodes (`Eq`, `And`, `Add`, ...), not strings.
-- Addressing into named tuples uses `reference("Label", index, ...)`.
+- Constraints are expressed as string expressions (`"[0] != [1]"`, `"X >= 0 and X <= 9"`).
+- Addressing into named tuples uses `"X[0]"`, `"X[0][1]"` syntax in strings.
 - `LineIntervalsSet` replaces hand-written equivalence-class enumeration loops in tests.
 
 This keeps examples both educational and regression-safe.

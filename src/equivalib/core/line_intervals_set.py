@@ -7,7 +7,7 @@ from itertools import combinations_with_replacement, permutations
 from typing import Iterator
 
 from equivalib.core.extension import Extension
-from equivalib.core.expression import Expression
+from equivalib.core.expression import ParsedExpression
 
 # Relation codes used to classify how two integer intervals relate to each other.
 _RELATION_TOUCH = 0
@@ -155,24 +155,24 @@ class LineIntervalsSet(Extension, ABC):
         return cls(intervals)
 
     @staticmethod
-    def initialize(tree: object, constraint: Expression) -> None:
+    def initialize(tree: object, constraint: ParsedExpression) -> None:
         del tree, constraint
 
     @classmethod
-    def enumerate_all(cls, tree: object, constraint: Expression, address: str | None) -> Iterator["LineIntervalsSet"]:
+    def enumerate_all(cls, tree: object, constraint: ParsedExpression, address: str | None) -> Iterator["LineIntervalsSet"]:
         del tree, constraint, address
         for intervals in cls._enumerate_representatives():
             yield cls._materialize(intervals)
 
     @classmethod
-    def arbitrary(cls, tree: object, constraint: Expression, address: str | None) -> "LineIntervalsSet | None":
+    def arbitrary(cls, tree: object, constraint: ParsedExpression, address: str | None) -> "LineIntervalsSet | None":
         del tree, constraint, address
         for intervals in cls._enumerate_representatives():
             return cls._materialize(intervals)
         return None
 
     @classmethod
-    def uniform_random(cls, tree: object, constraint: Expression, address: str | None) -> "LineIntervalsSet | None":
+    def uniform_random(cls, tree: object, constraint: ParsedExpression, address: str | None) -> "LineIntervalsSet | None":
         """Return a uniformly random representative using reservoir sampling (single pass)."""
         del tree, constraint, address
         selected: tuple[tuple[int, int], ...] | None = None

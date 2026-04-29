@@ -9,7 +9,7 @@ from typing import Annotated, Any, ClassVar, Iterator, cast
 import pytest
 
 from equivalib.core import Extension, Regex
-from equivalib.core.expression import And, Eq, Expression, Ge, Le
+from equivalib.core.expression import And, Eq, Ge, Le, ParsedExpression
 from equivalib.core.name import Name as CoreName
 
 def core_attr(name: str) -> Any:
@@ -56,38 +56,38 @@ class Palette(Extension):
     token: str
 
     @staticmethod
-    def initialize(tree: object, constraint: Expression) -> Expression | None:
+    def initialize(tree: object, constraint: ParsedExpression) -> ParsedExpression | None:
         return None
 
     @staticmethod
-    def enumerate_all(tree: object, constraint: Expression, address: str | None) -> Iterator["Palette"]:
+    def enumerate_all(tree: object, constraint: ParsedExpression, address: str | None) -> Iterator["Palette"]:
         del tree, constraint, address
         return iter((Palette("red"), Palette("orange")))
 
     @staticmethod
-    def arbitrary(tree: object, constraint: Expression, address: str | None) -> "Palette" | None:
+    def arbitrary(tree: object, constraint: ParsedExpression, address: str | None) -> "Palette" | None:
         del tree, constraint, address
         return Palette("red")
 
     @staticmethod
-    def uniform_random(tree: object, constraint: Expression, address: str | None) -> "Palette" | None:
+    def uniform_random(tree: object, constraint: ParsedExpression, address: str | None) -> "Palette" | None:
         del tree, constraint, address
         return random.choice([Palette("red"), Palette("orange")])
 
 
 class InvalidInitialize(Extension):
     @staticmethod
-    def enumerate_all(tree: object, constraint: Expression, address: str | None) -> Iterator["InvalidInitialize"]:
+    def enumerate_all(tree: object, constraint: ParsedExpression, address: str | None) -> Iterator["InvalidInitialize"]:
         del tree, constraint, address
         return iter(())
 
     @staticmethod
-    def arbitrary(tree: object, constraint: Expression, address: str | None) -> "InvalidInitialize" | None:
+    def arbitrary(tree: object, constraint: ParsedExpression, address: str | None) -> "InvalidInitialize" | None:
         del tree, constraint, address
         return None
 
     @staticmethod
-    def uniform_random(tree: object, constraint: Expression, address: str | None) -> "InvalidInitialize" | None:
+    def uniform_random(tree: object, constraint: ParsedExpression, address: str | None) -> "InvalidInitialize" | None:
         del tree, constraint, address
         return None
 
@@ -132,22 +132,22 @@ def test_extension_subclass_can_drive_exhaustive_generation():
 @dataclass(frozen=True)
 class BoundedByInitialize(Extension):
     @staticmethod
-    def initialize(tree: object, constraint: Expression) -> Expression | None:
+    def initialize(tree: object, constraint: ParsedExpression) -> ParsedExpression | None:
         del tree, constraint
-        return cast(Expression, _int_bounds("X", 1, 2))
+        return cast(ParsedExpression, _int_bounds("X", 1, 2))
 
     @staticmethod
-    def enumerate_all(tree: object, constraint: Expression, address: str | None) -> Iterator["BoundedByInitialize"]:
+    def enumerate_all(tree: object, constraint: ParsedExpression, address: str | None) -> Iterator["BoundedByInitialize"]:
         del tree, constraint, address
         return iter((BoundedByInitialize(),))
 
     @staticmethod
-    def arbitrary(tree: object, constraint: Expression, address: str | None) -> "BoundedByInitialize" | None:
+    def arbitrary(tree: object, constraint: ParsedExpression, address: str | None) -> "BoundedByInitialize" | None:
         del tree, constraint, address
         return BoundedByInitialize()
 
     @staticmethod
-    def uniform_random(tree: object, constraint: Expression, address: str | None) -> "BoundedByInitialize" | None:
+    def uniform_random(tree: object, constraint: ParsedExpression, address: str | None) -> "BoundedByInitialize" | None:
         del tree, constraint, address
         return BoundedByInitialize()
 
@@ -214,7 +214,7 @@ def test_int_behavior_still_uses_core_semantics():
 
 class BadPalette(Palette):
     @staticmethod
-    def arbitrary(tree: object, constraint: Expression, address: str | None) -> Palette | None:
+    def arbitrary(tree: object, constraint: ParsedExpression, address: str | None) -> Palette | None:
         del tree, constraint, address
         return Palette("red")
 
@@ -261,24 +261,24 @@ class AddressEcho(Extension):
     seen_addresses: ClassVar[list[str | None]] = []
 
     @staticmethod
-    def initialize(tree: object, constraint: Expression) -> Expression | None:
+    def initialize(tree: object, constraint: ParsedExpression) -> ParsedExpression | None:
         del tree, constraint
         return None
 
     @staticmethod
-    def enumerate_all(tree: object, constraint: Expression, address: str | None) -> Iterator["AddressEcho"]:
+    def enumerate_all(tree: object, constraint: ParsedExpression, address: str | None) -> Iterator["AddressEcho"]:
         del tree, constraint
         AddressEcho.seen_addresses.append(address)
         return iter((AddressEcho("ok"),))
 
     @staticmethod
-    def arbitrary(tree: object, constraint: Expression, address: str | None) -> "AddressEcho" | None:
+    def arbitrary(tree: object, constraint: ParsedExpression, address: str | None) -> "AddressEcho" | None:
         del tree, constraint
         AddressEcho.seen_addresses.append(address)
         return AddressEcho("ok")
 
     @staticmethod
-    def uniform_random(tree: object, constraint: Expression, address: str | None) -> "AddressEcho" | None:
+    def uniform_random(tree: object, constraint: ParsedExpression, address: str | None) -> "AddressEcho" | None:
         del tree, constraint
         AddressEcho.seen_addresses.append(address)
         return AddressEcho("ok")

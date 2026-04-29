@@ -9,7 +9,7 @@ from itertools import product
 from typing import Any, Iterator, cast
 
 from equivalib.core.extension import Extension
-from equivalib.core.expression import Expression
+from equivalib.core.expression import ParsedExpression
 
 _DEFAULT_INFINITE_REPEAT_BOUND = 8
 
@@ -36,18 +36,18 @@ class Regex(Extension, ABC):
         return cls(text)
 
     @staticmethod
-    def initialize(tree: object, constraint: Expression) -> None:
+    def initialize(tree: object, constraint: ParsedExpression) -> None:
         del tree, constraint
 
     @classmethod
-    def enumerate_all(cls, tree: object, constraint: Expression, address: str | None) -> Iterator["Regex"]:
+    def enumerate_all(cls, tree: object, constraint: ParsedExpression, address: str | None) -> Iterator["Regex"]:
         del tree, constraint, address
         for text in _enumerate_subpattern(cls._parsed()):
             if cls._compiled().fullmatch(text):
                 yield cls._materialize(text)
 
     @classmethod
-    def arbitrary(cls, tree: object, constraint: Expression, address: str | None) -> "Regex" | None:
+    def arbitrary(cls, tree: object, constraint: ParsedExpression, address: str | None) -> "Regex" | None:
         del tree, constraint, address
         for text in _enumerate_subpattern(cls._parsed(), infinite_bound=_DEFAULT_INFINITE_REPEAT_BOUND):
             if cls._compiled().fullmatch(text):
@@ -55,7 +55,7 @@ class Regex(Extension, ABC):
         return None
 
     @classmethod
-    def uniform_random(cls, tree: object, constraint: Expression, address: str | None) -> "Regex" | None:
+    def uniform_random(cls, tree: object, constraint: ParsedExpression, address: str | None) -> "Regex" | None:
         del tree, constraint, address
         pool = tuple(_enumerate_subpattern(cls._parsed(), infinite_bound=_DEFAULT_INFINITE_REPEAT_BOUND))
         if not pool:

@@ -13,6 +13,7 @@ from equivalib.core.extension import Extension
 from equivalib.core.expression import (
     BooleanExpression,
     Expression,
+    ParsedExpression,
     And,
     BooleanConstant,
     IntegerConstant,
@@ -33,6 +34,7 @@ from equivalib.core.expression import (
     impossible,
     reference,
 )
+from equivalib.core.parser import parse
 from equivalib.core.normalize import normalize
 from equivalib.core.validate import validate_tree, validate_methods, validate_expression, _is_index_label
 from equivalib.core.types import (
@@ -58,7 +60,7 @@ from equivalib.core.methods import apply_methods, Label, Method, tag_value, stru
 
 GenerateT = TypeVar("GenerateT")
 
-_DEFAULT_CONSTRAINT: Expression = BooleanExpression(True)
+_DEFAULT_CONSTRAINT: ParsedExpression = BooleanExpression(True)
 _EXPR_TYPES = (
     BooleanConstant,
     IntegerConstant,
@@ -236,15 +238,28 @@ def generate(
     constraint: Expression = _DEFAULT_CONSTRAINT,
     methods: Optional[Mapping[Label, Method]] = None,
 ) -> set[GenerateT]:
-    """Generate all runtime values of type ``tree`` satisfying ``constraint``."""
+    """Generate all runtime values of type ``tree`` satisfying ``constraint``.
+
+    ``constraint`` may be a string expression (``RawExpression``) or an
+    already-constructed ``ParsedExpression`` AST node.  String expressions are
+    parsed with :func:`equivalib.core.parser.parse` before processing.
+    """
     if methods is None:
         methods = {}
+
+    # 0. Parse string constraint into a ParsedExpression.
+    if isinstance(constraint, str):
+        parsed_constraint: ParsedExpression = parse(constraint)
+    elif isinstance(constraint, _EXPR_TYPES):
+        parsed_constraint = constraint
+    else:
+        impossible(constraint)
 
     # 1. Normalize
     node = normalize(tree)
 
     # 2. Extension initialize hooks and effective constraint
-    constraint_eff = _effective_constraint(node, tree, constraint)
+    constraint_eff = _effective_constraint(node, tree, parsed_constraint)
 
     # 3. Resolve extension leaves according to methods/addresses.
     node = _resolve_extensions(node, tree, constraint_eff, methods)
@@ -305,8 +320,8 @@ def generate(
     return concrete_results  # type: ignore[return-value]
 
 
-def _effective_constraint(node: IRNode, tree: Type[GenerateT], constraint: Expression) -> Expression:
-    extras: list[Expression] = []
+def _effective_constraint(node: IRNode, tree: Type[GenerateT], constraint: ParsedExpression) -> ParsedExpression:
+    extras: list[ParsedExpression] = []
     for cls in _extension_classes(node):
         initialize = getattr(cls, "initialize", None)
         if not callable(initialize):
@@ -315,7 +330,7 @@ def _effective_constraint(node: IRNode, tree: Type[GenerateT], constraint: Expre
         if extra is None:
             continue
         if not isinstance(extra, _EXPR_TYPES):
-            raise TypeError("initialize(...) must return an Expression or None.")
+            raise TypeError("initialize(...) must return a ParsedExpression or None.")
         extras.append(extra)
 
     eff = constraint
@@ -347,7 +362,7 @@ def _extension_classes(node: IRNode) -> set[type[Extension]]:
 def _resolve_extensions(
     node: IRNode,
     tree: Type[GenerateT],
-    constraint: Expression,
+    constraint: ParsedExpression,
     methods: Mapping[Label, Method],
     address: str | None = None,
     current_label: str | None = None,

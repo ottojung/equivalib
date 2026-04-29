@@ -8,7 +8,7 @@ Entry points:
 from __future__ import annotations
 
 from equivalib.core.expression import (
-    Expression,
+    ParsedExpression,
     And,
     Ge,
     Le,
@@ -109,10 +109,10 @@ def _has_cycle_in_rel_lt(
     return False
 
 
-def _flatten_and(expr: Expression) -> list[Expression]:
+def _flatten_and(expr: ParsedExpression) -> list[ParsedExpression]:
     """Return all top-level AND conjuncts from a constraint."""
-    result: list[Expression] = []
-    stack: list[Expression] = [expr]
+    result: list[ParsedExpression] = []
+    stack: list[ParsedExpression] = [expr]
     while stack:
         current = stack.pop()
         if isinstance(current, And):
@@ -124,7 +124,7 @@ def _flatten_and(expr: Expression) -> list[Expression]:
 
 
 def _try_extract_bound(
-    expr: Expression,
+    expr: ParsedExpression,
     int_refs: frozenset[RefKey],
     direct_lo: dict[RefKey, int],
     direct_hi: dict[RefKey, int],
@@ -134,7 +134,7 @@ def _try_extract_bound(
 ) -> None:
     """Extract a bound from a simple comparison conjunct, if possible."""
 
-    def ref_key(e: Expression) -> RefKey | None:
+    def ref_key(e: ParsedExpression) -> RefKey | None:
         if not isinstance(e, Reference):
             return None
         key = (e.label, e.path)
@@ -142,7 +142,7 @@ def _try_extract_bound(
             return None
         return key
 
-    def is_int_const(e: Expression) -> bool:
+    def is_int_const(e: ParsedExpression) -> bool:
         return isinstance(e, IntegerConstant)
 
     if isinstance(expr, Ge):
@@ -210,7 +210,7 @@ def _try_extract_bound(
 
 def infer_int_bounds(
     node: IRNode,
-    constraint: Expression,
+    constraint: ParsedExpression,
 ) -> dict[RefKey, tuple[int, int]]:
     """Infer lower and upper bounds for each addressable unbounded integer in the tree."""
     int_refs = _collect_unbounded_int_ref_keys(node)

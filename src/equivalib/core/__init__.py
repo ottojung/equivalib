@@ -3,6 +3,7 @@
 Public API surface:
     generate         – the main generation function
     values           – finite denotation for name-free types
+    parse            – parse a string expression into a ParsedExpression AST
     Name             – symbolic identity marker
     BooleanExpression – convenience constructor (returns BooleanConstant)
     reference        – convenience reference constructor
@@ -14,14 +15,16 @@ Extension base classes:
     Regex            – base for finite regex languages
     LineIntervalsSet – base for generating non-equivalent integer interval sets
 
-Expression AST constructors:
+Expression AST constructors (ParsedExpression nodes):
     BooleanConstant, IntegerConstant, Reference
     Neg, Add, Sub, Mul, FloorDiv, Mod
     Eq, Ne, Lt, Le, Gt, Ge
     And, Or
 
 Type aliases:
-    Expression       – Union of all expression node types
+    ParsedExpression – Union of all expression AST node types
+    RawExpression    – str (unparsed expression string)
+    Expression       – Union[ParsedExpression, RawExpression]
 """
 
 from equivalib.core.name import Name
@@ -45,6 +48,8 @@ from equivalib.core.expression import (
     And,
     Or,
     Expression,
+    ParsedExpression,
+    RawExpression,
     BooleanExpression,
     impossible,
 )
@@ -54,15 +59,19 @@ from equivalib.core.cache import mentioned_labels
 from equivalib.core.extension import Extension
 from equivalib.core.regex import Regex
 from equivalib.core.line_intervals_set import LineIntervalsSet
+from equivalib.core.parser import parse
 
 __all__ = [
     "generate",
     "values",
+    "parse",
     "Extension",
     "Regex",
     "LineIntervalsSet",
     "Name",
     "Expression",
+    "ParsedExpression",
+    "RawExpression",
     "BooleanExpression",
     "BooleanConstant",
     "IntegerConstant",
