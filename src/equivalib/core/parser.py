@@ -33,6 +33,7 @@ expressions; use the ``ParsedExpression`` AST constructors directly instead.
 from __future__ import annotations
 
 import functools
+from typing import cast
 
 from lark import Lark, Token, Transformer
 
@@ -104,7 +105,7 @@ _GRAMMAR = r"""
 """
 
 
-class _ExprTransformer(Transformer):  # type: ignore[type-arg]
+class _ExprTransformer(Transformer):  # type: ignore[misc]
     def start(self, args: list[ParsedExpression]) -> ParsedExpression:
         return args[0]
 
@@ -207,4 +208,4 @@ def parse(text: str) -> ParsedExpression:
         lark.exceptions.LarkError: if the input is not a valid expression.
     """
     tree = _get_parser().parse(text)
-    return _transformer.transform(tree)
+    return cast(ParsedExpression, _transformer.transform(tree))

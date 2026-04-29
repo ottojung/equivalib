@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, cast
+from typing import Annotated, Mapping, cast
 
 from equivalib.core import (
     LineIntervalsSet,
@@ -8,6 +8,7 @@ from equivalib.core import (
     Regex,
     generate,
 )
+from equivalib.core.methods import Method
 
 
 class TicketCode(Regex):
@@ -17,7 +18,7 @@ class TicketCode(Regex):
 
 
 def generate_pythagorean_triples(limit: int) -> set[tuple[int, int, int]]:
-    tree = tuple[int, int, int]
+    tree: type[tuple[int, int, int]] = tuple[int, int, int]
     bounds = (
         f"1 <= [0] and [0] <= {limit} and "
         f"1 <= [1] and [1] <= {limit} and "
@@ -26,7 +27,7 @@ def generate_pythagorean_triples(limit: int) -> set[tuple[int, int, int]]:
     ordered = "[0] <= [1] and [1] <= [2]"
     pythagorean = "[0]*[0] + [1]*[1] == [2]*[2]"
     constraint = f"{bounds} and {ordered} and {pythagorean}"
-    return generate(tree, constraint)  # type: ignore[arg-type]
+    return generate(tree, constraint)
 
 
 def generate_sum_to_hundred_witness() -> set[tuple[int, ...]]:
@@ -34,7 +35,7 @@ def generate_sum_to_hundred_witness() -> set[tuple[int, ...]]:
     bounds = " and ".join(f"0 <= [{i}] and [{i}] <= 1" for i in range(10))
     total = " + ".join(f"[{i}]" for i in range(10))
     constraint = f"{bounds} and {total} == 5"
-    methods = {f"[{i}]": "arbitrary" for i in range(10)}
+    methods: Mapping[str, Method] = {f"[{i}]": "arbitrary" for i in range(10)}
     return generate(tree, constraint, methods)
 
 

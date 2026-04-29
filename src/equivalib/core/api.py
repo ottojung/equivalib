@@ -330,7 +330,7 @@ def _effective_constraint(node: IRNode, tree: Type[GenerateT], constraint: Parse
         if extra is None:
             continue
         if not isinstance(extra, _EXPR_TYPES):
-            raise TypeError("initialize(...) must return an Expression or None.")
+            raise TypeError("initialize(...) must return a ParsedExpression or None.")
         extras.append(extra)
 
     eff = constraint

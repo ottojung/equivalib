@@ -897,7 +897,7 @@ For randomized methods, compliance has two layers:
 | GEN-16 | MUST | Empty label is invalid | any tree containing `Name("")` | validation error |
 | GEN-17 | MUST | Missing label reference in the expression is invalid | `generate(Annotated[bool, Name("X")], "Y == true", {})` | validation error |
 | GEN-18 | MUST | Plain `int` is invalid in core | any tree containing plain `int` without `ValueRange(...)` | validation error |
-| GEN-19 | MUST | String constraints are parsed before processing | `generate(bool, "[0] != [1]")` accepts a string and parses it | same result as passing the equivalent `ParsedExpression` |
+| GEN-19 | MUST | String constraints are parsed before processing | `generate(tuple[bool, bool], "[0] != [1]")` accepts a string and parses it | same result as passing the equivalent `ParsedExpression` |
 | GEN-20 | MUST | Single-constraint conjunction replaces a constraint set | compare `generate(tree, "c1 and c2", methods)` with the conceptual two-constraint case | same result as requiring both `c1` and `c2` |
 | GEN-21 | MUST | `bool` and `int` are disjoint: `Eq(bool_val, int_val)` is false | `generate(Tuple[Annotated[bool, Name("X")], Annotated[int, ValueRange(1, 1), Name("Y")]], "X == Y", {"X": "all", "Y": "all"})` | `{}` |
 | GEN-22 | MUST | `bool` and `int` are disjoint: `Ne(bool_val, int_val)` is true | `generate(Tuple[Annotated[bool, Name("X")], Annotated[int, ValueRange(1, 1), Name("Y")]], "X != Y", {"X": "all", "Y": "all"})` | `{(True, 1), (False, 1)}` |
