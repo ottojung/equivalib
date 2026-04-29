@@ -7,7 +7,7 @@ Grammar (EBNF-style, maps 1-to-1 to the lark BNF grammar below):
     expr        = or_expr
     or_expr     = and_expr ("or" and_expr)*
     and_expr    = cmp_expr ("and" cmp_expr)*
-    cmp_expr    = sum_expr (cmp_op sum_expr)?
+    cmp_expr    = sum_expr (cmp_op sum_expr)*
     cmp_op      = "==" | "!=" | "<" | "<=" | ">" | ">="
     sum_expr    = mul_expr (("+"|"-") mul_expr)*
     mul_expr    = neg_expr (("*"|"//"|"%") neg_expr)*
@@ -21,9 +21,9 @@ Grammar (EBNF-style, maps 1-to-1 to the lark BNF grammar below):
 Operator precedence (lowest to highest):
     or, and, comparison (==, !=, <, <=, >, >=), +/-, *///%,  unary -
 
-Each comparison is non-associative: chained comparisons like ``1 < 2 < 3``
-are a syntax error.  Use ``and`` to combine multiple comparisons explicitly:
-``1 < x and x < 10``.
+Comparisons are associative (Python-style chaining): ``1 < x < 10`` is
+parsed as ``And(Lt(1, x), Lt(x, 10))``.  Each consecutive pair of operands
+is compared with its intervening operator; all pairs are joined with ``And``.
 
 Keywords reserved by the grammar: ``true``, ``false``, ``and``, ``or``.
 Label identifiers that spell a reserved keyword are not supported in string
@@ -70,12 +70,11 @@ _GRAMMAR = r"""
              | and_expr "and" cmp_expr  -> and_
 
     ?cmp_expr: sum_expr
-             | sum_expr "==" sum_expr  -> eq
-             | sum_expr "!=" sum_expr  -> ne
-             | sum_expr "<" sum_expr   -> lt
-             | sum_expr "<=" sum_expr  -> le
-             | sum_expr ">" sum_expr   -> gt
-             | sum_expr ">=" sum_expr  -> ge
+             | cmp_chain
+
+    cmp_chain: sum_expr (CMP_OP sum_expr)+
+
+    CMP_OP: "==" | "!=" | "<=" | ">=" | "<" | ">"
 
     ?sum_expr: mul_expr
              | sum_expr "+" mul_expr  -> add
@@ -105,7 +104,7 @@ _GRAMMAR = r"""
 """
 
 
-class _ExprTransformer(Transformer):  # type: ignore[misc]
+class _ExprTransformer(Transformer):  # type: ignore[type-arg]
     def start(self, args: list[ParsedExpression]) -> ParsedExpression:
         return args[0]
 
@@ -145,23 +144,35 @@ class _ExprTransformer(Transformer):  # type: ignore[misc]
     def mod(self, args: list[ParsedExpression]) -> Mod:
         return Mod(args[0], args[1])
 
-    def eq(self, args: list[ParsedExpression]) -> Eq:
-        return Eq(args[0], args[1])
+    def cmp_chain(self, args: list[object]) -> ParsedExpression:
+        # args alternates: sum_expr, CMP_OP token, sum_expr, CMP_OP token, sum_expr, ...
+        # e.g.  [a, Token("CMP_OP","<"), b, Token("CMP_OP","<"), c]
+        # → And(Lt(a, b), Lt(b, c))
+        def _apply(op: str, left: ParsedExpression, right: ParsedExpression) -> ParsedExpression:
+            if op == "==":
+                return Eq(left, right)
+            if op == "!=":
+                return Ne(left, right)
+            if op == "<":
+                return Lt(left, right)
+            if op == "<=":
+                return Le(left, right)
+            if op == ">":
+                return Gt(left, right)
+            if op == ">=":
+                return Ge(left, right)
+            raise ValueError(f"Unknown operator: {op!r}")  # pragma: no cover
 
-    def ne(self, args: list[ParsedExpression]) -> Ne:
-        return Ne(args[0], args[1])
-
-    def lt(self, args: list[ParsedExpression]) -> Lt:
-        return Lt(args[0], args[1])
-
-    def le(self, args: list[ParsedExpression]) -> Le:
-        return Le(args[0], args[1])
-
-    def gt(self, args: list[ParsedExpression]) -> Gt:
-        return Gt(args[0], args[1])
-
-    def ge(self, args: list[ParsedExpression]) -> Ge:
-        return Ge(args[0], args[1])
+        operands = [cast(ParsedExpression, args[i]) for i in range(0, len(args), 2)]
+        operators = [str(args[i]) for i in range(1, len(args), 2)]
+        pairs: list[ParsedExpression] = [
+            _apply(op, operands[i], operands[i + 1])
+            for i, op in enumerate(operators)
+        ]
+        result = pairs[0]
+        for pair in pairs[1:]:
+            result = And(result, pair)
+        return result
 
     def and_(self, args: list[ParsedExpression]) -> And:
         return And(args[0], args[1])
@@ -197,10 +208,14 @@ def parse(text: str) -> ParsedExpression:
     Operator precedence (lowest to highest):
         ``or`` < ``and`` < comparisons < ``+``/``-`` < ``*``/``//``/``%`` < unary ``-``
 
+    Comparisons are associative (Python-style chaining): ``1 < x < 10`` is
+    equivalent to ``1 < x and x < 10``.
+
     Examples::
 
         parse("true")                      # BooleanConstant(True)
         parse("X >= 0 and X <= 9")         # And(Ge(ref("X"), ...), Le(ref("X"), ...))
+        parse("1 < X < 10")               # And(Lt(IntegerConstant(1), X), Lt(X, IntegerConstant(10)))
         parse("[0] != [1]")               # Ne(Reference(None,(0,)), Reference(None,(1,)))
         parse("[0]*[0] + [1]*[1] == [2]*[2]")  # Pythagorean constraint
 
