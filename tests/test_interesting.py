@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Annotated, cast
 
 from equivalib.core import (
+    Add,
     And,
     BooleanExpression,
     Eq,
@@ -10,7 +11,6 @@ from equivalib.core import (
     IntegerConstant,
     Le,
     LineIntervalsSet,
-    Add,
     Name,
     Regex,
     generate,
