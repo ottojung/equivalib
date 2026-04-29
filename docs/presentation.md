@@ -46,8 +46,8 @@ Cartesian products are generated automatically for unnamed tuple trees.
 from equivalib.core import generate
 
 values = generate(tuple[bool, bool])
-only_true_first = {item for item in values if item[0]}
-# => {(True, False), (True, True)}
+only_true_first = {item for item in values if item[0] != item[1]}
+# => {(False, True), (True, False)}
 ```
 
 Great for demos, quick checks, and building intuition.
@@ -58,14 +58,14 @@ Great for demos, quick checks, and building intuition.
 
 ```python
 from typing import Annotated, cast
-from equivalib.core import Eq, Name, generate
+from equivalib.core import Ne, generate
 from equivalib.core.expression import reference
 
-tree = cast(type[tuple[bool, bool]], Annotated[tuple[bool, bool], Name("B")])
-constraint = Eq(reference("B", 0), reference("B", 1))
+tree = tuple[bool, bool]
+constraint = Ne(reference(0), reference(1))
 
 values = generate(tree, constraint, {"B": "all"})
-# => {(False, False), (True, True)}
+# => {(False, True), (True, False)}
 ```
 
 Instead of filtering after generation, we encode relationships directly into the solver input.
