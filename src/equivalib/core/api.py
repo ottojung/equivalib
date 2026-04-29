@@ -31,6 +31,7 @@ from equivalib.core.expression import (
     Ge,
     Or,
     impossible,
+    reference,
 )
 from equivalib.core.normalize import normalize
 from equivalib.core.validate import validate_tree, validate_methods, validate_expression, _is_index_label
@@ -77,6 +78,7 @@ _EXPR_TYPES = (
     And,
     Or,
 )
+_OTHER_EXPORTS = (reference,)
 
 
 # ---------------------------------------------------------------------------
