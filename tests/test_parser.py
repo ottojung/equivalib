@@ -89,6 +89,38 @@ def test_parse_labeled_reference_mixed_case():
 
 
 # ---------------------------------------------------------------------------
+# 'self' root-reference identifier
+# ---------------------------------------------------------------------------
+
+def test_parse_self_bare():
+    """'self' alone parses to Reference(None, ()) — the anonymous root reference."""
+    assert parse("self") == Reference(None, ())
+
+
+def test_parse_self_with_single_index():
+    """'self[0]' parses to Reference(None, (0,))."""
+    assert parse("self[0]") == Reference(None, (0,))
+
+
+def test_parse_self_with_multiple_indices():
+    """'self[0][1]' parses to Reference(None, (0, 1))."""
+    assert parse("self[0][1]") == Reference(None, (0, 1))
+
+
+def test_parse_self_in_comparison_chain():
+    """'0 < self < 10' parses identically to using [0] on a root int."""
+    self_ref = Reference(None, ())
+    expected = And(Lt(IntegerConstant(0), self_ref), Lt(self_ref, IntegerConstant(10)))
+    assert parse("0 < self < 10") == expected
+
+
+def test_parse_self_indexed_same_as_anonymous_ref():
+    """'self[0]' produces the same AST as '[0]'."""
+    assert parse("self[0]") == parse("[0]")
+    assert parse("self[0][1]") == parse("[0][1]")
+
+
+# ---------------------------------------------------------------------------
 # Unary negation
 # ---------------------------------------------------------------------------
 
@@ -301,9 +333,14 @@ def test_parse_floordiv_and_mod():
 # Error cases
 # ---------------------------------------------------------------------------
 
-def test_parse_empty_string_raises():
-    with pytest.raises(LarkError):
-        parse("")
+def test_parse_empty_string_returns_true():
+    """An empty string is accepted and returns BooleanConstant(True)."""
+    assert parse("") == BooleanConstant(True)
+
+
+def test_parse_whitespace_only_returns_true():
+    """A whitespace-only string is accepted and returns BooleanConstant(True)."""
+    assert parse("   ") == BooleanConstant(True)
 
 
 def test_parse_invalid_syntax_raises():

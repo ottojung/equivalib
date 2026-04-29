@@ -87,6 +87,23 @@ _OTHER_EXPORTS = (reference,)
 # Unnamed-tree method helpers
 # ---------------------------------------------------------------------------
 
+def _normalize_self_in_methods(methods: Mapping[Label, Method]) -> Mapping[Label, Method]:
+    """Normalize the ``"self"`` method key to ``""`` (the root label synonym).
+
+    ``"self"`` and ``""`` are synonyms for the root method key on unnamed
+    trees.  If both appear in the same mapping, a ``ValueError`` is raised
+    because the intent is ambiguous.
+    """
+    if "self" not in methods:
+        return methods
+    if "" in methods:
+        raise ValueError(
+            "Cannot specify both 'self' and '' in methods; they are synonyms "
+            "for the root label.  Use one or the other, not both."
+        )
+    return {("" if k == "self" else k): v for k, v in methods.items()}
+
+
 def _parse_index_methods(methods: Mapping[Label, Method]) -> dict[int, str]:
     """Parse ``'[i]'``-style method keys into ``{position: method}`` pairs."""
     result: dict[int, str] = {}
@@ -246,6 +263,9 @@ def generate(
     """
     if methods is None:
         methods = {}
+
+    # 0a. Normalize the 'self' method key to '' (they are synonyms).
+    methods = _normalize_self_in_methods(methods)
 
     # 0. Parse string constraint into a ParsedExpression.
     if isinstance(constraint, str):

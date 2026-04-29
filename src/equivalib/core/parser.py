@@ -25,9 +25,28 @@ Comparisons are associative (Python-style chaining): ``1 < x < 10`` is
 parsed as ``And(Lt(1, x), Lt(x, 10))``.  Each consecutive pair of operands
 is compared with its intervening operator; all pairs are joined with ``And``.
 
-Keywords reserved by the grammar: ``true``, ``false``, ``and``, ``or``.
+Reserved identifiers (not valid as label names in string expressions):
+``true``, ``false``, ``and``, ``or``, ``self``.
 Label identifiers that spell a reserved keyword are not supported in string
 expressions; use the ``ParsedExpression`` AST constructors directly instead.
+
+Special identifier ``self``:
+    ``self`` is a reserved root-reference identifier.  It refers to the root
+    of the type tree being generated and is equivalent to an anonymous
+    ``Reference(None, path)`` node.  It may be followed by index suffixes:
+
+        ``self``       →  ``Reference(None, ())``
+        ``self[0]``    →  ``Reference(None, (0,))``
+        ``self[0][1]`` →  ``Reference(None, (0, 1))``
+
+    These are identical to the anonymous index references ``[0]``, ``[0][1]``,
+    etc., except that ``self`` (without any index suffix) also refers to the
+    root value itself.  Use ``self`` when you want to constrain the generated
+    value directly without introducing a ``Name(...)`` annotation.
+
+Empty string constraint:
+    An empty (or whitespace-only) string is accepted and is equivalent to
+    ``BooleanConstant(True)`` (the always-true, unconstrained case).
 """
 
 from __future__ import annotations
@@ -120,6 +139,10 @@ class _ExprTransformer(Transformer):  # type: ignore[type-arg]
     def labeled_ref(self, args: list[Token]) -> Reference:
         label = str(args[0])
         path = tuple(int(str(t)) for t in args[1:])
+        if label == "self":
+            # 'self' is the reserved root-reference identifier: it denotes the
+            # root of the type tree and is equivalent to Reference(None, path).
+            return Reference(None, path)
         return Reference(label, path)
 
     def indexed_ref(self, args: list[Token]) -> Reference:
@@ -192,10 +215,15 @@ def _get_parser() -> Lark:
 def parse(text: str) -> ParsedExpression:
     """Parse an expression string into a ``ParsedExpression`` AST node.
 
+    An empty or whitespace-only string is accepted and returns
+    ``BooleanConstant(True)`` (the always-true, unconstrained case).
+
     The expression language supports:
 
     - Boolean literals: ``true``, ``false``
     - Integer literals: ``0``, ``1``, ``42``, ...
+    - Root reference: ``self`` (equivalent to ``Reference(None, ())``)
+    - Root reference with path: ``self[0]``, ``self[0][1]``
     - Named references: ``X``, ``Y``, ``MyLabel``
     - Named references with path: ``X[0]``, ``T[0][1]``
     - Anonymous (index) references: ``[0]``, ``[0][1]``
@@ -211,9 +239,16 @@ def parse(text: str) -> ParsedExpression:
     Comparisons are associative (Python-style chaining): ``1 < x < 10`` is
     equivalent to ``1 < x and x < 10``.
 
+    Reserved identifiers (not usable as label names in string expressions):
+    ``true``, ``false``, ``and``, ``or``, ``self``.
+
     Examples::
 
+        parse("")                          # BooleanConstant(True)  (empty = unconstrained)
         parse("true")                      # BooleanConstant(True)
+        parse("self")                      # Reference(None, ())
+        parse("self[0]")                   # Reference(None, (0,))
+        parse("0 < self < 10")            # And(Lt(0, Reference(None,())), Lt(Reference(None,()), 10))
         parse("X >= 0 and X <= 9")         # And(Ge(ref("X"), ...), Le(ref("X"), ...))
         parse("1 < X < 10")               # And(Lt(IntegerConstant(1), X), Lt(X, IntegerConstant(10)))
         parse("[0] != [1]")               # Ne(Reference(None,(0,)), Reference(None,(1,)))
@@ -222,5 +257,7 @@ def parse(text: str) -> ParsedExpression:
     Raises:
         lark.exceptions.LarkError: if the input is not a valid expression.
     """
+    if not text.strip():
+        return BooleanConstant(True)
     tree = _get_parser().parse(text)
     return cast(ParsedExpression, _transformer.transform(tree))

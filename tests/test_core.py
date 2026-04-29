@@ -603,6 +603,113 @@ def test_root_label_on_tuple_arbitrary_returns_one():
     assert len(result) == 1
 
 
+
+# ---------------------------------------------------------------------------
+# 'self' root-reference identifier tests
+# ---------------------------------------------------------------------------
+
+def test_self_in_string_constraint_generates_integers_in_range():
+    """'self' in a string constraint refers to the root generated value (issue example 1)."""
+    generate = core_attr("generate")
+    assert generate(int, "0 < self < 10") == set(range(1, 10))
+
+
+def test_self_in_string_constraint_with_root_method_empty():
+    """'self' expression + {"": "arbitrary"} returns one integer from range (issue example 1)."""
+    generate = core_attr("generate")
+    result = generate(int, "0 < self < 10", {"": "arbitrary"})
+    assert len(result) == 1
+    assert result <= set(range(1, 10))
+
+
+def test_self_in_string_constraint_with_self_method():
+    """'self' expression + {"self": "arbitrary"} is equivalent to {"": "arbitrary"} (issue example 2)."""
+    generate = core_attr("generate")
+    result = generate(int, "0 < self < 10", {"self": "arbitrary"})
+    assert len(result) == 1
+    assert result <= set(range(1, 10))
+
+
+def test_empty_string_constraint_with_root_method_bool():
+    """Empty string constraint + {"": "arbitrary"} on bool returns one value (issue example 3)."""
+    generate = core_attr("generate")
+    result = generate(bool, "", {"": "arbitrary"})
+    assert len(result) == 1
+    assert result <= {True, False}
+
+
+def test_empty_string_constraint_is_unconstrained():
+    """An empty string constraint is equivalent to 'true' (always satisfied)."""
+    generate = core_attr("generate")
+    assert generate(bool, "") == {True, False}
+
+
+def test_self_indexed_in_string_constraint_on_tuple():
+    """'self[0]' in a string constraint is synonymous with '[0]' (issue example 5)."""
+    generate = core_attr("generate")
+    result_self = generate(Tuple[int, bool], "0 < self[0] < 10")
+    result_index = generate(Tuple[int, bool], "0 < [0] < 10")
+    assert result_self == result_index
+
+
+def test_self_indexed_tuple_generates_correct_values():
+    """'self[0]' constraint on a tuple produces tuples whose first element is in range."""
+    generate = core_attr("generate")
+    result = generate(Tuple[int, bool], "0 < self[0] < 4")
+    assert all(1 <= t[0] <= 3 for t in result)
+    assert {t[0] for t in result} == {1, 2, 3}
+    assert {t[1] for t in result} == {True, False}
+
+
+def test_self_as_method_key_is_synonym_for_root_label():
+    """{"self": method} in methods is treated identically to {"": method}."""
+    generate = core_attr("generate")
+    result_self = generate(bool, "", {"self": "all"})
+    result_root = generate(bool, "", {"": "all"})
+    assert result_self == result_root == {True, False}
+
+
+def test_self_and_empty_string_method_keys_rejected():
+    """Specifying both 'self' and '' in methods raises ValueError (ambiguous)."""
+    generate = core_attr("generate")
+    with pytest.raises(ValueError):
+        generate(bool, "", {"self": "all", "": "all"})
+
+
+def test_self_parses_to_anonymous_root_reference():
+    """parse('self') returns Reference(None, ())."""
+    from equivalib.core.parser import parse
+    from equivalib.core.expression import Reference
+    result = parse("self")
+    assert isinstance(result, Reference)
+    assert result.label is None
+    assert result.path == ()
+
+
+def test_self_with_index_parses_to_anonymous_indexed_reference():
+    """parse('self[0]') returns Reference(None, (0,))."""
+    from equivalib.core.parser import parse
+    from equivalib.core.expression import Reference
+    result = parse("self[0]")
+    assert isinstance(result, Reference)
+    assert result.label is None
+    assert result.path == (0,)
+
+
+def test_empty_string_parses_to_boolean_true():
+    """parse('') returns BooleanConstant(True)."""
+    from equivalib.core.parser import parse
+    from equivalib.core.expression import BooleanConstant
+    assert parse("") == BooleanConstant(True)
+    assert parse("   ") == BooleanConstant(True)
+
+
+def test_self_in_constraint_equals_explicit_index_ref():
+    """'self' alone on a scalar int is the same as the root reference."""
+    generate = core_attr("generate")
+    assert generate(int, "0 < self < 5") == {1, 2, 3, 4}
+
+
 # ---------------------------------------------------------------------------
 # Index-style label ("[i]") tests
 # ---------------------------------------------------------------------------
