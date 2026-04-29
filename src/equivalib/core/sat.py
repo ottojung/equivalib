@@ -33,7 +33,7 @@ from equivalib.core.expression import (
     Ge,
     And,
     Or,
-    Expression,
+    ParsedExpression,
     impossible,
 )
 from equivalib.core.types import (
@@ -171,7 +171,7 @@ def _sat_compute_domains(
 
 def sat_search(
     node: IRNode,
-    constraint: Expression,
+    constraint: ParsedExpression,
     methods: Mapping[str, str] | None = None,
 ) -> list[dict[str, object]]:
     """Return satisfying assignments using CP-SAT for bool/int-range labels.
@@ -354,7 +354,7 @@ def _enum_backtrack(
     sat_kinds: dict[str, str],
     sat_bounds: dict[str, tuple[int, int]],
     all_domains: dict[str, list[object]],
-    constraint: Expression,
+    constraint: ParsedExpression,
     enum_assignment: dict[str, object],
     results: list[dict[str, object]],
     base_model: cp_model.CpModel | None,
@@ -448,7 +448,7 @@ def _solve_sat(
     sat_kinds: dict[str, str],
     sat_bounds: dict[str, tuple[int, int]],
     all_domains: dict[str, list[object]],
-    constraint: Expression,
+    constraint: ParsedExpression,
     enum_assignment: dict[str, object],
     base_model: cp_model.CpModel,
     sat_var_indices: dict[str, tuple[str, int]],
@@ -572,7 +572,7 @@ def _add_constraint(
     sat_kinds: dict[str, str],
     enum_assignment: dict[str, object],
     sat_bounds: dict[str, tuple[int, int]],
-    expr: Expression,
+    expr: ParsedExpression,
     counter: list[int],
 ) -> None:
     """Add ``expr`` as a hard boolean constraint to ``model``."""
@@ -626,7 +626,7 @@ def _reify_constraint(
     sat_kinds: dict[str, str],
     enum_assignment: dict[str, object],
     sat_bounds: dict[str, tuple[int, int]],
-    expr: Expression,
+    expr: ParsedExpression,
     counter: list[int],
 ) -> cp_model.IntVar:
     """Return a BoolVar that is 1 iff ``expr`` is satisfied."""
@@ -714,7 +714,7 @@ def _encode_arith(
     sat_kinds: dict[str, str],
     enum_assignment: dict[str, object],
     sat_bounds: dict[str, tuple[int, int]],
-    expr: Expression,
+    expr: ParsedExpression,
     counter: list[int],
 ) -> _EncResult:
     """Encode an arithmetic (or leaf) expression.
@@ -1003,7 +1003,7 @@ def _encode_floor_div_or_mod(
 # ---------------------------------------------------------------------------
 
 def _compute_bounds(
-    expr: Expression,
+    expr: ParsedExpression,
     sat_bounds: dict[str, tuple[int, int]],
     enum_assignment: dict[str, object],
 ) -> tuple[int, int]:
@@ -1065,7 +1065,7 @@ def _compute_bounds(
 # Comparison helpers
 # ---------------------------------------------------------------------------
 
-def _op_of(expr: Expression) -> str:
+def _op_of(expr: ParsedExpression) -> str:
     """Return the operator name string for a comparison expression."""
     if isinstance(expr, Eq):
         return "eq"

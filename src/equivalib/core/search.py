@@ -11,14 +11,14 @@ from __future__ import annotations
 
 from typing import Mapping
 
-from equivalib.core.expression import Expression
+from equivalib.core.expression import ParsedExpression
 from equivalib.core.types import IRNode
 from equivalib.core.sat import sat_search
 
 
 def search(
     node: IRNode,
-    constraint: Expression,
+    constraint: ParsedExpression,
     methods: Mapping[str, str] | None = None,
 ) -> list[dict[str, object]]:
     """Return a list of satisfying assignments.

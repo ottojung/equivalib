@@ -58,7 +58,7 @@ def reference(first: str | int, *rest: int) -> Reference:
 class Neg:
     """Arithmetic negation: ``-operand``."""
 
-    operand: "Expression"
+    operand: "ParsedExpression"
 
 
 # ---------------------------------------------------------------------------
@@ -67,32 +67,32 @@ class Neg:
 
 @dataclass(frozen=True)
 class Add:
-    left: "Expression"
-    right: "Expression"
+    left: "ParsedExpression"
+    right: "ParsedExpression"
 
 
 @dataclass(frozen=True)
 class Sub:
-    left: "Expression"
-    right: "Expression"
+    left: "ParsedExpression"
+    right: "ParsedExpression"
 
 
 @dataclass(frozen=True)
 class Mul:
-    left: "Expression"
-    right: "Expression"
+    left: "ParsedExpression"
+    right: "ParsedExpression"
 
 
 @dataclass(frozen=True)
 class FloorDiv:
-    left: "Expression"
-    right: "Expression"
+    left: "ParsedExpression"
+    right: "ParsedExpression"
 
 
 @dataclass(frozen=True)
 class Mod:
-    left: "Expression"
-    right: "Expression"
+    left: "ParsedExpression"
+    right: "ParsedExpression"
 
 
 # ---------------------------------------------------------------------------
@@ -101,38 +101,38 @@ class Mod:
 
 @dataclass(frozen=True)
 class Eq:
-    left: "Expression"
-    right: "Expression"
+    left: "ParsedExpression"
+    right: "ParsedExpression"
 
 
 @dataclass(frozen=True)
 class Ne:
-    left: "Expression"
-    right: "Expression"
+    left: "ParsedExpression"
+    right: "ParsedExpression"
 
 
 @dataclass(frozen=True)
 class Lt:
-    left: "Expression"
-    right: "Expression"
+    left: "ParsedExpression"
+    right: "ParsedExpression"
 
 
 @dataclass(frozen=True)
 class Le:
-    left: "Expression"
-    right: "Expression"
+    left: "ParsedExpression"
+    right: "ParsedExpression"
 
 
 @dataclass(frozen=True)
 class Gt:
-    left: "Expression"
-    right: "Expression"
+    left: "ParsedExpression"
+    right: "ParsedExpression"
 
 
 @dataclass(frozen=True)
 class Ge:
-    left: "Expression"
-    right: "Expression"
+    left: "ParsedExpression"
+    right: "ParsedExpression"
 
 
 # ---------------------------------------------------------------------------
@@ -141,21 +141,21 @@ class Ge:
 
 @dataclass(frozen=True)
 class And:
-    left: "Expression"
-    right: "Expression"
+    left: "ParsedExpression"
+    right: "ParsedExpression"
 
 
 @dataclass(frozen=True)
 class Or:
-    left: "Expression"
-    right: "Expression"
+    left: "ParsedExpression"
+    right: "ParsedExpression"
 
 
 # ---------------------------------------------------------------------------
-# Type alias (documentation only)
+# Type aliases
 # ---------------------------------------------------------------------------
 
-Expression = Union[
+ParsedExpression = Union[
     BooleanConstant,
     IntegerConstant,
     Reference,
@@ -175,9 +175,13 @@ Expression = Union[
     Or,
 ]
 
+RawExpression = str
+
+Expression = Union[ParsedExpression, RawExpression]
+
 
 # ---------------------------------------------------------------------------
-# Convenience constructor
+# Convenience constructors
 # ---------------------------------------------------------------------------
 
 def BooleanExpression(value: bool) -> BooleanConstant:

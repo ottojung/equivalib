@@ -50,12 +50,15 @@ The words MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY are to be interpreted as n
 ```python
 Label: TypeAlias = str
 Method: TypeAlias = Literal["all", "arbitrary", "uniform_random"]
-Expression: TypeAlias = Union[
+
+ParsedExpression: TypeAlias = Union[
     BooleanConstant, IntegerConstant, Reference,
     Neg, Add, Sub, Mul, FloorDiv, Mod,
     Eq, Ne, Lt, Le, Gt, Ge,
     And, Or,
 ]
+RawExpression: TypeAlias = str
+Expression: TypeAlias = Union[ParsedExpression, RawExpression]
 
 generate(tree: Type[T], constraint: Expression = BooleanExpression(True), methods: Optional[Mapping[Label, Method]] = None) -> Set[T]
 ```
@@ -71,10 +74,21 @@ Default behavior:
 
 `BooleanExpression(True)` denotes the always-true boolean expression value. A compliant implementation MAY represent it canonically as `BooleanConstant(True)`.
 
-There is only one constraint parameter because conjunction is already an AST constructor:
+There is only one constraint parameter because conjunction is already encoded in the expression language:
 
-- `And(left, right)` combines constraints
-- `BooleanExpression(True)` is the unconstrained case
+- the string `"A and B"` or `And(A, B)` combines constraints
+- `"true"` or `BooleanExpression(True)` is the unconstrained case
+
+A string constraint is parsed with `parse(text: str) -> ParsedExpression` before processing.  A `ParsedExpression` is used as-is.
+
+```python
+if isinstance(constraint, str):
+    parsedConstraint = parse(constraint)
+elif isinstance(constraint, ParsedExpression):
+    parsedConstraint = constraint
+else:
+    impossible(constraint)
+```
 
 Examples in this document MAY omit trailing default arguments. Therefore:
 
@@ -239,18 +253,65 @@ The implementation MAY reject additional malformed inputs if they are outside th
 
 ## Expression
 
-### Expression is an AST
+### Expression forms
 
-`Expression` is an abstract syntax tree, not source text.
+`Expression` accepts two forms:
 
-The core neither requires nor assumes parsing.
+- `RawExpression` — a string that is parsed into a `ParsedExpression` by `parse()`
+- `ParsedExpression` — an algebraic abstract syntax tree built from the constructors below
 
-### Canonical constructors
+String expressions are the preferred form in user-facing code.  AST constructors are
+available for programmatic construction or when a label name conflicts with a reserved
+keyword (`true`, `false`, `and`, `or`).
+
+### String expression syntax
+
+The string expression grammar (EBNF):
+
+```text
+expr        = or_expr
+or_expr     = and_expr ("or" and_expr)*
+and_expr    = cmp_expr ("and" cmp_expr)*
+cmp_expr    = sum_expr (cmp_op sum_expr)?
+cmp_op      = "==" | "!=" | "<" | "<=" | ">" | ">="
+sum_expr    = mul_expr (("+"|"-") mul_expr)*
+mul_expr    = neg_expr (("*"|"//"|"%") neg_expr)*
+neg_expr    = "-" neg_expr | atom
+atom        = "true" | "false" | INT | reference | "(" expr ")"
+reference   = LABEL ("[" INT "]")*
+           | ("[" INT "]")+
+LABEL       = /[A-Za-z_][A-Za-z0-9_]*/
+INT         = /0|[1-9][0-9]*/
+```
+
+Operator precedence (lowest to highest): `or`, `and`, comparisons, `+`/`-`, `*`/`//`/`%`, unary `-`.
+
+Reserved keywords (not valid as label names in string expressions): `true`, `false`, `and`, `or`.
+
+String expression examples:
+
+```python
+"true"                              # BooleanConstant(True)
+"false"                             # BooleanConstant(False)
+"42"                                # IntegerConstant(42)
+"X"                                 # Reference("X", ())
+"X[0]"                              # Reference("X", (0,))
+"T[0][1]"                           # Reference("T", (0, 1))
+"[0]"                               # Reference(None, (0,))
+"[0][1]"                            # Reference(None, (0, 1))
+"-X"                                # Neg(Reference("X", ()))
+"X + Y"                             # Add(Reference("X",()), Reference("Y",()))
+"X >= 0 and X <= 9"                 # And(Ge(...), Le(...))
+"[0] != [1]"                        # Ne(Reference(None,(0,)), Reference(None,(1,)))
+"[0]*[0] + [1]*[1] == [2]*[2]"     # Pythagorean constraint
+```
+
+### ParsedExpression AST constructors
 
 The conceptual AST is:
 
 ```text
-Expression :=
+ParsedExpression :=
     BooleanConstant(value)
   | IntegerConstant(value)
   | Reference(label, path)
@@ -409,7 +470,7 @@ values(Tuple[t1, t2, ..., tn])
 If a tree is name-free, then:
 
 ```text
-generate(tree, BooleanExpression(True), {}) == values(tree)
+generate(tree, "true", {}) == values(tree)
 ```
 
 ## Effective Label Domains
@@ -646,7 +707,7 @@ Named labels are the variables of the system.  Unnamed subtrees always expand ex
 **Input:**
 
 - `tree` — a `TypeTree` expression (from the TypeTree grammar in this document)
-- `constraint` — an `Expression` AST node
+- `constraint` — an `Expression` (string or `ParsedExpression` AST node); string expressions are parsed before use
 - `methods` — a partial map from `Label` to `Method`; missing labels default to `"all"`
 
 **Output:**
@@ -741,59 +802,59 @@ The `"all"` examples below are exact.
 The examples using `"arbitrary"` or `"uniform_random"` show one compliant outcome unless stated otherwise.
 
 ```python
-generate(Literal[True], BooleanExpression(True), {})
+generate(Literal[True], "true", {})
 == { True }
 
-generate(Tuple[bool, Literal["N\\A"]], BooleanExpression(True), {})
+generate(Tuple[bool, Literal["N\\A"]], "true", {})
 == { (True, "N\\A"), (False, "N\\A") }
 
-generate(Annotated[bool, Name("X")], BooleanExpression(True), {"X": "all"})
+generate(Annotated[bool, Name("X")], "true", {"X": "all"})
 == { True, False }
 
-generate(Annotated[bool, Name("X")], BooleanExpression(True), {"X": "arbitrary"})
+generate(Annotated[bool, Name("X")], "true", {"X": "arbitrary"})
 == { False }
 
-generate(Annotated[Tuple[bool, bool], Name("X")], BooleanExpression(True), {"X": "arbitrary"})
+generate(Annotated[Tuple[bool, bool], Name("X")], "true", {"X": "arbitrary"})
 == { (False, False) }
 
 generate(
     Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
-    Eq(Reference("X", ()), Reference("Y", ())),
+    "X == Y",
   {"X": "all", "Y": "all"},
 )
 == { (True, True), (False, False) }
 
 generate(
     Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
-    Ne(Reference("X", ()), Reference("Y", ())),
+    "X != Y",
   {"X": "all", "Y": "all"},
 )
 == { (True, False), (False, True) }
 
 generate(
     Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
-    Eq(Reference("X", ()), Reference("Y", ())),
+    "X == Y",
   {"X": "all", "Y": "arbitrary"},
 )
 == { (False, False) }
 
 generate(
     Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
-    Ne(Reference("X", ()), Reference("Y", ())),
+    "X != Y",
   {"X": "all", "Y": "arbitrary"},
 )
 == { (True, False) }
 
 generate(
     Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
-    Ne(Reference("X", ()), Reference("Y", ())),
+    "X != Y",
   {"X": "arbitrary", "Y": "arbitrary"},
 )
 == { (False, True) }
 
 generate(
     Annotated[Tuple[bool, bool], Name("X")],
-    Ne(Reference("X", (0,)), Reference("X", (1,))),
+    "X[0] != X[1]",
   {"X": "all"},
 )
 == { (True, False), (False, True) }
@@ -820,28 +881,28 @@ For randomized methods, compliance has two layers:
 
 | ID | Level | Requirement | Input / Operation | Expected result |
 | --- | --- | --- | --- | --- |
-| GEN-01 | MUST | Literal generation | `generate(Literal[True], BooleanExpression(True), {})` | `{True}` |
-| GEN-02 | MUST | Unnamed tuple expansion | `generate(Tuple[bool, Literal["N\\A"]], BooleanExpression(True), {})` | `{(True, "N\\A"), (False, "N\\A")}` |
-| GEN-03 | MUST | Bounded integer expansion | `generate(Annotated[int, ValueRange(3, 4)], BooleanExpression(True), {})` | `{3, 4}` |
-| GEN-04 | MUST | Default method is `"all"` | `generate(Annotated[bool, Name("X")], BooleanExpression(True), {})` | `{True, False}` |
-| GEN-05 | MUST | Same label means same value | `generate(Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("X")]], BooleanExpression(True), {"X": "all"})` | `{(True, True), (False, False)}` |
-| GEN-06 | MUST | Equality constraint with exhaustive methods | `generate(Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]], Eq(Reference("X", ()), Reference("Y", ())), {"X": "all", "Y": "all"})` | `{(True, True), (False, False)}` |
-| GEN-07 | MUST | Inequality constraint with exhaustive methods | `generate(Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]], Ne(Reference("X", ()), Reference("Y", ())), {"X": "all", "Y": "all"})` | `{(True, False), (False, True)}` |
-| GEN-08 | MUST | Address constraints work | `generate(Annotated[Tuple[bool, bool], Name("X")], Ne(Reference("X", (0,)), Reference("X", (1,))), {"X": "all"})` | `{(True, False), (False, True)}` |
-| GEN-09 | MUST | Repeated label domains intersect | `generate(Tuple[Annotated[int, ValueRange(1, 5), Name("X")], Annotated[int, ValueRange(3, 7), Name("X")]], BooleanExpression(True), {"X": "all"})` | `{(3, 3), (4, 4), (5, 5)}` |
-| GEN-10 | MUST | Impossible constraints produce empty output | `generate(Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]], And(Eq(Reference("X", ()), Reference("Y", ())), Ne(Reference("X", ()), Reference("Y", ()))), {"X": "all", "Y": "all"})` | `{}` |
+| GEN-01 | MUST | Literal generation | `generate(Literal[True], "true", {})` | `{True}` |
+| GEN-02 | MUST | Unnamed tuple expansion | `generate(Tuple[bool, Literal["N\\A"]], "true", {})` | `{(True, "N\\A"), (False, "N\\A")}` |
+| GEN-03 | MUST | Bounded integer expansion | `generate(Annotated[int, ValueRange(3, 4)], "true", {})` | `{3, 4}` |
+| GEN-04 | MUST | Default method is `"all"` | `generate(Annotated[bool, Name("X")], "true", {})` | `{True, False}` |
+| GEN-05 | MUST | Same label means same value | `generate(Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("X")]], "true", {"X": "all"})` | `{(True, True), (False, False)}` |
+| GEN-06 | MUST | Equality constraint with exhaustive methods | `generate(Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]], "X == Y", {"X": "all", "Y": "all"})` | `{(True, True), (False, False)}` |
+| GEN-07 | MUST | Inequality constraint with exhaustive methods | `generate(Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]], "X != Y", {"X": "all", "Y": "all"})` | `{(True, False), (False, True)}` |
+| GEN-08 | MUST | Address constraints work | `generate(Annotated[Tuple[bool, bool], Name("X")], "X[0] != X[1]", {"X": "all"})` | `{(True, False), (False, True)}` |
+| GEN-09 | MUST | Repeated label domains intersect | `generate(Tuple[Annotated[int, ValueRange(1, 5), Name("X")], Annotated[int, ValueRange(3, 7), Name("X")]], "true", {"X": "all"})` | `{(3, 3), (4, 4), (5, 5)}` |
+| GEN-10 | MUST | Impossible constraints produce empty output | `generate(Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]], "X == Y and X != Y", {"X": "all", "Y": "all"})` | `{}` |
 | GEN-11 | MUST | `arbitrary` is a singleton subset of the `"all"` result when satisfiable | compare `generate(tree, constraint, {"X": "arbitrary"})` against `generate(tree, constraint, {"X": "all"})` | result cardinality is `1`, result is a subset of the `"all"` result |
 | GEN-12 | MUST | `arbitrary` is deterministic | run the same `generate(...)` call with `"arbitrary"` repeatedly | same result every time |
 | GEN-13 | MUST | Super methods preserve non-emptiness | for any satisfiable input, replace some `"all"` methods with super methods | output stays non-empty |
 | GEN-14 | MUST | `uniform_random` returns a singleton subset of the `"all"` result when satisfiable | compare `generate(tree, constraint, {"X": "uniform_random"})` against `generate(tree, constraint, {"X": "all"})` | result cardinality is `1`, result is a subset of the `"all"` result |
 | GEN-15 | SHOULD | `uniform_random` is statistically close to uniform when all labels are super and use `"uniform_random"` | sample many runs on a problem with several satisfying assignments | frequencies are close to uniform over satisfying outputs |
 | GEN-16 | MUST | Empty label is invalid | any tree containing `Name("")` | validation error |
-| GEN-17 | MUST | Missing label reference in the expression is invalid | `generate(Annotated[bool, Name("X")], Eq(Reference("Y", ()), BooleanConstant(True)), {})` | validation error |
+| GEN-17 | MUST | Missing label reference in the expression is invalid | `generate(Annotated[bool, Name("X")], "Y == true", {})` | validation error |
 | GEN-18 | MUST | Plain `int` is invalid in core | any tree containing plain `int` without `ValueRange(...)` | validation error |
-| GEN-19 | MUST | `Expression` is AST-based, not source-text-based | pass a source string instead of an AST | type or validation error |
-| GEN-20 | MUST | Single-constraint conjunction replaces a constraint set | compare `generate(tree, And(c1, c2), methods)` with the conceptual two-constraint case | same result as requiring both `c1` and `c2` |
-| GEN-21 | MUST | `bool` and `int` are disjoint: `Eq(bool_val, int_val)` is false | `generate(Tuple[Annotated[bool, Name("X")], Annotated[int, ValueRange(1, 1), Name("Y")]], Eq(Reference("X", ()), Reference("Y", ())), {"X": "all", "Y": "all"})` | `{}` |
-| GEN-22 | MUST | `bool` and `int` are disjoint: `Ne(bool_val, int_val)` is true | `generate(Tuple[Annotated[bool, Name("X")], Annotated[int, ValueRange(1, 1), Name("Y")]], Ne(Reference("X", ()), Reference("Y", ())), {"X": "all", "Y": "all"})` | `{(True, 1), (False, 1)}` |
+| GEN-19 | MUST | String constraints are parsed before processing | `generate(bool, "[0] != [1]")` accepts a string and parses it | same result as passing the equivalent `ParsedExpression` |
+| GEN-20 | MUST | Single-constraint conjunction replaces a constraint set | compare `generate(tree, "c1 and c2", methods)` with the conceptual two-constraint case | same result as requiring both `c1` and `c2` |
+| GEN-21 | MUST | `bool` and `int` are disjoint: `Eq(bool_val, int_val)` is false | `generate(Tuple[Annotated[bool, Name("X")], Annotated[int, ValueRange(1, 1), Name("Y")]], "X == Y", {"X": "all", "Y": "all"})` | `{}` |
+| GEN-22 | MUST | `bool` and `int` are disjoint: `Ne(bool_val, int_val)` is true | `generate(Tuple[Annotated[bool, Name("X")], Annotated[int, ValueRange(1, 1), Name("Y")]], "X != Y", {"X": "all", "Y": "all"})` | `{(True, 1), (False, 1)}` |
 
 ## Summary
 
@@ -855,7 +916,7 @@ Its semantics are governed by four ideas:
 
 - unnamed structure expands exhaustively
 - `Name(label)` defines variable identity
-- `Expression` restricts admissible assignments
+- `Expression` restricts admissible assignments (accepted as a string or AST)
 - super methods collapse selected labels to one witness
 
 The key invariant is the one that motivated this redesign:

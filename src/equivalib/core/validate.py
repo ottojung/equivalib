@@ -43,7 +43,7 @@ from equivalib.core.expression import (
     Ge,
     And,
     Or,
-    Expression,
+    ParsedExpression,
     impossible,
 )
 from equivalib.core.methods import Label, Method
@@ -201,7 +201,7 @@ def validate_methods(node: IRNode, methods: Mapping[Label, Method]) -> None:
         _validate_unnamed_methods(node, index_keys, has_root_method)
 
 
-def validate_expression(expr: Expression, node: IRNode) -> None:
+def validate_expression(expr: ParsedExpression, node: IRNode) -> None:
     """Raise ValueError/TypeError if the expression is invalid against the tree.
 
     Checks:
@@ -274,7 +274,7 @@ def _merge_shapes(left: IRNode, right: IRNode) -> IRNode:
 
 
 def _check_expr_type(
-    expr: Expression,
+    expr: ParsedExpression,
     known_labels: frozenset[str],
     label_shapes: LabelShapes,
     root_shape: IRNode,

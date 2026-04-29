@@ -3,21 +3,11 @@ from __future__ import annotations
 from typing import Annotated, cast
 
 from equivalib.core import (
-    Add,
-    And,
-    BooleanExpression,
-    Eq,
-    Ge,
-    IntegerConstant,
-    Le,
     LineIntervalsSet,
-    Mul,
     Name,
     Regex,
     generate,
 )
-from equivalib.core.expression import Expression, reference
-
 
 
 class TicketCode(Regex):
@@ -28,39 +18,24 @@ class TicketCode(Regex):
 
 def generate_pythagorean_triples(limit: int) -> set[tuple[int, int, int]]:
     tree = tuple[int, int, int]
-    a = reference(0)
-    b = reference(1)
-    c = reference(2)
-
-    bounds = And(
-        And(Ge(a, IntegerConstant(1)), Le(a, IntegerConstant(limit))),
-        And(
-            And(Ge(b, IntegerConstant(1)), Le(b, IntegerConstant(limit))),
-            And(Ge(c, IntegerConstant(1)), Le(c, IntegerConstant(limit))),
-        ),
+    bounds = (
+        f"1 <= [0] and [0] <= {limit} and "
+        f"1 <= [1] and [1] <= {limit} and "
+        f"1 <= [2] and [2] <= {limit}"
     )
-    ordered = And(Le(a, b), Le(b, c))
-    pythagorean = Eq(Add(Mul(a, a), Mul(b, b)), Mul(c, c))
-
-    return generate(tree, And(bounds, And(ordered, pythagorean)))  # type: ignore[arg-type]
+    ordered = "[0] <= [1] and [1] <= [2]"
+    pythagorean = "[0]*[0] + [1]*[1] == [2]*[2]"
+    constraint = f"{bounds} and {ordered} and {pythagorean}"
+    return generate(tree, constraint)  # type: ignore[arg-type]
 
 
 def generate_sum_to_hundred_witness() -> set[tuple[int, ...]]:
     tree = cast(type[tuple[int, ...]], tuple[int, int, int, int, int, int, int, int, int, int])
-    refs = [reference(i) for i in range(10)]
-
-    bounded: And | None = None
-    for ref in refs:
-        per_ref = And(Ge(ref, IntegerConstant(0)), Le(ref, IntegerConstant(1)))
-        bounded = per_ref if bounded is None else And(bounded, per_ref)
-
-    sum_expr: Expression = refs[0]
-    for ref in refs[1:]:
-        sum_expr = Add(sum_expr, ref)
-
-    assert bounded is not None
-    constrained = And(bounded, Eq(sum_expr, IntegerConstant(5)))
-    return generate(tree, constrained, {"[0]": "arbitrary", "[1]": "arbitrary", "[2]": "arbitrary", "[3]": "arbitrary", "[4]": "arbitrary", "[5]": "arbitrary", "[6]": "arbitrary", "[7]": "arbitrary", "[8]": "arbitrary", "[9]": "arbitrary"})
+    bounds = " and ".join(f"0 <= [{i}] and [{i}] <= 1" for i in range(10))
+    total = " + ".join(f"[{i}]" for i in range(10))
+    constraint = f"{bounds} and {total} == 5"
+    methods = {f"[{i}]": "arbitrary" for i in range(10)}
+    return generate(tree, constraint, methods)
 
 
 def test_interesting_single_boolean_value_generation():
@@ -84,9 +59,8 @@ def test_interesting_direct_indexing_on_generated_tuple_values():
 
 def test_interesting_tuple_constraint_with_reference_paths():
     tree = cast(type[tuple[bool, bool]], Annotated[tuple[bool, bool], Name("B")])
-    same_value = Eq(reference("B", 0), reference("B", 1))
 
-    values = generate(tree, same_value, {"B": "all"})
+    values = generate(tree, "B[0] == B[1]", {"B": "all"})
 
     assert values == {(False, False), (True, True)}
 
@@ -126,7 +100,7 @@ def test_interesting_large_integer_domain_can_return_one_arbitrary_witness():
 
 
 def test_interesting_boolean_expression_true_is_unconstrained():
-    values = generate(bool, BooleanExpression(True))
+    values = generate(bool, "true")
 
     assert values == {False, True}
 
@@ -164,3 +138,4 @@ def test_interesting_line_intervals_set_two_intervals_four_classes():
         assert start_b <= end_b
         assert 0 <= start_a and end_a <= 5
         assert 0 <= start_b and end_b <= 5
+

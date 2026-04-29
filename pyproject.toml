@@ -17,6 +17,7 @@ classifiers = [
 dependencies = [
     # Main dependencies required to use the library
     "ortools",
+    "lark>=1.0",
 ]
 
 [project.optional-dependencies]

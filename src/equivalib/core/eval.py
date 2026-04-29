@@ -33,7 +33,7 @@ from equivalib.core.expression import (
     Ge,
     And,
     Or,
-    Expression,
+    ParsedExpression,
     impossible,
 )
 
@@ -106,7 +106,7 @@ def _structural_eq(lv: object, rv: object) -> bool:
 # Full evaluation (all labels must be assigned)
 # ---------------------------------------------------------------------------
 
-def eval_expression(expr: Expression, assignment: dict[str | None, object]) -> object:
+def eval_expression(expr: ParsedExpression, assignment: dict[str | None, object]) -> object:
     """Evaluate ``expr`` against a complete assignment mapping.
 
     ``assignment`` maps label strings to runtime values.
@@ -115,7 +115,7 @@ def eval_expression(expr: Expression, assignment: dict[str | None, object]) -> o
     return _eval(expr, assignment)
 
 
-def _eval(expr: Expression, assignment: dict[str | None, object]) -> object:
+def _eval(expr: ParsedExpression, assignment: dict[str | None, object]) -> object:
     if isinstance(expr, BooleanConstant):
         return expr.value
     if isinstance(expr, IntegerConstant):
@@ -158,7 +158,7 @@ def _eval(expr: Expression, assignment: dict[str | None, object]) -> object:
 # Partial evaluation (some labels may be unresolved)
 # ---------------------------------------------------------------------------
 
-def eval_expression_partial(expr: Expression, partial_assignment: dict[str | None, object]) -> object:
+def eval_expression_partial(expr: ParsedExpression, partial_assignment: dict[str | None, object]) -> object:
     """Evaluate ``expr`` against a partial assignment.
 
     Returns a concrete value if it can be determined, or ``Unknown`` if the
@@ -167,7 +167,7 @@ def eval_expression_partial(expr: Expression, partial_assignment: dict[str | Non
     return _eval_partial(expr, partial_assignment)
 
 
-def _eval_partial(expr: Expression, pa: dict[str | None, object]) -> object:
+def _eval_partial(expr: ParsedExpression, pa: dict[str | None, object]) -> object:
     if isinstance(expr, BooleanConstant):
         return expr.value
     if isinstance(expr, IntegerConstant):
