@@ -21,12 +21,18 @@ Grammar (EBNF-style, maps 1-to-1 to the lark BNF grammar below):
 Operator precedence (lowest to highest):
     or, and, comparison (==, !=, <, <=, >, >=), +/-, *///%,  unary -
 
+Each comparison is non-associative: chained comparisons like ``1 < 2 < 3``
+are a syntax error.  Use ``and`` to combine multiple comparisons explicitly:
+``1 < x and x < 10``.
+
 Keywords reserved by the grammar: ``true``, ``false``, ``and``, ``or``.
 Label identifiers that spell a reserved keyword are not supported in string
 expressions; use the ``ParsedExpression`` AST constructors directly instead.
 """
 
 from __future__ import annotations
+
+import functools
 
 from lark import Lark, Token, Transformer
 
@@ -63,12 +69,12 @@ _GRAMMAR = r"""
              | and_expr "and" cmp_expr  -> and_
 
     ?cmp_expr: sum_expr
-             | cmp_expr "==" sum_expr  -> eq
-             | cmp_expr "!=" sum_expr  -> ne
-             | cmp_expr "<" sum_expr   -> lt
-             | cmp_expr "<=" sum_expr  -> le
-             | cmp_expr ">" sum_expr   -> gt
-             | cmp_expr ">=" sum_expr  -> ge
+             | sum_expr "==" sum_expr  -> eq
+             | sum_expr "!=" sum_expr  -> ne
+             | sum_expr "<" sum_expr   -> lt
+             | sum_expr "<=" sum_expr  -> le
+             | sum_expr ">" sum_expr   -> gt
+             | sum_expr ">=" sum_expr  -> ge
 
     ?sum_expr: mul_expr
              | sum_expr "+" mul_expr  -> add
@@ -163,15 +169,12 @@ class _ExprTransformer(Transformer):  # type: ignore[type-arg]
         return Or(args[0], args[1])
 
 
-_parser: Lark | None = None
 _transformer = _ExprTransformer()
 
 
+@functools.lru_cache(maxsize=1)
 def _get_parser() -> Lark:
-    global _parser
-    if _parser is None:
-        _parser = Lark(_GRAMMAR, parser="lalr", start="start")
-    return _parser
+    return Lark(_GRAMMAR, parser="lalr", start="start")
 
 
 def parse(text: str) -> ParsedExpression:

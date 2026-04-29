@@ -321,6 +321,20 @@ def test_parse_bare_operator_raises():
         parse("+ X")
 
 
+def test_parse_chained_comparison_raises():
+    """Chained comparisons like '1 < 2 < 3' are rejected (non-associative)."""
+    with pytest.raises(LarkError):
+        parse("1 < 2 < 3")
+
+
+def test_parse_chained_comparison_with_and_works():
+    """Use 'and' to combine multiple comparisons explicitly."""
+    result = parse("1 < X and X < 10")
+    x = Reference("X", ())
+    expected = And(Lt(IntegerConstant(1), x), Lt(x, IntegerConstant(10)))
+    assert result == expected
+
+
 # ---------------------------------------------------------------------------
 # Integration: parse() result works with generate()
 # ---------------------------------------------------------------------------

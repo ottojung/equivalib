@@ -84,10 +84,8 @@ A string constraint is parsed with `parse(text: str) -> ParsedExpression` before
 ```python
 if isinstance(constraint, str):
     parsedConstraint = parse(constraint)
-elif isinstance(constraint, ParsedExpression):
-    parsedConstraint = constraint
 else:
-    impossible(constraint)
+    parsedConstraint = constraint  # already a ParsedExpression AST node
 ```
 
 Examples in this document MAY omit trailing default arguments. Therefore:

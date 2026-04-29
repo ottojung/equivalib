@@ -57,11 +57,10 @@ Great for demos, quick checks, and building intuition.
 ## Slide 5 — In-model constraints via named trees + string expressions
 
 ```python
-from typing import Annotated, cast
-from equivalib.core import Ne, generate
+from equivalib.core import generate
 
 tree = tuple[bool, bool]
-values = generate(tree, "[0] != [1]", {"B": "all"})
+values = generate(tree, "[0] != [1]")
 # => {(False, True), (True, False)}
 ```
 
