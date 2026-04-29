@@ -32,6 +32,7 @@ from equivalib.core.expression import (
     Or,
     Reference,
     Sub,
+    reference,
 )
 from equivalib.core.extension import Extension
 from equivalib.core.methods import Label, Method, apply_methods, structural_eq, tag_value
@@ -76,6 +77,7 @@ _EXPR_TYPES = (
     And,
     Or,
 )
+_OTHER_EXPORTED_NAMES = (reference,)
 
 
 # ---------------------------------------------------------------------------
