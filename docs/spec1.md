@@ -421,11 +421,13 @@ the type tree; using it at any inner position MUST be rejected.
 
 `self` is the reserved **root-reference identifier**.
 
-- **In string expressions**: `self` parses to `Reference(None, ())`, which refers to the
-  root of the generated value.  `self[i]` parses to `Reference(None, (i,))`, which refers
-  to element `i` of a tuple root.  These are identical to the pure-index forms `[i]`,
-  except that `self` (with no index suffix) can also refer to a scalar root such as `int`
-  or `bool`.
+- **In string expressions** (unnamed trees only): `self` parses to `Reference(None, ())`,
+  which refers to the root of the generated value.  `self[i]` parses to
+  `Reference(None, (i,))`, which refers to element `i` of a tuple root.  These are
+  identical to the pure-index forms `[i]`, except that `self` (with no index suffix) can
+  also refer to a scalar root such as `int` or `bool`.  Using `self` (or any anonymous
+  `Reference(None, ...)`) in a constraint on a named tree (one with `Name(...)` labels)
+  is not supported and MUST be rejected.
 
 - **In `methods`** (unnamed trees only): when the tree has no `Name(...)` labels, the key
   `"self"` is a synonym for `""` (the root label).  A compliant implementation MUST accept

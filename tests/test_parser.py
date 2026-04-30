@@ -108,7 +108,7 @@ def test_parse_self_with_multiple_indices():
 
 
 def test_parse_self_in_comparison_chain():
-    """'0 < self < 10' parses identically to using [0] on a root int."""
+    """'0 < self < 10' parses to And(Lt(IntegerConstant(0), self_ref), Lt(self_ref, IntegerConstant(10)))."""
     self_ref = Reference(None, ())
     expected = And(Lt(IntegerConstant(0), self_ref), Lt(self_ref, IntegerConstant(10)))
     assert parse("0 < self < 10") == expected

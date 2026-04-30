@@ -341,7 +341,7 @@ def generate(
     if not reduced:
         return set()
 
-    # 11. Concretize each assignment into runtime values.
+    # 12. Concretize each assignment into runtime values.
     concrete_results: set[object] = set()
     for asgn in reduced:
         concrete_results.update(concretize(node, asgn))

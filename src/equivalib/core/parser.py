@@ -46,6 +46,11 @@ Special identifier ``self``:
     root value itself.  Use ``self`` when you want to constrain the generated
     value directly without introducing a ``Name(...)`` annotation.
 
+    Note: ``Reference(None, ...)`` nodes (including those produced by ``self``)
+    are only valid in constraints on **unnamed trees** (trees with no
+    ``Name(...)`` labels).  Using ``self`` in a constraint on a named tree will
+    raise a ``ValueError`` from ``validate_expression``.
+
 Empty string constraint:
     An empty (or whitespace-only) string is accepted and is equivalent to
     ``BooleanConstant(True)`` (the always-true, unconstrained case).
@@ -250,7 +255,7 @@ def parse(text: str) -> ParsedExpression:
         parse("true")                      # BooleanConstant(True)
         parse("self")                      # Reference(None, ())
         parse("self[0]")                   # Reference(None, (0,))
-        parse("0 < self < 10")            # And(Lt(0, Reference(None,())), Lt(Reference(None,()), 10))
+        parse("0 < self < 10")            # And(Lt(IntegerConstant(0), Reference(None,())), Lt(Reference(None,()), IntegerConstant(10)))
         parse("X >= 0 and X <= 9")         # And(Ge(ref("X"), ...), Le(ref("X"), ...))
         parse("1 < X < 10")               # And(Lt(IntegerConstant(1), X), Lt(X, IntegerConstant(10)))
         parse("[0] != [1]")               # Ne(Reference(None,(0,)), Reference(None,(1,)))
