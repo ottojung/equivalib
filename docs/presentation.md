@@ -136,11 +136,11 @@ from equivalib.core import generate
 
 def generate_pythagorean_triples(limit: int):
     tree = tuple[int, int, int]
-    bounds = (
-        f"1 <= [0] and [0] <= {limit} and "
-        f"1 <= [1] and [1] <= {limit} and "
-        f"1 <= [2] and [2] <= {limit}"
-    )
+    bounds = f"""
+        1 <= [0] and [0] <= {limit} and 
+        1 <= [1] and [1] <= {limit} and 
+        1 <= [2] and [2] <= {limit}
+    """
     ordered = "[0] <= [1] and [1] <= [2]"
     pythagorean = "[0]*[0] + [1]*[1] == [2]*[2]"
     return generate(tree, f"{bounds} and {ordered} and {pythagorean}")
@@ -205,22 +205,20 @@ class Greeting(Extension):
     text: str
 
     @staticmethod
-    def initialize(tree: object, constraint: ParsedExpression) -> None:
-        del tree, constraint
+    def initialize(tree: object, constraint):
+        pass
 
     @staticmethod
-    def enumerate_all(tree: object, constraint: ParsedExpression, address: str | None) -> Iterator["Greeting"]:
-        del tree, constraint, address
+    def enumerate_all(tree, constraint, address):
         yield Greeting("hello")
         yield Greeting("hi")
 
     @staticmethod
-    def arbitrary(tree: object, constraint: ParsedExpression, address: str | None) -> "Greeting | None":
-        del tree, constraint, address
+    def arbitrary(tree, constraint, address):
         return Greeting("hello")
 
     @staticmethod
-    def uniform_random(tree: object, constraint: ParsedExpression, address: str | None) -> "Greeting | None":
+    def uniform_random(tree, constraint, address):
         del tree, constraint, address
         return random.choice([Greeting("hello"), Greeting("hi")])
 
@@ -237,7 +235,7 @@ Any class can become a generation leaf by implementing the four `Extension` hook
 ```python
 from equivalib.core import LineIntervalsSet, generate
 
-class PairsUpTo5(LineIntervalsSet):
+class PairsUpTo50(LineIntervalsSet):
     @classmethod
     def number_of_intervals(cls) -> int:
         return 2
@@ -248,7 +246,7 @@ class PairsUpTo5(LineIntervalsSet):
 
     @classmethod
     def range_maximum(cls) -> int:
-        return 5
+        return 50
 
 representatives = generate(PairsUpTo5)
 # => 4 representatives, one per equivalence class:
