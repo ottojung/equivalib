@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Annotated, Mapping, cast
 
 from equivalib.core import (
-    LineIntervalsSet,
     Name,
     Regex,
     generate,

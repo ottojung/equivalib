@@ -2102,7 +2102,7 @@ def test_line_intervals_set_arbitrary_returns_one_result():
     generate = core_attr("generate")
     Name = core_attr("Name")
 
-    tree = Annotated[_TwoIntervalsUpTo5, Name("I")]
+    tree = Annotated[_TwoIntervalsUpTo5, Name("I")]  # type: ignore[valid-type]
     result = generate(tree, methods={"I": "arbitrary"})
     assert len(result) == 1
     only = next(iter(result))
@@ -2114,7 +2114,7 @@ def test_line_intervals_set_uniform_random_returns_one_result():
     generate = core_attr("generate")
     Name = core_attr("Name")
 
-    tree = Annotated[_TwoIntervalsUpTo5, Name("I")]
+    tree = Annotated[_TwoIntervalsUpTo5, Name("I")]  # type: ignore[valid-type]
     with random_seed(0):
         result = generate(tree, methods={"I": "uniform_random"})
     assert len(result) == 1
