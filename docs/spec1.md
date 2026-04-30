@@ -260,7 +260,7 @@ The implementation MAY reject additional malformed inputs if they are outside th
 
 String expressions are the preferred form in user-facing code.  AST constructors are
 available for programmatic construction or when a label name conflicts with a reserved
-keyword (`true`, `false`, `and`, `or`).
+keyword (`true`, `false`, `and`, `or`) or the reserved identifier `self`.
 
 ### String expression syntax
 
@@ -289,14 +289,26 @@ lowered to pairwise `And` nodes.  For example, `1 < X < 10` is parsed as
 `And(Lt(IntegerConstant(1), X), Lt(X, IntegerConstant(10)))`, and `a == b == c` becomes
 `And(Eq(a, b), Eq(b, c))`.
 
-Reserved keywords (not valid as label names in string expressions): `true`, `false`, `and`, `or`.
+Reserved identifiers (not valid as label names in string expressions):
+
+- Grammar keywords: `true`, `false`, `and`, `or` — labels that conflict with these
+  must use the `ParsedExpression` AST constructors directly.
+- Special identifier: `self` — refers to the root of the generated value; see the
+  "`self` — root reference" section below.
+
+An empty or whitespace-only string is accepted as a constraint and is equivalent to
+`BooleanConstant(True)` (the always-true, unconstrained case).
 
 String expression examples:
 
 ```python
+""                                  # BooleanConstant(True)  (empty = unconstrained)
 "true"                              # BooleanConstant(True)
 "false"                             # BooleanConstant(False)
 "42"                                # IntegerConstant(42)
+"self"                              # Reference(None, ())  (root of the generated value)
+"self[0]"                           # Reference(None, (0,))
+"0 < self < 10"                    # And(Lt(0, Reference(None,())), Lt(Reference(None,()), 10))
 "X"                                 # Reference("X", ())
 "X[0]"                              # Reference("X", (0,))
 "T[0][1]"                           # Reference("T", (0, 1))
@@ -404,6 +416,36 @@ does not change the constraint syntax.
 The user MAY also make the root label explicit by writing `Annotated[base, Name("")]`.
 A `Name("")` annotation is only valid when it appears at the outermost (root) position of
 the type tree; using it at any inner position MUST be rejected.
+
+### `self` — root reference in expressions and methods
+
+`self` is the reserved **root-reference identifier**.
+
+- **In string expressions** (unnamed trees only): `self` parses to `Reference(None, ())`,
+  which refers to the root of the generated value.  `self[i]` parses to
+  `Reference(None, (i,))`, which refers to element `i` of a tuple root.  These are
+  identical to the pure-index forms `[i]`, except that `self` (with no index suffix) can
+  also refer to a scalar root such as `int` or `bool`.  Using `self` (or any anonymous
+  `Reference(None, ...)`) in a constraint on a named tree (one with `Name(...)` labels)
+  is not supported and MUST be rejected.
+
+- **In `methods`** (unnamed trees only): when the tree has no `Name(...)` labels, the key
+  `"self"` is a synonym for `""` (the root label).  A compliant implementation MUST accept
+  `{"self": method}` wherever `{"": method}` is accepted for unnamed trees.  Specifying
+  both `"self"` and `""` in the same `methods` mapping MUST be rejected with a `ValueError`.
+  For named trees (trees with at least one `Name(...)` label), `"self"` has no special
+  meaning in `methods` and is treated as an ordinary label name.
+
+Examples:
+
+```python
+generate(int, "0 < self < 10")                       # integers 1..9
+generate(int, "0 < self < 10", {"": "arbitrary"})    # one integer from 1..9
+generate(int, "0 < self < 10", {"self": "arbitrary"})# same as above
+generate(bool, "", {"": "arbitrary"})                 # one of True/False (empty = unconstrained)
+generate(tuple[int, bool], "0 < [0] < 10")           # tuples with first element in 1..9
+generate(tuple[int, bool], "0 < self[0] < 10")       # same as above
+```
 
 ### Index-style labels
 
