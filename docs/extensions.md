@@ -224,7 +224,9 @@ assert generate(
 For regex families, `Regex` is the abstract helper base that owns mechanics (`initialize`, `enumerate_all`, `arbitrary`, `uniform_random`). The `regex` factory is the recommended way to create a concrete regex type from a pattern string:
 
 ```python
-from equivalib.core import Regex, regex
+from typing import Annotated
+
+from equivalib.core import Name, generate, regex
 
 
 RegexABorCD = regex("(ab|cd)")
@@ -236,7 +238,9 @@ generate(Annotated[RegexABorCD, Name("R")], methods={"R": "arbitrary"})
 You can also define a concrete subclass manually when you need a named type:
 
 ```python
-from equivalib.core import Regex
+from typing import Annotated
+
+from equivalib.core import Name, Regex, generate
 
 
 class RegexABorCD(Regex):

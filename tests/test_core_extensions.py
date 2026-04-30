@@ -242,6 +242,12 @@ def test_regex_factory_produces_independent_types():
     assert R1.expression() != R2.expression()
 
 
+def test_regex_factory_same_pattern_returns_same_type():
+    R1 = regex("(ab|cd)")
+    R2 = regex("(ab|cd)")
+    assert R1 is R2
+
+
 def test_regex_factory_generated_type_works_with_generate():
     R = regex("(ab|cd)")
     assert generate_core(R) == {R("ab"), R("cd")}

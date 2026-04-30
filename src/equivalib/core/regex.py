@@ -5,6 +5,7 @@ import re
 import sre_parse
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from functools import lru_cache
 from itertools import product
 from typing import Any, Iterator, Type, cast
 
@@ -63,12 +64,15 @@ class Regex(Extension, ABC):
         return cls._materialize(random.choice(pool))
 
 
+@lru_cache(maxsize=None)
 def regex(expression: str) -> Type[Regex]:
     class CustomRegex(Regex):
         @staticmethod
         def expression() -> str:
             return expression
 
+    CustomRegex.__name__ = f"Regex({expression!r})"
+    CustomRegex.__qualname__ = f"Regex({expression!r})"
     return CustomRegex
 
 
