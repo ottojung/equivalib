@@ -15,6 +15,7 @@ Extension base classes:
     Regex            – base for finite regex languages
     regex            – factory that creates a Regex subclass from a pattern string
     LineIntervalsSet – base for generating non-equivalent integer interval sets
+    intervals        – factory that creates a LineIntervalsSet subclass from range and count
 
 Expression AST constructors (ParsedExpression nodes):
     BooleanConstant, IntegerConstant, Reference
@@ -59,7 +60,7 @@ from equivalib.core.domains import values
 from equivalib.core.cache import mentioned_labels
 from equivalib.core.extension import Extension
 from equivalib.core.regex import Regex, regex
-from equivalib.core.line_intervals_set import LineIntervalsSet
+from equivalib.core.line_intervals_set import LineIntervalsSet, intervals
 from equivalib.core.parser import parse
 
 __all__ = [
@@ -70,6 +71,7 @@ __all__ = [
     "Regex",
     "regex",
     "LineIntervalsSet",
+    "intervals",
     "Name",
     "Expression",
     "ParsedExpression",

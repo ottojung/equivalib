@@ -252,3 +252,43 @@ class RegexABorCD(Regex):
 generate(RegexABorCD)
 generate(Annotated[RegexABorCD, Name("R")], methods={"R": "arbitrary"})
 ```
+
+For integer interval families, `LineIntervalsSet` is the abstract helper base. The `intervals` factory is the recommended way to create a concrete subclass from a range and count:
+
+```python
+from typing import Annotated
+
+from equivalib.core import Name, generate, intervals
+
+
+PairsUpTo5 = intervals(on=(0, 5), n=2)
+
+generate(PairsUpTo5)
+generate(Annotated[PairsUpTo5, Name("I")], methods={"I": "arbitrary"})
+```
+
+You can also define a concrete subclass manually when you need a named type:
+
+```python
+from typing import Annotated
+
+from equivalib.core import LineIntervalsSet, Name, generate
+
+
+class PairsUpTo5(LineIntervalsSet):
+    @classmethod
+    def number_of_intervals(cls) -> int:
+        return 2
+
+    @classmethod
+    def range_minimum(cls) -> int:
+        return 0
+
+    @classmethod
+    def range_maximum(cls) -> int:
+        return 5
+
+
+generate(PairsUpTo5)
+generate(Annotated[PairsUpTo5, Name("I")], methods={"I": "arbitrary"})
+```

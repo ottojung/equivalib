@@ -3,10 +3,10 @@ from __future__ import annotations
 from typing import Annotated, Mapping, cast
 
 from equivalib.core import (
-    LineIntervalsSet,
     Name,
     Regex,
     generate,
+    intervals,
 )
 from equivalib.core.methods import Method
 
@@ -106,18 +106,7 @@ def test_interesting_boolean_expression_true_is_unconstrained():
     assert values == {False, True}
 
 
-class PairsUpTo5(LineIntervalsSet):
-    @classmethod
-    def number_of_intervals(cls) -> int:
-        return 2
-
-    @classmethod
-    def range_minimum(cls) -> int:
-        return 0
-
-    @classmethod
-    def range_maximum(cls) -> int:
-        return 5
+PairsUpTo5 = intervals(on=(0, 5), n=2)
 
 
 def test_interesting_line_intervals_set_two_intervals_four_classes():

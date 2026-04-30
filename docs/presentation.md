@@ -198,22 +198,9 @@ Any class can become a generation leaf by implementing the four `Extension` hook
 ## Slide 15 — LineIntervalsSet: non-equivalent interval families
 
 ```python
-from equivalib.core import LineIntervalsSet, generate
+from equivalib.core import intervals, generate
 
-class PairsUpTo50(LineIntervalsSet):
-    @classmethod
-    def number_of_intervals(cls) -> int:
-        return 2
-
-    @classmethod
-    def range_minimum(cls) -> int:
-        return 0
-
-    @classmethod
-    def range_maximum(cls) -> int:
-        return 50
-
-representatives = generate(PairsUpTo5)
+representatives = generate(intervals(on=(0, 50), n=2))
 # => 4 representatives, one per equivalence class:
 #    touch   – one interval ends exactly where the other begins, e.g. ([0,1], [1,2])
 #    kiss    – endpoints differ by exactly 1, e.g. ([0,0], [1,1])
@@ -221,7 +208,8 @@ representatives = generate(PairsUpTo5)
 #    disjoint – no interaction at all, e.g. ([0,0], [2,2])
 ```
 
-`LineIntervalsSet` enumerates exactly one representative from every equivalence class of
+`intervals` returns a concrete :class:`LineIntervalsSet` subclass for the given range and
+count. ``generate`` then returns exactly one representative from every equivalence class of
 *n* integer line intervals, where two sets are equivalent when one is a permutation of
 the other with the same pairwise relations (touch / kiss / overlap / disjoint).
 
