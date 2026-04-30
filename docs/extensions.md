@@ -221,10 +221,26 @@ assert generate(
 ) == {Greeting("hello")}
 ```
 
-For regex families, `Regex` is the abstract helper base that owns mechanics (`initialize`, `enumerate_all`, `arbitrary`, `uniform_random`), and each concrete subclass provides only `expression()`.
+For regex families, `Regex` is the abstract helper base that owns mechanics (`initialize`, `enumerate_all`, `arbitrary`, `uniform_random`). The `regex` factory is the recommended way to create a concrete regex type from a pattern string:
 
 ```python
-from equivalib.core import Regex
+from typing import Annotated
+
+from equivalib.core import Name, generate, regex
+
+
+RegexABorCD = regex("(ab|cd)")
+
+generate(RegexABorCD)
+generate(Annotated[RegexABorCD, Name("R")], methods={"R": "arbitrary"})
+```
+
+You can also define a concrete subclass manually when you need a named type:
+
+```python
+from typing import Annotated
+
+from equivalib.core import Name, Regex, generate
 
 
 class RegexABorCD(Regex):

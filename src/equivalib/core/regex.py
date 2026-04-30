@@ -5,8 +5,9 @@ import re
 import sre_parse
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from functools import lru_cache
 from itertools import product
-from typing import Any, Iterator, cast
+from typing import Any, Iterator, Type, cast
 
 from equivalib.core.extension import Extension
 from equivalib.core.expression import ParsedExpression
@@ -61,6 +62,18 @@ class Regex(Extension, ABC):
         if not pool:
             return None
         return cls._materialize(random.choice(pool))
+
+
+@lru_cache(maxsize=None)
+def regex(expression: str) -> Type[Regex]:
+    class CustomRegex(Regex):
+        @staticmethod
+        def expression() -> str:
+            return expression
+
+    CustomRegex.__name__ = f"Regex({expression!r})"
+    CustomRegex.__qualname__ = f"Regex({expression!r})"
+    return CustomRegex
 
 
 def _enumerate_subpattern(

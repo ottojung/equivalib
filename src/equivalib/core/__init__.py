@@ -13,6 +13,7 @@ Public API surface:
 Extension base classes:
     Extension        – abstract base for custom leaf types
     Regex            – base for finite regex languages
+    regex            – factory that creates a Regex subclass from a pattern string
     LineIntervalsSet – base for generating non-equivalent integer interval sets
 
 Expression AST constructors (ParsedExpression nodes):
@@ -57,7 +58,7 @@ from equivalib.core.api import generate
 from equivalib.core.domains import values
 from equivalib.core.cache import mentioned_labels
 from equivalib.core.extension import Extension
-from equivalib.core.regex import Regex
+from equivalib.core.regex import Regex, regex
 from equivalib.core.line_intervals_set import LineIntervalsSet
 from equivalib.core.parser import parse
 
@@ -67,6 +68,7 @@ __all__ = [
     "parse",
     "Extension",
     "Regex",
+    "regex",
     "LineIntervalsSet",
     "Name",
     "Expression",
