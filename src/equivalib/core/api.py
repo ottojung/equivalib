@@ -87,14 +87,23 @@ _OTHER_EXPORTS = (reference,)
 # Unnamed-tree method helpers
 # ---------------------------------------------------------------------------
 
-def _normalize_self_in_methods(methods: Mapping[Label, Method]) -> Mapping[Label, Method]:
+def _normalize_self_in_methods(methods: Mapping[Label, Method], node: IRNode) -> Mapping[Label, Method]:
     """Normalize the ``"self"`` method key to ``""`` (the root label synonym).
 
     ``"self"`` and ``""`` are synonyms for the root method key on unnamed
-    trees.  If both appear in the same mapping, a ``ValueError`` is raised
-    because the intent is ambiguous.
+    trees (trees with no ``Name(...)`` labels).  This normalization is only
+    applied when the tree is unnamed; if the tree has named labels, ``"self"``
+    is left as-is and will be validated as a named label by ``validate_methods``.
+
+    If both ``"self"`` and ``""`` appear in the same mapping for an unnamed
+    tree, a ``ValueError`` is raised because the intent is ambiguous.
     """
     if "self" not in methods:
+        return methods
+    if contains_name(node):
+        # Named tree: 'self' is not a root-label synonym here; leave it for
+        # validate_methods to handle (it will reject it as an unknown label
+        # unless the tree actually has a Name("self") annotation).
         return methods
     if "" in methods:
         raise ValueError(
@@ -264,9 +273,6 @@ def generate(
     if methods is None:
         methods = {}
 
-    # 0a. Normalize the 'self' method key to '' (they are synonyms).
-    methods = _normalize_self_in_methods(methods)
-
     # 0. Parse string constraint into a ParsedExpression.
     if isinstance(constraint, str):
         parsed_constraint: ParsedExpression = parse(constraint)
@@ -278,23 +284,26 @@ def generate(
     # 1. Normalize
     node = normalize(tree)
 
-    # 2. Extension initialize hooks and effective constraint
+    # 2. Normalize the 'self' method key to '' for unnamed trees (they are synonyms).
+    methods = _normalize_self_in_methods(methods, node)
+
+    # 3. Extension initialize hooks and effective constraint
     constraint_eff = _effective_constraint(node, tree, parsed_constraint)
 
-    # 3. Resolve extension leaves according to methods/addresses.
+    # 4. Resolve extension leaves according to methods/addresses.
     node = _resolve_extensions(node, tree, constraint_eff, methods)
 
-    # 4. Validate expression against the (still-unfilled) tree so that
+    # 5. Validate expression against the (still-unfilled) tree so that
     #    malformed or non-boolean constraints raise TypeError/ValueError
     #    before bounds inference has a chance to emit a misleading error.
     validate_expression(constraint_eff, node)
 
-    # 5. Validate methods against the unfilled tree so that invalid method
+    # 6. Validate methods against the unfilled tree so that invalid method
     #    keys/values are always reported, even when bounds are contradictory
     #    and generate() would otherwise return early with an empty set.
     validate_methods(node, methods)
 
-    # 6. Infer and fill integer bounds from the constraint
+    # 7. Infer and fill integer bounds from the constraint
     bounds = infer_int_bounds(node, constraint_eff)
     if bounds:
         # Contradictory bounds (lo > hi) -> no solutions possible
@@ -303,10 +312,10 @@ def generate(
                 return set()
         node = fill_int_bounds(node, bounds)
 
-    # 7. Validate tree (requires bounds to have been filled)
+    # 8. Validate tree (requires bounds to have been filled)
     validate_tree(node)
 
-    # 8. Unnamed-tree path (no named nodes): enumerate satisfying values.
+    # 9. Unnamed-tree path (no named nodes): enumerate satisfying values.
     #    When no index/root filtering is needed we stream directly into a set
     #    to avoid a redundant list allocation; otherwise we materialize a list
     #    so that _apply_unnamed_methods can select a positional witness.
@@ -320,13 +329,13 @@ def generate(
         satisfying = list(satisfying_iter)
         return cast(set[GenerateT], set(_apply_unnamed_methods(satisfying, methods, node)))
 
-    # 9. Exact satisfying-assignment search (S0)
+    # 10. Exact satisfying-assignment search (S0)
     assignments = search(node, constraint_eff, methods)
 
     if not assignments:
         return set()
 
-    # 10. Apply super-method reductions (S*)
+    # 11. Apply super-method reductions (S*)
     reduced = apply_methods(assignments, methods, labels_in_order(node))
 
     if not reduced:

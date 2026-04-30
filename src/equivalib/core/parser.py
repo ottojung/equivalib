@@ -26,9 +26,11 @@ parsed as ``And(Lt(1, x), Lt(x, 10))``.  Each consecutive pair of operands
 is compared with its intervening operator; all pairs are joined with ``And``.
 
 Reserved identifiers (not valid as label names in string expressions):
-``true``, ``false``, ``and``, ``or``, ``self``.
-Label identifiers that spell a reserved keyword are not supported in string
-expressions; use the ``ParsedExpression`` AST constructors directly instead.
+
+- Grammar keywords: ``true``, ``false``, ``and``, ``or``.
+  Label identifiers that spell a grammar keyword are not supported in string
+  expressions; use the ``ParsedExpression`` AST constructors directly instead.
+- Special identifier ``self`` (see below).
 
 Special identifier ``self``:
     ``self`` is a reserved root-reference identifier.  It refers to the root

@@ -27,8 +27,10 @@ from equivalib.core.expression import (
     Ne,
     Neg,
     Or,
+    Reference,
     reference,
 )
+from equivalib.core.parser import parse as _parse_expr
 from equivalib.core.methods import apply_methods
 from equivalib.core.name import Name as CoreName
 from equivalib.core.normalize import normalize
@@ -678,9 +680,7 @@ def test_self_and_empty_string_method_keys_rejected():
 
 def test_self_parses_to_anonymous_root_reference():
     """parse('self') returns Reference(None, ())."""
-    from equivalib.core.parser import parse
-    from equivalib.core.expression import Reference
-    result = parse("self")
+    result = _parse_expr("self")
     assert isinstance(result, Reference)
     assert result.label is None
     assert result.path == ()
@@ -688,9 +688,7 @@ def test_self_parses_to_anonymous_root_reference():
 
 def test_self_with_index_parses_to_anonymous_indexed_reference():
     """parse('self[0]') returns Reference(None, (0,))."""
-    from equivalib.core.parser import parse
-    from equivalib.core.expression import Reference
-    result = parse("self[0]")
+    result = _parse_expr("self[0]")
     assert isinstance(result, Reference)
     assert result.label is None
     assert result.path == (0,)
@@ -698,10 +696,8 @@ def test_self_with_index_parses_to_anonymous_indexed_reference():
 
 def test_empty_string_parses_to_boolean_true():
     """parse('') returns BooleanConstant(True)."""
-    from equivalib.core.parser import parse
-    from equivalib.core.expression import BooleanConstant
-    assert parse("") == BooleanConstant(True)
-    assert parse("   ") == BooleanConstant(True)
+    assert _parse_expr("") == BooleanConstant(True)
+    assert _parse_expr("   ") == BooleanConstant(True)
 
 
 def test_self_in_constraint_equals_explicit_index_ref():

@@ -260,7 +260,7 @@ The implementation MAY reject additional malformed inputs if they are outside th
 
 String expressions are the preferred form in user-facing code.  AST constructors are
 available for programmatic construction or when a label name conflicts with a reserved
-keyword (`true`, `false`, `and`, `or`).
+keyword (`true`, `false`, `and`, `or`) or the reserved identifier `self`.
 
 ### String expression syntax
 
@@ -289,8 +289,12 @@ lowered to pairwise `And` nodes.  For example, `1 < X < 10` is parsed as
 `And(Lt(IntegerConstant(1), X), Lt(X, IntegerConstant(10)))`, and `a == b == c` becomes
 `And(Eq(a, b), Eq(b, c))`.
 
-Reserved identifiers (not valid as label names in string expressions): `true`, `false`,
-`and`, `or`, `self`.
+Reserved identifiers (not valid as label names in string expressions):
+
+- Grammar keywords: `true`, `false`, `and`, `or` — labels that conflict with these
+  must use the `ParsedExpression` AST constructors directly.
+- Special identifier: `self` — refers to the root of the generated value; see the
+  "`self` — root reference" section below.
 
 An empty or whitespace-only string is accepted as a constraint and is equivalent to
 `BooleanConstant(True)` (the always-true, unconstrained case).
@@ -415,8 +419,7 @@ the type tree; using it at any inner position MUST be rejected.
 
 ### `self` — root reference in expressions and methods
 
-`self` is the reserved **root-reference identifier**.  It is synonymous with `""` in every
-context:
+`self` is the reserved **root-reference identifier**.
 
 - **In string expressions**: `self` parses to `Reference(None, ())`, which refers to the
   root of the generated value.  `self[i]` parses to `Reference(None, (i,))`, which refers
@@ -424,9 +427,12 @@ context:
   except that `self` (with no index suffix) can also refer to a scalar root such as `int`
   or `bool`.
 
-- **In `methods`**: the key `"self"` is a synonym for `""`.  A compliant implementation
-  MUST accept `{"self": method}` wherever `{"": method}` is accepted.  Specifying both
-  `"self"` and `""` in the same `methods` mapping MUST be rejected with a `ValueError`.
+- **In `methods`** (unnamed trees only): when the tree has no `Name(...)` labels, the key
+  `"self"` is a synonym for `""` (the root label).  A compliant implementation MUST accept
+  `{"self": method}` wherever `{"": method}` is accepted for unnamed trees.  Specifying
+  both `"self"` and `""` in the same `methods` mapping MUST be rejected with a `ValueError`.
+  For named trees (trees with at least one `Name(...)` label), `"self"` has no special
+  meaning in `methods` and is treated as an ordinary label name.
 
 Examples:
 
