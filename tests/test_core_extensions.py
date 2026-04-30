@@ -8,7 +8,7 @@ from typing import Annotated, Any, ClassVar, Iterator, cast
 
 import pytest
 
-from equivalib.core import Extension, Regex
+from equivalib.core import Extension, Regex, regex
 from equivalib.core.expression import And, Eq, Ge, Le, ParsedExpression
 from equivalib.core.name import Name as CoreName
 
@@ -225,16 +225,26 @@ def test_arbitrary_must_return_concrete_subclass_instance():
         generate_core(tree, methods={"P": "arbitrary"})
 
 
-class RegexABorCD(Regex):
-    @staticmethod
-    def expression() -> str:
-        return "(ab|cd)"
+RegexABorCD = regex("(ab|cd)")
+RegexDigits3 = regex(r"\d{3}")
 
 
-class RegexDigits3(Regex):
-    @staticmethod
-    def expression() -> str:
-        return r"\d{3}"
+def test_regex_factory_returns_regex_subclass():
+    R = regex("[xy]")
+    assert issubclass(R, Regex)
+    assert R.expression() == "[xy]"
+
+
+def test_regex_factory_produces_independent_types():
+    R1 = regex("a")
+    R2 = regex("b")
+    assert R1 is not R2
+    assert R1.expression() != R2.expression()
+
+
+def test_regex_factory_generated_type_works_with_generate():
+    R = regex("(ab|cd)")
+    assert generate_core(R) == {R("ab"), R("cd")}
 
 
 def test_regex_extension_enumerates_concrete_language():
