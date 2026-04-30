@@ -59,26 +59,11 @@ Great for demos, quick checks, and building intuition.
 ```python
 from equivalib.core import generate
 
-tree = tuple[bool, bool]
-values = generate(tree, "[0] != [1]")
+values = generate(tuple[bool, bool], "[0] != [1]")
 # => {(False, True), (True, False)}
 ```
 
 Instead of filtering after generation, we encode relationships directly as a string expression.
-
----
-
-## Slide 6 — Literal union types
-
-```python
-from typing import Literal
-from equivalib.core import generate
-
-values = generate(Literal["red", "green", "blue"])
-# => {"red", "green", "blue"}
-```
-
-`Literal` types are fully supported as finite leaf domains — no extension needed.
 
 ---
 
@@ -99,33 +84,13 @@ Union deduplicates across branches using normal Python set semantics (hash/equal
 ## Slide 8 — Extension example: finite regex language
 
 ```python
-from equivalib.core import Regex, generate
+from equivalib.core import regex, generate
 
-class TicketCode(Regex):
-    @staticmethod
-    def expression() -> str:
-        return r"(AB|CD)\d{2}"
-
-codes = generate(TicketCode)
+codes = generate(regex(r"(AB|CD)\d{2}"))
 # => 200 values: AB00..AB99 and CD00..CD99
 ```
 
 Extensions let domain-specific classes plug into the same generation flow.
-
----
-
-## Slide 9 — Realistic data slicing on generated extensions
-
-```python
-codes = generate(TicketCode)
-ab_prefixed = {code for code in codes if str(code.value).startswith("AB")}
-
-# len(ab_prefixed) == 100
-# TicketCode("AB42") in ab_prefixed
-# TicketCode("CD42") not in ab_prefixed
-```
-
-This pattern keeps generation declarative while still allowing business-level subsets.
 
 ---
 
