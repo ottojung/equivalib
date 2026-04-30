@@ -8,7 +8,7 @@ from typing import Annotated, Any, Literal, Tuple, Union, cast
 import pytest
 
 from equivalib.core.cache import is_constraint_independent, is_guaranteed_cacheable, is_label_closed
-from equivalib.core.line_intervals_set import LineIntervalsSet, _MAX_INTERVALS_FOR_CANONICALIZATION, _canonical_signature, _relation_code
+from equivalib.core.line_intervals_set import LineIntervalsSet, _MAX_INTERVALS_FOR_CANONICALIZATION, _canonical_signature, _relation_code, intervals
 from equivalib.core.domains import _type_aware_intersect, domain_map
 from equivalib.core.eval import Unknown, _structural_eq, eval_expression, eval_expression_partial
 from equivalib.core.expression import (
@@ -2025,60 +2025,10 @@ def test_generate_arbitrary_integer_equality_class_representatives_up_to_four_va
 # -------------------------------------------------------------------------
 
 
-class _ZeroIntervalsUpTo5(LineIntervalsSet):
-    @classmethod
-    def number_of_intervals(cls) -> int:
-        return 0
-
-    @classmethod
-    def range_minimum(cls) -> int:
-        return 0
-
-    @classmethod
-    def range_maximum(cls) -> int:
-        return 5
-
-
-class _OneIntervalUpTo5(LineIntervalsSet):
-    @classmethod
-    def number_of_intervals(cls) -> int:
-        return 1
-
-    @classmethod
-    def range_minimum(cls) -> int:
-        return 0
-
-    @classmethod
-    def range_maximum(cls) -> int:
-        return 5
-
-
-class _TwoIntervalsUpTo5(LineIntervalsSet):
-    @classmethod
-    def number_of_intervals(cls) -> int:
-        return 2
-
-    @classmethod
-    def range_minimum(cls) -> int:
-        return 0
-
-    @classmethod
-    def range_maximum(cls) -> int:
-        return 5
-
-
-class _ThreeIntervalsUpTo10(LineIntervalsSet):
-    @classmethod
-    def number_of_intervals(cls) -> int:
-        return 3
-
-    @classmethod
-    def range_minimum(cls) -> int:
-        return 0
-
-    @classmethod
-    def range_maximum(cls) -> int:
-        return 10
+_ZeroIntervalsUpTo5 = intervals(on=(0, 5), n=0)
+_OneIntervalUpTo5 = intervals(on=(0, 5), n=1)
+_TwoIntervalsUpTo5 = intervals(on=(0, 5), n=2)
+_ThreeIntervalsUpTo10 = intervals(on=(0, 10), n=3)
 
 
 def test_line_intervals_set_zero_intervals_yields_one_empty_representative():

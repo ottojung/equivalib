@@ -3,8 +3,9 @@ from __future__ import annotations
 import random
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from functools import lru_cache
 from itertools import combinations_with_replacement, permutations
-from typing import Iterator
+from typing import Iterator, Tuple, Type
 
 from equivalib.core.extension import Extension
 from equivalib.core.expression import ParsedExpression
@@ -75,7 +76,15 @@ class LineIntervalsSet(Extension, ABC):
     one can be obtained from the other by reordering.  The equivalence is defined
     by the canonical pairwise relation signature (touch / kiss / overlap / disjoint).
 
-    Example::
+    The recommended way to create a concrete subclass is via the ``intervals`` factory::
+
+        PairsUpTo5 = intervals(on=(0, 5), n=2)
+
+        # Produces one set per equivalence class:
+        # touch, kiss, overlap, disjoint → 4 representatives
+        representatives = generate(PairsUpTo5)
+
+    You can also define a concrete subclass manually when you need a named type::
 
         class PairsUpTo5(LineIntervalsSet):
             @classmethod
@@ -183,3 +192,39 @@ class LineIntervalsSet(Extension, ABC):
             return None
         return cls._materialize(selected)
 
+
+@lru_cache(maxsize=None)
+def intervals(on: Tuple[int, int], n: int) -> Type[LineIntervalsSet]:
+    """Return a concrete :class:`LineIntervalsSet` subclass for the given parameters.
+
+    :param on: A ``(minimum, maximum)`` pair giving the inclusive range for interval endpoints.
+    :param n:  The number of intervals each generated representative must contain.
+    :returns:  A new :class:`LineIntervalsSet` subclass (cached – identical arguments
+               always return the same class object).
+
+    Example::
+
+        from equivalib.core import generate, intervals
+
+        PairsUpTo5 = intervals(on=(0, 5), n=2)
+        representatives = generate(PairsUpTo5)
+        # => 4 representatives, one per equivalence class
+    """
+    lo, hi = on
+
+    class CustomIntervals(LineIntervalsSet):
+        @classmethod
+        def number_of_intervals(cls) -> int:
+            return n
+
+        @classmethod
+        def range_minimum(cls) -> int:
+            return lo
+
+        @classmethod
+        def range_maximum(cls) -> int:
+            return hi
+
+    CustomIntervals.__name__ = f"intervals(on={on!r}, n={n!r})"
+    CustomIntervals.__qualname__ = f"intervals(on={on!r}, n={n!r})"
+    return CustomIntervals
