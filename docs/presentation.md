@@ -184,7 +184,6 @@ class Greeting(Extension):
 
     @staticmethod
     def uniform_random(tree, constraint, address):
-        del tree, constraint, address
         return random.choice([Greeting("hello"), Greeting("hi")])
 
 greetings = generate(Greeting)
