@@ -27,7 +27,7 @@ def generate(
     tree: Type[GenerateT],
     constraint: Expression = _DEFAULT_CONSTRAINT,
     methods: Optional[Mapping[Label, Method]] = None,
-) -> set[GenerateT]:
+) -> Iterator[GenerateT]:
     ...
 ```
 
@@ -213,12 +213,12 @@ class Greeting(Extension):
         return Greeting("hi")
 
 
-assert generate(Greeting, BooleanExpression(True), {}) == {Greeting("hello"), Greeting("hi")}
-assert generate(
+assert set(generate(Greeting, BooleanExpression(True), {})) == {Greeting("hello"), Greeting("hi")}
+assert set(generate(
     Annotated[Greeting, Name("G")],
     BooleanExpression(True),
     {"G": "arbitrary"},
-) == {Greeting("hello")}
+)) == {Greeting("hello")}
 ```
 
 For regex families, `Regex` is the abstract helper base that owns mechanics (`initialize`, `enumerate_all`, `arbitrary`, `uniform_random`). The `regex` factory is the recommended way to create a concrete regex type from a pattern string:

@@ -70,7 +70,7 @@ class LineIntervalsSet(Extension, ABC):
       - ``range_maximum()`` – the inclusive upper bound for interval endpoints.
         Must satisfy ``range_minimum() <= range_maximum()``.
 
-    ``generate(MyLineIntervalsSet)`` then returns exactly one representative from
+    ``generate(MyLineIntervalsSet)`` then yields exactly one representative from
     every equivalence class of *n*-tuples of valid intervals drawn from
     ``[range_minimum(), range_maximum()]``, where two tuples are equivalent when
     one can be obtained from the other by reordering.  The equivalence is defined
@@ -80,9 +80,9 @@ class LineIntervalsSet(Extension, ABC):
 
         PairsUpTo5 = intervals(on=(0, 5), n=2)
 
-        # Produces one set per equivalence class:
+        # Yields one set per equivalence class:
         # touch, kiss, overlap, disjoint → 4 representatives
-        representatives = generate(PairsUpTo5)
+        representatives = list(generate(PairsUpTo5))
 
     You can also define a concrete subclass manually when you need a named type::
 
@@ -99,9 +99,9 @@ class LineIntervalsSet(Extension, ABC):
             def range_maximum(cls) -> int:
                 return 5
 
-        # Produces one set per equivalence class:
+        # Yields one set per equivalence class:
         # touch, kiss, overlap, disjoint → 4 representatives
-        representatives = generate(PairsUpTo5)
+        representatives = list(generate(PairsUpTo5))
     """.format(max=_MAX_INTERVALS_FOR_CANONICALIZATION)
 
     intervals: tuple[tuple[int, int], ...]

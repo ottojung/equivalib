@@ -390,12 +390,12 @@ def test_parse_chained_comparison_with_and_works():
 # ---------------------------------------------------------------------------
 
 def test_parse_result_usable_in_generate():
-    result = generate(tuple[bool, bool], parse("[0] != [1]"))
+    result = set(generate(tuple[bool, bool], parse("[0] != [1]")))
     assert result == {(False, True), (True, False)}
 
 
 def test_parse_string_directly_in_generate():
-    result = generate(tuple[bool, bool], "[0] != [1]")
+    result = set(generate(tuple[bool, bool], "[0] != [1]"))
     assert result == {(False, True), (True, False)}
 
 
@@ -403,7 +403,7 @@ def test_generate_string_and_parsed_give_same_result():
     constraint_str = "[0] != [1]"
     constraint_ast = parse(constraint_str)
 
-    result_str = generate(tuple[bool, bool], constraint_str)
-    result_ast = generate(tuple[bool, bool], constraint_ast)
+    result_str = set(generate(tuple[bool, bool], constraint_str))
+    result_ast = set(generate(tuple[bool, bool], constraint_ast))
 
     assert result_str == result_ast
