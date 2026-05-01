@@ -266,8 +266,9 @@ def generate(
 ) -> Iterator[GenerateT]:
     """Generate all runtime values of type ``tree`` satisfying ``constraint``.
 
-    Returns a lazy iterator that yields each distinct value as soon as it is
-    found.  Duplicates are removed using Python object equality.
+    Returns a lazy iterator that yields satisfying values as soon as they are
+    found.  No deduplication is performed; extension generators are encouraged
+    to avoid yielding duplicates, but this is not required.
 
     ``constraint`` may be a string expression (``RawExpression``) or an
     already-constructed ``ParsedExpression`` AST node.  String expressions are
@@ -309,7 +310,11 @@ def generate(
     # 7. Infer and fill integer bounds from the constraint
     bounds = infer_int_bounds(node, constraint_eff)
     if bounds:
-        # Contradictory bounds (lo > hi) -> no solutions possible
+        # Check for contradictory bounds (lo > hi) BEFORE filling, so that
+        # validate_tree (step 8) always receives a structurally valid filled
+        # node.  Structural issues (nested names, root-label placement, etc.)
+        # are already caught by normalize() and validate_expression() above, so
+        # returning early here does not skip any relevant validation.
         for _label, (lo, hi) in bounds.items():
             if lo > hi:
                 return iter(())
@@ -327,14 +332,15 @@ def _generate_lazy(
     constraint_eff: ParsedExpression,
     methods: Mapping[Label, Method],
 ) -> Iterator[object]:
-    """Yield distinct values satisfying the constraint, lazily.
+    """Yield values satisfying the constraint, lazily.
 
     For unnamed trees values are produced as soon as they pass the constraint
     filter.  For named trees the SAT search runs first (it is inherently
     eager), then concrete values are yielded assignment-by-assignment.
-    """
-    seen: set[object] = set()
 
+    No deduplication is performed; callers that need a set should use
+    ``set(generate(...))``.
+    """
     # Unnamed-tree path (no named nodes): enumerate satisfying values.
     if not contains_name(node):
         satisfying_iter = (
@@ -344,15 +350,9 @@ def _generate_lazy(
         if _needs_unnamed_filtering(methods):
             # Materialise so _apply_unnamed_methods can select a positional witness.
             satisfying = list(satisfying_iter)
-            for value in _apply_unnamed_methods(satisfying, methods, node):
-                if value not in seen:
-                    seen.add(value)
-                    yield value
+            yield from _apply_unnamed_methods(satisfying, methods, node)
         else:
-            for value in satisfying_iter:
-                if value not in seen:
-                    seen.add(value)
-                    yield value
+            yield from satisfying_iter
         return
 
     # Named-tree path: exact satisfying-assignment search (S0).
@@ -367,10 +367,7 @@ def _generate_lazy(
 
     # Concretize each assignment into runtime values.
     for asgn in reduced:
-        for value in concretize(node, asgn):
-            if value not in seen:
-                seen.add(value)
-                yield value
+        yield from concretize(node, asgn)
 
 
 def _effective_constraint(node: IRNode, tree: Type[GenerateT], constraint: ParsedExpression) -> ParsedExpression:

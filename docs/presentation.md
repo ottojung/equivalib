@@ -14,13 +14,11 @@
 ```python
 from equivalib.core import generate
 
-for value in generate(bool):
-    print(value)
-# => False
-# => True
+values = set(generate(bool))
+# => {False, True}
 ```
 
-The simplest case is still useful: this is full exhaustive generation for `bool`.  `generate` returns a lazy iterator, so values are produced on demand.
+The simplest case is still useful: this is full exhaustive generation for `bool`.  `generate` returns a lazy iterator, so values are produced on demand.  Collect into `set(...)` when you need set semantics.
 
 ---
 
@@ -122,11 +120,11 @@ SAT-backed integer constraints scale to large search spaces with precise semanti
 ## Slide 11 — Canonical witness on huge spaces
 
 ```python
-witness = next(generate_sum_to_hundred_witness())
+witness = next(iter(generate_sum_to_hundred_witness()))
 # => one tuple witness (10 binary values summing to 5)
 ```
 
-Using `{"[0]": "arbitrary", "[1]": "arbitrary", ...}` asks for one deterministic witness instead of exhaustive enumeration.  Because `generate` is lazy, `next(...)` retrieves just the first yielded value without computing the rest.
+Using `{"[0]": "arbitrary", "[1]": "arbitrary", ...}` asks for one deterministic witness instead of exhaustive enumeration.  Because `generate` is lazy, iterating once retrieves just the first yielded value without computing the rest.
 
 ---
 

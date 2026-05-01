@@ -207,16 +207,16 @@ If a label is exhaustive, the generator MUST preserve all satisfying variation o
 
 The choice of whether a value is super therefore depends on `methods`, not on the tree syntax.
 
-## Structural Equality and Deduplication
+## Structural Equality and Output Semantics
 
-All values in this spec are deduplicated by structural equality before being yielded.
+Output ordering is not specified.
 
-Therefore:
-
-- duplicates MUST be removed by structural equality
-- output ordering is not specified
 - union branch order is not observable
 - tuple element order remains semantically significant
+
+A compliant implementation MAY yield duplicate values.  Callers that need a set of distinct values should wrap the iterator: ``set(generate(...))``.
+
+Extension generators are encouraged to avoid producing duplicate values, but this is not required.
 
 ### bool and int are disjoint types
 
