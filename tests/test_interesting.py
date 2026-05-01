@@ -27,7 +27,7 @@ def generate_pythagorean_triples(limit: int) -> set[tuple[int, int, int]]:
     ordered = "[0] <= [1] and [1] <= [2]"
     pythagorean = "[0]*[0] + [1]*[1] == [2]*[2]"
     constraint = f"{bounds} and {ordered} and {pythagorean}"
-    return generate(tree, constraint)
+    return set(generate(tree, constraint))
 
 
 def generate_sum_to_hundred_witness() -> set[tuple[int, ...]]:
@@ -36,23 +36,23 @@ def generate_sum_to_hundred_witness() -> set[tuple[int, ...]]:
     total = " + ".join(f"[{i}]" for i in range(10))
     constraint = f"{bounds} and {total} == 5"
     methods: Mapping[str, Method] = {f"[{i}]": "arbitrary" for i in range(10)}
-    return generate(tree, constraint, methods)
+    return set(generate(tree, constraint, methods))
 
 
 def test_interesting_single_boolean_value_generation():
-    values = generate(bool)
+    values = set(generate(bool))
 
     assert values == {False, True}
 
 
 def test_interesting_tuple_of_booleans_generation():
-    values = generate(tuple[bool, bool])
+    values = set(generate(tuple[bool, bool]))
 
     assert values == {(False, False), (False, True), (True, False), (True, True)}
 
 
 def test_interesting_direct_indexing_on_generated_tuple_values():
-    values = generate(tuple[bool, bool])
+    values = set(generate(tuple[bool, bool]))
     only_true_first = {item for item in values if item[0]}
 
     assert only_true_first == {(True, False), (True, True)}
@@ -61,13 +61,13 @@ def test_interesting_direct_indexing_on_generated_tuple_values():
 def test_interesting_tuple_constraint_with_reference_paths():
     tree = cast(type[tuple[bool, bool]], Annotated[tuple[bool, bool], Name("B")])
 
-    values = generate(tree, "B[0] == B[1]", {"B": "all"})
+    values = set(generate(tree, "B[0] == B[1]", {"B": "all"}))
 
     assert values == {(False, False), (True, True)}
 
 
 def test_interesting_ticket_code_regex_language():
-    values = generate(TicketCode)
+    values = set(generate(TicketCode))
 
     assert len(values) == 200
     assert TicketCode("AB00") in values
@@ -75,7 +75,7 @@ def test_interesting_ticket_code_regex_language():
 
 
 def test_interesting_ticket_code_prefix_filtering_example():
-    values = generate(TicketCode)
+    values = set(generate(TicketCode))
     ab_prefixed = {code for code in values if str(code.value).startswith("AB")}
 
     assert len(ab_prefixed) == 100
@@ -101,7 +101,7 @@ def test_interesting_large_integer_domain_can_return_one_arbitrary_witness():
 
 
 def test_interesting_boolean_expression_true_is_unconstrained():
-    values = generate(bool, "true")
+    values = set(generate(bool, "true"))
 
     assert values == {False, True}
 
@@ -118,7 +118,7 @@ def test_interesting_line_intervals_set_two_intervals_four_classes():
     overlap (intervals share a non-degenerate interior),
     or disjoint — so there are exactly 4 representatives.
     """
-    representatives = generate(PairsUpTo5)
+    representatives = set(generate(PairsUpTo5))
 
     assert len(representatives) == 4
     for rep in representatives:

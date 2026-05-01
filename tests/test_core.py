@@ -110,12 +110,12 @@ def test_boolean_expression_true_is_boolean_constant_true():
 
 def test_generate_literal_true():
     generate = core_attr("generate")
-    assert generate(Literal[True], true_expr(), {}) == {True}
+    assert set(generate(Literal[True], true_expr(), {})) == {True}
 
 
 def test_generate_unnamed_tuple_exhaustively_by_default():
     generate = core_attr("generate")
-    assert generate(Tuple[bool, Literal["N\\A"]], true_expr(), {}) == {
+    assert set(generate(Tuple[bool, Literal["N\\A"]], true_expr(), {})) == {
         (True, "N\\A"),
         (False, "N\\A"),
     }
@@ -123,30 +123,30 @@ def test_generate_unnamed_tuple_exhaustively_by_default():
 
 def test_generate_bounded_int_literal():
     generate = core_attr("generate")
-    assert generate(Literal[3, 4], true_expr(), {}) == {3, 4}
+    assert set(generate(Literal[3, 4], true_expr(), {})) == {3, 4}
 
 
 def test_generate_none_tree():
     generate = core_attr("generate")
-    assert generate(None, true_expr(), {}) == {None}
+    assert set(generate(None, true_expr(), {})) == {None}
 
 
 def test_generate_union_tree_exhaustively():
     generate = core_attr("generate")
-    assert generate(Union[Literal["blue"], Literal["red"]], true_expr(), {}) == {"blue", "red"}
+    assert set(generate(Union[Literal["blue"], Literal["red"]], true_expr(), {})) == {"blue", "red"}
 
 
 def test_generate_named_bool_defaults_to_all():
     generate = core_attr("generate")
     Name = core_attr("Name")
-    assert generate(Annotated[bool, Name("X")], true_expr(), {}) == {True, False}
+    assert set(generate(Annotated[bool, Name("X")], true_expr(), {})) == {True, False}
 
 
 def test_generate_named_union_defaults_to_all():
     generate = core_attr("generate")
     Name = core_attr("Name")
     tree = Annotated[Union[Literal["blue"], Literal["red"]], Name("X")]
-    assert generate(tree, true_expr(), {}) == {"blue", "red"}
+    assert set(generate(tree, true_expr(), {})) == {"blue", "red"}
 
 
 def test_generate_named_int_range_from_constraint():
@@ -154,13 +154,13 @@ def test_generate_named_int_range_from_constraint():
     Name = core_attr("Name")
     tree = Annotated[int, Name("X")]
     constraint = And(Ge(ref("X"), int_const(1)), Le(ref("X"), int_const(2)))
-    assert generate(tree, constraint, {}) == {1, 2}
+    assert set(generate(tree, constraint, {})) == {1, 2}
 
 
 def test_generate_named_bool_arbitrary_picks_canonical_first():
     generate = core_attr("generate")
     Name = core_attr("Name")
-    assert generate(Annotated[bool, Name("X")], true_expr(), {"X": "arbitrary"}) == {False}
+    assert set(generate(Annotated[bool, Name("X")], true_expr(), {"X": "arbitrary"})) == {False}
 
 
 def test_generate_named_tuple_arbitrary_picks_one_tuple_witness():
@@ -168,7 +168,7 @@ def test_generate_named_tuple_arbitrary_picks_one_tuple_witness():
     Name = core_attr("Name")
     # Canonical order: False < True (False sorts first), so (False, False) is the
     # lexicographically-first tuple under the canonical total order.
-    assert generate(Annotated[Tuple[bool, bool], Name("X")], true_expr(), {"X": "arbitrary"}) == {(False, False)}
+    assert set(generate(Annotated[Tuple[bool, bool], Name("X")], true_expr(), {"X": "arbitrary"})) == {(False, False)}
 
 
 def test_generate_repeated_named_tuples_share_one_atomic_value():
@@ -178,7 +178,7 @@ def test_generate_repeated_named_tuples_share_one_atomic_value():
         Annotated[Tuple[bool, bool], Name("X")],
         Annotated[Tuple[bool, bool], Name("X")],
     ]
-    assert generate(tree, true_expr(), {"X": "all"}) == {
+    assert set(generate(tree, true_expr(), {"X": "all"})) == {
         ((True, True), (True, True)),
         ((True, False), (True, False)),
         ((False, True), (False, True)),
@@ -190,14 +190,14 @@ def test_generate_same_label_means_same_value():
     generate = core_attr("generate")
     Name = core_attr("Name")
     tree = Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("X")]]
-    assert generate(tree, true_expr(), {"X": "all"}) == {(True, True), (False, False)}
+    assert set(generate(tree, true_expr(), {"X": "all"})) == {(True, True), (False, False)}
 
 
 def test_generate_different_labels_with_same_domain_remain_independent():
     generate = core_attr("generate")
     Name = core_attr("Name")
     tree = Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
-    assert generate(tree, true_expr(), {"X": "all", "Y": "all"}) == {
+    assert set(generate(tree, true_expr(), {"X": "all", "Y": "all"})) == {
         (True, True),
         (True, False),
         (False, True),
@@ -210,7 +210,7 @@ def test_generate_repeated_label_domains_intersect():
     Name = core_attr("Name")
     tree = Tuple[Annotated[int, Name("X")], Annotated[int, Name("X")]]
     constraint = And(Ge(ref("X"), int_const(3)), Le(ref("X"), int_const(5)))
-    assert generate(tree, constraint, {"X": "all"}) == {(3, 3), (4, 4), (5, 5)}
+    assert set(generate(tree, constraint, {"X": "all"})) == {(3, 3), (4, 4), (5, 5)}
 
 
 def test_generate_empty_when_repeated_label_domains_do_not_overlap():
@@ -218,7 +218,7 @@ def test_generate_empty_when_repeated_label_domains_do_not_overlap():
     Name = core_attr("Name")
     tree = Tuple[Annotated[int, Name("X")], Annotated[int, Name("X")]]
     constraint = And(Ge(ref("X"), int_const(5)), Le(ref("X"), int_const(2)))
-    assert generate(tree, constraint, {}) == set()
+    assert set(generate(tree, constraint, {})) == set()
 
 
 def test_generate_with_equality_constraint_exhaustively():
@@ -227,7 +227,7 @@ def test_generate_with_equality_constraint_exhaustively():
     Eq = core_attr("Eq")
     tree = Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
     constraint = Eq(ref("X"), ref("Y"))
-    assert generate(tree, constraint, {"X": "all", "Y": "all"}) == {(True, True), (False, False)}
+    assert set(generate(tree, constraint, {"X": "all", "Y": "all"})) == {(True, True), (False, False)}
 
 
 def test_generate_with_inequality_constraint_exhaustively():
@@ -236,7 +236,7 @@ def test_generate_with_inequality_constraint_exhaustively():
     Ne = core_attr("Ne")
     tree = Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
     constraint = Ne(ref("X"), ref("Y"))
-    assert generate(tree, constraint, {"X": "all", "Y": "all"}) == {(True, False), (False, True)}
+    assert set(generate(tree, constraint, {"X": "all", "Y": "all"})) == {(True, False), (False, True)}
 
 
 def test_generate_with_address_constraint_on_named_tuple():
@@ -245,7 +245,7 @@ def test_generate_with_address_constraint_on_named_tuple():
     Ne = core_attr("Ne")
     tree = Annotated[Tuple[bool, bool], Name("X")]
     constraint = Ne(ref("X", 0), ref("X", 1))
-    assert generate(tree, constraint, {"X": "all"}) == {(True, False), (False, True)}
+    assert set(generate(tree, constraint, {"X": "all"})) == {(True, False), (False, True)}
 
 
 def test_generate_with_arithmetic_and_order_constraint():
@@ -259,7 +259,7 @@ def test_generate_with_arithmetic_and_order_constraint():
         And(_int_bounds("X", 0, 3), _int_bounds("Y", 0, 3)),
         And(Gt(ref("X"), int_const(0)), Lt(ref("X"), ref("Y")))
     )
-    assert generate(tree, constraint, {"X": "all", "Y": "all"}) == {(1, 2), (1, 3), (2, 3)}
+    assert set(generate(tree, constraint, {"X": "all", "Y": "all"})) == {(1, 2), (1, 3), (2, 3)}
 
 
 def test_generate_with_add_constraint():
@@ -269,7 +269,7 @@ def test_generate_with_add_constraint():
     Eq = core_attr("Eq")
     tree = Annotated[int, Name("X")]
     constraint = And(_int_bounds("X", 0, 4), Eq(Add(ref("X"), int_const(1)), int_const(3)))
-    assert generate(tree, constraint, {"X": "all"}) == {2}
+    assert set(generate(tree, constraint, {"X": "all"})) == {2}
 
 
 def test_generate_with_sub_constraint():
@@ -279,7 +279,7 @@ def test_generate_with_sub_constraint():
     Sub = core_attr("Sub")
     tree = Annotated[int, Name("X")]
     constraint = And(_int_bounds("X", 0, 4), Eq(Sub(ref("X"), int_const(1)), int_const(1)))
-    assert generate(tree, constraint, {"X": "all"}) == {2}
+    assert set(generate(tree, constraint, {"X": "all"})) == {2}
 
 
 def test_generate_with_mul_constraint():
@@ -289,7 +289,7 @@ def test_generate_with_mul_constraint():
     Mul = core_attr("Mul")
     tree = Annotated[int, Name("X")]
     constraint = And(_int_bounds("X", 0, 4), Eq(Mul(ref("X"), int_const(2)), int_const(4)))
-    assert generate(tree, constraint, {"X": "all"}) == {2}
+    assert set(generate(tree, constraint, {"X": "all"})) == {2}
 
 
 def test_generate_with_floor_div_constraint():
@@ -299,7 +299,7 @@ def test_generate_with_floor_div_constraint():
     FloorDiv = core_attr("FloorDiv")
     tree = Annotated[int, Name("X")]
     constraint = And(_int_bounds("X", 0, 5), Eq(FloorDiv(ref("X"), int_const(2)), int_const(1)))
-    assert generate(tree, constraint, {"X": "all"}) == {2, 3}
+    assert set(generate(tree, constraint, {"X": "all"})) == {2, 3}
 
 
 def test_generate_with_mod_constraint():
@@ -309,7 +309,7 @@ def test_generate_with_mod_constraint():
     Mod = core_attr("Mod")
     tree = Annotated[int, Name("X")]
     constraint = And(_int_bounds("X", 0, 5), Eq(Mod(ref("X"), int_const(2)), int_const(1)))
-    assert generate(tree, constraint, {"X": "all"}) == {1, 3, 5}
+    assert set(generate(tree, constraint, {"X": "all"})) == {1, 3, 5}
 
 
 def test_generate_with_neg_constraint():
@@ -319,7 +319,7 @@ def test_generate_with_neg_constraint():
     Neg = core_attr("Neg")
     tree = Annotated[int, Name("X")]
     constraint = And(_int_bounds("X", 0, 4), Eq(Neg(ref("X")), int_const(-2)))
-    assert generate(tree, constraint, {"X": "all"}) == {2}
+    assert set(generate(tree, constraint, {"X": "all"})) == {2}
 
 
 def test_generate_with_or_constraint():
@@ -329,7 +329,7 @@ def test_generate_with_or_constraint():
     Or = core_attr("Or")
     tree = Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
     constraint = Or(Eq(ref("X"), bool_const(True)), Eq(ref("Y"), bool_const(True)))
-    assert generate(tree, constraint, {"X": "all", "Y": "all"}) == {
+    assert set(generate(tree, constraint, {"X": "all", "Y": "all"})) == {
         (True, True),
         (True, False),
         (False, True),
@@ -344,7 +344,7 @@ def test_generate_contradiction_yields_empty_set():
     Ne = core_attr("Ne")
     tree = Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
     constraint = And(Eq(ref("X"), ref("Y")), Ne(ref("X"), ref("Y")))
-    assert generate(tree, constraint, {"X": "all", "Y": "all"}) == set()
+    assert set(generate(tree, constraint, {"X": "all", "Y": "all"})) == set()
 
 
 def test_generate_arbitrary_with_shared_constraint_is_deterministic():
@@ -353,8 +353,8 @@ def test_generate_arbitrary_with_shared_constraint_is_deterministic():
     Ne = core_attr("Ne")
     tree = Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
     constraint = Ne(ref("X"), ref("Y"))
-    first = generate(tree, constraint, {"X": "arbitrary", "Y": "arbitrary"})
-    second = generate(tree, constraint, {"X": "arbitrary", "Y": "arbitrary"})
+    first = set(generate(tree, constraint, {"X": "arbitrary", "Y": "arbitrary"}))
+    second = set(generate(tree, constraint, {"X": "arbitrary", "Y": "arbitrary"}))
     assert first == {(False, True)}
     assert second == {(False, True)}
 
@@ -365,8 +365,8 @@ def test_generate_uniform_random_always_returns_subset_of_all():
     Ne = core_attr("Ne")
     tree = Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
     constraint = Ne(ref("X"), ref("Y"))
-    all_results = generate(tree, constraint, {"X": "all", "Y": "all"})
-    random_result = generate(tree, constraint, {"X": "uniform_random", "Y": "uniform_random"})
+    all_results = set(generate(tree, constraint, {"X": "all", "Y": "all"}))
+    random_result = set(generate(tree, constraint, {"X": "uniform_random", "Y": "uniform_random"}))
     assert len(random_result) == 1
     assert random_result <= all_results
 
@@ -378,8 +378,8 @@ def test_super_methods_preserve_non_empty_singleton_subset_when_satisfiable(meth
     Ne = core_attr("Ne")
     tree = Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
     constraint = Ne(ref("X"), ref("Y"))
-    all_results = generate(tree, constraint, {"X": "all", "Y": "all"})
-    witness_result = generate(tree, constraint, {"X": method, "Y": method})
+    all_results = set(generate(tree, constraint, {"X": "all", "Y": "all"}))
+    witness_result = set(generate(tree, constraint, {"X": method, "Y": method}))
     assert all_results
     assert len(witness_result) == 1
     assert witness_result <= all_results
@@ -396,7 +396,7 @@ def test_generate_name_free_tree_matches_values():
         ("red", 2),
     }
     assert values(tree) == expected
-    assert generate(tree) == expected
+    assert set(generate(tree)) == expected
 
 
 def test_values_exhaust_unnamed_tuple_tree():
@@ -438,7 +438,7 @@ def test_generate_accepts_root_label_name_empty_string():
     generate = core_attr("generate")
     Name = core_attr("Name")
     # Name("") is now valid when used at the root of the type tree.
-    result = generate(Annotated[bool, Name("")], true_expr(), {})
+    result = set(generate(Annotated[bool, Name("")], true_expr(), {}))
     assert result == {False, True}
 
 
@@ -499,7 +499,7 @@ def test_generate_accepts_address_bounded_ints_inside_named_tuple():
         And(Ge(a, int_const(1)), Le(a, int_const(2))),
         And(Ge(b, int_const(3)), Le(b, int_const(4))),
     )
-    assert generate(tree, constraint, {"T": "all"}) == {
+    assert set(generate(tree, constraint, {"T": "all"})) == {
         (1, 3),
         (1, 4),
         (2, 3),
@@ -518,7 +518,7 @@ def test_generate_arbitrary_method_works_with_address_bounded_ints():
         And(Ge(x, int_const(0)), Le(x, int_const(9))),
         And(And(Ge(y, int_const(0)), Le(y, int_const(9))), And(Ge(z, int_const(0)), Le(z, int_const(9)))),
     )
-    values = generate(tree, And(bounded, Eq(Add(Add(x, y), z), int_const(7))), {"T": "arbitrary"})
+    values = set(generate(tree, And(bounded, Eq(Add(Add(x, y), z), int_const(7))), {"T": "arbitrary"}))
     assert len(values) == 1
     only = next(iter(values))
     assert sum(only) == 7
@@ -533,7 +533,7 @@ def test_generate_accepts_address_bounded_ints_inside_unnamed_tuple():
         And(Ge(a, int_const(1)), Le(a, int_const(2))),
         And(Ge(b, int_const(3)), Le(b, int_const(4))),
     )
-    assert generate(tree, constraint, {"": "all"}) == {
+    assert set(generate(tree, constraint, {"": "all"})) == {
         (1, 3),
         (1, 4),
         (2, 3),
@@ -551,7 +551,7 @@ def test_generate_accepts_address_bounded_ints_inside_unnamed_tuple_three_items(
         And(Ge(x, int_const(10)), Le(x, int_const(10))),
         And(And(Ge(y, int_const(20)), Le(y, int_const(20))), And(Ge(z, int_const(30)), Le(z, int_const(30)))),
     )
-    assert generate(tree, constraint, {}) == {(10, 20, 30)}
+    assert set(generate(tree, constraint, {})) == {(10, 20, 30)}
 
 
 # ---------------------------------------------------------------------------
@@ -561,13 +561,13 @@ def test_generate_accepts_address_bounded_ints_inside_unnamed_tuple_three_items(
 def test_root_label_on_bool_all():
     """methods={"": "all"} on bool is equivalent to the default (returns all values)."""
     generate = core_attr("generate")
-    assert generate(bool, true_expr(), {"": "all"}) == {False, True}
+    assert set(generate(bool, true_expr(), {"": "all"})) == {False, True}
 
 
 def test_root_label_on_bool_arbitrary():
     """methods={"": "arbitrary"} on bool returns exactly one value."""
     generate = core_attr("generate")
-    result = generate(bool, true_expr(), {"": "arbitrary"})
+    result = set(generate(bool, true_expr(), {"": "arbitrary"}))
     assert len(result) == 1
     assert result <= {False, True}
 
@@ -577,7 +577,7 @@ def test_root_label_on_named_int_arbitrary():
     generate = core_attr("generate")
     Name = core_attr("Name")
     tree = Annotated[int, Name("")]
-    result = generate(tree, And(Ge(ref(""), int_const(0)), Le(ref(""), int_const(4))), {"": "arbitrary"})
+    result = set(generate(tree, And(Ge(ref(""), int_const(0)), Le(ref(""), int_const(4))), {"": "arbitrary"}))
     assert len(result) == 1
     assert result <= {0, 1, 2, 3, 4}
 
@@ -590,7 +590,7 @@ def test_root_label_on_tuple_returns_all_combinations():
         And(Ge(ref(0), int_const(0)), Le(ref(0), int_const(1))),
         And(Ge(ref(1), int_const(0)), Le(ref(1), int_const(1))),
     )
-    assert generate(tree, constraint, {"": "all"}) == {(0, 0), (0, 1), (1, 0), (1, 1)}
+    assert set(generate(tree, constraint, {"": "all"})) == {(0, 0), (0, 1), (1, 0), (1, 1)}
 
 
 def test_root_label_on_tuple_arbitrary_returns_one():
@@ -601,7 +601,7 @@ def test_root_label_on_tuple_arbitrary_returns_one():
         And(Ge(ref(0), int_const(0)), Le(ref(0), int_const(1))),
         And(Ge(ref(1), int_const(0)), Le(ref(1), int_const(1))),
     )
-    result = generate(tree, constraint, {"": "arbitrary"})
+    result = set(generate(tree, constraint, {"": "arbitrary"}))
     assert len(result) == 1
 
 
@@ -613,13 +613,13 @@ def test_root_label_on_tuple_arbitrary_returns_one():
 def test_self_in_string_constraint_generates_integers_in_range():
     """'self' in a string constraint refers to the root generated value (issue example 1)."""
     generate = core_attr("generate")
-    assert generate(int, "0 < self < 10") == set(range(1, 10))
+    assert set(generate(int, "0 < self < 10")) == set(range(1, 10))
 
 
 def test_self_in_string_constraint_with_root_method_empty():
     """'self' expression + {"": "arbitrary"} returns one integer from range (issue example 1)."""
     generate = core_attr("generate")
-    result = generate(int, "0 < self < 10", {"": "arbitrary"})
+    result = set(generate(int, "0 < self < 10", {"": "arbitrary"}))
     assert len(result) == 1
     assert result <= set(range(1, 10))
 
@@ -627,7 +627,7 @@ def test_self_in_string_constraint_with_root_method_empty():
 def test_self_in_string_constraint_with_self_method():
     """'self' expression + {"self": "arbitrary"} is equivalent to {"": "arbitrary"} (issue example 2)."""
     generate = core_attr("generate")
-    result = generate(int, "0 < self < 10", {"self": "arbitrary"})
+    result = set(generate(int, "0 < self < 10", {"self": "arbitrary"}))
     assert len(result) == 1
     assert result <= set(range(1, 10))
 
@@ -635,7 +635,7 @@ def test_self_in_string_constraint_with_self_method():
 def test_empty_string_constraint_with_root_method_bool():
     """Empty string constraint + {"": "arbitrary"} on bool returns one value (issue example 3)."""
     generate = core_attr("generate")
-    result = generate(bool, "", {"": "arbitrary"})
+    result = set(generate(bool, "", {"": "arbitrary"}))
     assert len(result) == 1
     assert result <= {True, False}
 
@@ -643,21 +643,21 @@ def test_empty_string_constraint_with_root_method_bool():
 def test_empty_string_constraint_is_unconstrained():
     """An empty string constraint is equivalent to 'true' (always satisfied)."""
     generate = core_attr("generate")
-    assert generate(bool, "") == {True, False}
+    assert set(generate(bool, "")) == {True, False}
 
 
 def test_self_indexed_in_string_constraint_on_tuple():
     """'self[0]' in a string constraint is synonymous with '[0]' (issue example 5)."""
     generate = core_attr("generate")
-    result_self = generate(Tuple[int, bool], "0 < self[0] < 10")
-    result_index = generate(Tuple[int, bool], "0 < [0] < 10")
+    result_self = set(generate(Tuple[int, bool], "0 < self[0] < 10"))
+    result_index = set(generate(Tuple[int, bool], "0 < [0] < 10"))
     assert result_self == result_index
 
 
 def test_self_indexed_tuple_generates_correct_values():
     """'self[0]' constraint on a tuple produces tuples whose first element is in range."""
     generate = core_attr("generate")
-    result = generate(Tuple[int, bool], "0 < self[0] < 4")
+    result = set(generate(Tuple[int, bool], "0 < self[0] < 4"))
     assert all(1 <= t[0] <= 3 for t in result)
     assert {t[0] for t in result} == {1, 2, 3}
     assert {t[1] for t in result} == {True, False}
@@ -666,8 +666,8 @@ def test_self_indexed_tuple_generates_correct_values():
 def test_self_as_method_key_is_synonym_for_root_label():
     """{"self": method} in methods is treated identically to {"": method}."""
     generate = core_attr("generate")
-    result_self = generate(bool, "", {"self": "all"})
-    result_root = generate(bool, "", {"": "all"})
+    result_self = set(generate(bool, "", {"self": "all"}))
+    result_root = set(generate(bool, "", {"": "all"}))
     assert result_self == result_root == {True, False}
 
 
@@ -703,7 +703,7 @@ def test_empty_string_parses_to_boolean_true():
 def test_self_in_constraint_equals_explicit_index_ref():
     """'self' alone on a scalar int is the same as the root reference."""
     generate = core_attr("generate")
-    assert generate(int, "0 < self < 5") == {1, 2, 3, 4}
+    assert set(generate(int, "0 < self < 5")) == {1, 2, 3, 4}
 
 
 # ---------------------------------------------------------------------------
@@ -718,7 +718,7 @@ def test_index_labels_on_tuple_all():
         And(Ge(ref(0), int_const(0)), Le(ref(0), int_const(1))),
         And(Ge(ref(1), int_const(0)), Le(ref(1), int_const(1))),
     )
-    assert generate(tree, constraint, {"[0]": "all", "[1]": "all"}) == {(0, 0), (0, 1), (1, 0), (1, 1)}
+    assert set(generate(tree, constraint, {"[0]": "all", "[1]": "all"})) == {(0, 0), (0, 1), (1, 0), (1, 1)}
 
 
 def test_index_labels_on_tuple_arbitrary_returns_one():
@@ -729,7 +729,7 @@ def test_index_labels_on_tuple_arbitrary_returns_one():
         And(Ge(ref(0), int_const(0)), Le(ref(0), int_const(1))),
         And(Ge(ref(1), int_const(0)), Le(ref(1), int_const(1))),
     )
-    result = generate(tree, constraint, {"[0]": "arbitrary", "[1]": "arbitrary"})
+    result = set(generate(tree, constraint, {"[0]": "arbitrary", "[1]": "arbitrary"}))
     assert len(result) == 1
 
 
@@ -742,7 +742,7 @@ def test_index_labels_partial_coverage():
         And(Ge(ref(1), int_const(0)), Le(ref(1), int_const(1))),
     )
     # Only [0] is labelled; [1] is not in methods so defaults to "all".
-    result = generate(tree, constraint, {"[0]": "arbitrary"})
+    result = set(generate(tree, constraint, {"[0]": "arbitrary"}))
     # Arbitrary [0] means [0] is fixed to one value; [1] can still be 0 or 1.
     assert len(result) == 2
 
@@ -762,7 +762,7 @@ def test_index_labels_with_constraint_returns_correct_value():
             ),
         ),
     )
-    result = generate(tree, constraint, {"[0]": "arbitrary", "[1]": "arbitrary", "[2]": "arbitrary"})
+    result = set(generate(tree, constraint, {"[0]": "arbitrary", "[1]": "arbitrary", "[2]": "arbitrary"}))
     assert len(result) == 1
     (only,) = result
     assert sum(only) == 2
@@ -796,7 +796,7 @@ def test_generate_rejects_constraint_on_missing_label():
 
 
 def test_generate_cyclic_strict_lt_yields_empty_set():
-    """X < Y and Y < X is contradictory: generate() should return {} without hanging."""
+    """X < Y and Y < X is contradictory: set(generate()) should return {} without hanging."""
     generate = core_attr("generate")
     Name = core_attr("Name")
     And = core_attr("And")
@@ -806,18 +806,18 @@ def test_generate_cyclic_strict_lt_yields_empty_set():
         And(_int_bounds("X", 0, 9), _int_bounds("Y", 0, 9)),
         And(Lt(ref("X"), ref("Y")), Lt(ref("Y"), ref("X"))),
     )
-    assert generate(tree, constraint, {"X": "all", "Y": "all"}) == set()
+    assert set(generate(tree, constraint, {"X": "all", "Y": "all"})) == set()
 
 
 def test_generate_self_lt_yields_empty_set():
-    """X < X is always false: generate() should return {} without hanging."""
+    """X < X is always false: set(generate()) should return {} without hanging."""
     generate = core_attr("generate")
     Name = core_attr("Name")
     And = core_attr("And")
     Lt = core_attr("Lt")
     tree = Annotated[int, Name("X")]
     constraint = And(_int_bounds("X", 0, 9), Lt(ref("X"), ref("X")))
-    assert generate(tree, constraint, {"X": "all"}) == set()
+    assert set(generate(tree, constraint, {"X": "all"})) == set()
 
 
 def test_generate_contradiction_with_unbounded_sibling_yields_empty_set():
@@ -835,7 +835,7 @@ def test_generate_contradiction_with_unbounded_sibling_yields_empty_set():
         And(Ge(ref("X"), int_const(5)), Le(ref("X"), int_const(4))),
         core_attr("Lt")(ref("X"), ref("Y")),
     )
-    assert generate(tree, constraint, {"X": "all", "Y": "all"}) == set()
+    assert set(generate(tree, constraint, {"X": "all", "Y": "all"})) == set()
 
 
 def test_generate_cyclic_no_finite_bounds_yields_empty_set():
@@ -848,7 +848,7 @@ def test_generate_cyclic_no_finite_bounds_yields_empty_set():
     # No direct (finite) bounds on X or Y — Bellman-Ford propagation never
     # fires, so the cycle must be detected upfront by the DFS graph check.
     constraint = And(Lt(ref("X"), ref("Y")), Lt(ref("Y"), ref("X")))
-    assert generate(tree, constraint, {"X": "all", "Y": "all"}) == set()
+    assert set(generate(tree, constraint, {"X": "all", "Y": "all"})) == set()
 
 
 def test_generate_rejects_unknown_method_label():
@@ -915,7 +915,7 @@ def test_expression_ast_is_required_not_source_string():
 
 def test_generate_supports_default_arguments():
     generate = core_attr("generate")
-    assert generate(Literal[True]) == {True}
+    assert set(generate(Literal[True])) == {True}
 
 
 # ==========================================================================
@@ -932,7 +932,7 @@ def test_generate_mixed_unnamed_literal_and_named_bool():
     generate = core_attr("generate")
     Name = core_attr("Name")
     tree = Tuple[Literal[3], Annotated[bool, Name("X")]]
-    assert generate(tree, true_expr(), {}) == {(3, True), (3, False)}
+    assert set(generate(tree, true_expr(), {})) == {(3, True), (3, False)}
 
 
 def test_generate_mixed_unnamed_bool_and_named_bool():
@@ -940,7 +940,7 @@ def test_generate_mixed_unnamed_bool_and_named_bool():
     generate = core_attr("generate")
     Name = core_attr("Name")
     tree = Tuple[bool, Annotated[bool, Name("X")]]
-    assert generate(tree, true_expr(), {}) == {
+    assert set(generate(tree, true_expr(), {})) == {
         (True, True),
         (True, False),
         (False, True),
@@ -953,7 +953,7 @@ def test_generate_mixed_unnamed_int_range_and_named_bool():
     generate = core_attr("generate")
     Name = core_attr("Name")
     tree = Tuple[Literal[0, 1], Annotated[bool, Name("X")]]
-    assert generate(tree, true_expr(), {}) == {
+    assert set(generate(tree, true_expr(), {})) == {
         (0, True),
         (0, False),
         (1, True),
@@ -966,7 +966,7 @@ def test_generate_mixed_unnamed_union_and_named_bool():
     generate = core_attr("generate")
     Name = core_attr("Name")
     tree = Tuple[Union[Literal["a"], Literal["b"]], Annotated[bool, Name("X")]]
-    assert generate(tree, true_expr(), {}) == {
+    assert set(generate(tree, true_expr(), {})) == {
         ("a", True),
         ("a", False),
         ("b", True),
@@ -979,7 +979,7 @@ def test_generate_mixed_unnamed_none_and_named_bool():
     generate = core_attr("generate")
     Name = core_attr("Name")
     tree = Tuple[None, Annotated[bool, Name("X")]]
-    assert generate(tree, true_expr(), {}) == {(None, True), (None, False)}
+    assert set(generate(tree, true_expr(), {})) == {(None, True), (None, False)}
 
 
 # --------------------------------------------------------------------------
@@ -990,21 +990,21 @@ def test_generate_mixed_unnamed_none_and_named_bool():
 def test_normalize_multi_value_literal_expands_to_union():
     """Literal[True, False] normalizes to a union of two singletons."""
     generate = core_attr("generate")
-    assert generate(Literal[True, False]) == {True, False}
+    assert set(generate(Literal[True, False])) == {True, False}
 
 
 def test_normalize_nested_union_values():
     """Nested unions produce the union of all their values."""
     generate = core_attr("generate")
     tree = Union[Literal["a"], Union[Literal["b"], Literal["c"]]]
-    assert generate(tree) == {"a", "b", "c"}
+    assert set(generate(tree)) == {"a", "b", "c"}
 
 
 def test_normalize_pep604_union_values():
     """PEP 604 unions (``A | B``) normalize like typing.Union."""
     generate = core_attr("generate")
     tree = Literal["a"] | Literal["b"]
-    assert generate(tree) == {"a", "b"}
+    assert set(generate(tree)) == {"a", "b"}
 
 
 def test_normalize_rejects_non_hashable_literal_value():
@@ -1019,7 +1019,7 @@ def test_generate_named_int_range_from_constraint_alternate():
     Name = core_attr("Name")
     tree = Annotated[int, Name("X")]
     constraint = And(Ge(ref("X"), int_const(5)), Le(ref("X"), int_const(7)))
-    assert generate(tree, constraint, {}) == {5, 6, 7}
+    assert set(generate(tree, constraint, {})) == {5, 6, 7}
 
 
 # --------------------------------------------------------------------------
@@ -1035,7 +1035,7 @@ def test_generate_address_on_union_of_same_arity_tuples():
     # Both branches have arity 1; address (0,) is valid.
     tree = Annotated[Union[Tuple[bool], Tuple[bool]], Name("X")]
     constraint = Eq(ref("X", 0), bool_const(True))
-    result = generate(tree, constraint, {"X": "all"})
+    result = set(generate(tree, constraint, {"X": "all"}))
     assert result == {(True,)}
 
 
@@ -1108,7 +1108,7 @@ def test_generate_address_on_nested_union_of_tuples():
     # _resolve_shape must handle nested UnionNodes.
     tree = Annotated[Union[Tuple[bool], Union[Tuple[bool]]], Name("X")]
     constraint = Eq(ref("X", 0), bool_const(True))
-    result = generate(tree, constraint, {"X": "all"})
+    result = set(generate(tree, constraint, {"X": "all"}))
     assert result == {(True,)}
 
 
@@ -1123,19 +1123,19 @@ def test_generate_literal_true_not_same_as_literal_one():
     """Literal[True] and Literal[1] produce distinct IR nodes.
 
     At the Python runtime level, True == 1 and hash(True) == hash(1), so
-    a Python set cannot hold them as distinct values.  generate() returns a
-    Python set, so generate(Literal[True, 1]) == {True} is expected.
+    a Python set cannot hold them as distinct values.  set(generate()) returns a
+    Python set, so set(generate(Literal[True, 1])) == {True} is expected.
 
     The important property is that the LiteralNode IR nodes themselves are
     distinct (different type(), different hash) and that each singleton
     produces the expected Python value.
     """
     generate = core_attr("generate")
-    assert generate(Literal[True]) == {True}
-    assert generate(Literal[1]) == {1}
+    assert set(generate(Literal[True])) == {True}
+    assert set(generate(Literal[1])) == {1}
     # Due to Python set semantics (True == 1), the union collapses to {True}.
     # This is expected; the IR nodes are still distinct (tested separately).
-    result = generate(Literal[True, 1])
+    result = set(generate(Literal[True, 1]))
     assert True in result
     assert 1 in result  # always true since True == 1 in Python
 
@@ -1390,22 +1390,22 @@ def test_eval_ne_type_aware():
 
 
 def test_generate_unnamed_false_constraint_returns_empty_denotation():
-    """generate(Literal[True], BooleanExpression(False), {}) must return set().
+    """set(generate(Literal[True], BooleanExpression(False), {})) must return set().
 
     Without the unnamed-tree constraint check, the fast path returns {True}
     instead of set().
     """
     generate = core_attr("generate")
     BooleanExpression = core_attr("BooleanExpression")
-    result = generate(Literal[True], BooleanExpression(False), {})
+    result = set(generate(Literal[True], BooleanExpression(False), {}))
     assert result == set(), f"Expected set() but got {result!r}"
 
 
 def test_generate_unnamed_true_constraint_returns_full_denotation():
-    """generate(bool, BooleanExpression(True), {}) must return {True, False}."""
+    """set(generate(bool, BooleanExpression(True), {})) must return {True, False}."""
     generate = core_attr("generate")
     BooleanExpression = core_attr("BooleanExpression")
-    result = generate(bool, BooleanExpression(True), {})
+    result = set(generate(bool, BooleanExpression(True), {}))
     assert result == {True, False}, f"Expected {{True, False}} but got {result!r}"
 
 
@@ -1488,7 +1488,7 @@ def test_generate_nested_two_constrained_labels():
     Eq = core_attr("Eq")
     tree = Tuple[Annotated[bool, Name("A")], Annotated[bool, Name("B")]]
     constraint = And(Eq(ref("A"), bool_const(True)), Eq(ref("B"), bool_const(False)))
-    assert generate(tree, constraint, {}) == {(True, False)}
+    assert set(generate(tree, constraint, {})) == {(True, False)}
 
 
 def test_generate_union_label_with_equality_constraint():
@@ -1498,7 +1498,7 @@ def test_generate_union_label_with_equality_constraint():
     Eq = core_attr("Eq")
     tree = Annotated[Union[Literal[1], Literal[2], Literal[3]], Name("X")]
     constraint = Eq(ref("X"), int_const(2))
-    assert generate(tree, constraint, {}) == {2}
+    assert set(generate(tree, constraint, {})) == {2}
 
 
 def test_generate_three_label_strict_ordering():
@@ -1512,7 +1512,7 @@ def test_generate_three_label_strict_ordering():
         And(_int_bounds("A", 0, 2), And(_int_bounds("B", 0, 2), _int_bounds("C", 0, 2))),
         And(Gt(ref("B"), ref("A")), Gt(ref("C"), ref("B")))
     )
-    assert generate(tree, constraint, {}) == {(0, 1, 2)}
+    assert set(generate(tree, constraint, {})) == {(0, 1, 2)}
 
 
 def test_generate_none_in_named_union():
@@ -1520,7 +1520,7 @@ def test_generate_none_in_named_union():
     generate = core_attr("generate")
     Name = core_attr("Name")
     tree = Annotated[Union[None, Literal["x"]], Name("V")]
-    assert generate(tree, true_expr(), {}) == {None, "x"}
+    assert set(generate(tree, true_expr(), {})) == {None, "x"}
 
 
 def test_generate_le_and_ge_constraints():
@@ -1533,7 +1533,7 @@ def test_generate_le_and_ge_constraints():
     tree = Annotated[int, Name("X")]
     constraint = And(And(Ge(ref("X"), int_const(0)), Le(ref("X"), int_const(5))),
                      And(Ge(ref("X"), int_const(2)), Le(ref("X"), int_const(4))))
-    assert generate(tree, constraint, {}) == {2, 3, 4}
+    assert set(generate(tree, constraint, {})) == {2, 3, 4}
 
 
 def test_generate_arbitrary_is_stable_across_calls():
@@ -1542,8 +1542,8 @@ def test_generate_arbitrary_is_stable_across_calls():
     Name = core_attr("Name")
     tree = Annotated[int, Name("N")]
     constraint = And(Ge(ref("N"), int_const(0)), Le(ref("N"), int_const(10)))
-    r1 = generate(tree, constraint, {"N": "arbitrary"})
-    r2 = generate(tree, constraint, {"N": "arbitrary"})
+    r1 = set(generate(tree, constraint, {"N": "arbitrary"}))
+    r2 = set(generate(tree, constraint, {"N": "arbitrary"}))
     assert r1 == r2
     assert len(r1) == 1
 
@@ -1563,8 +1563,8 @@ def test_alpha_conversion_arbitrary_single_label_is_invariant():
     """Renaming the only label does not change the result for 'arbitrary'."""
     generate = core_attr("generate")
     Name = core_attr("Name")
-    result_x = generate(Annotated[bool, Name("X")], true_expr(), {"X": "arbitrary"})
-    result_y = generate(Annotated[bool, Name("Y")], true_expr(), {"Y": "arbitrary"})
+    result_x = set(generate(Annotated[bool, Name("X")], true_expr(), {"X": "arbitrary"}))
+    result_y = set(generate(Annotated[bool, Name("Y")], true_expr(), {"Y": "arbitrary"}))
     assert result_x == result_y
 
 
@@ -1577,14 +1577,14 @@ def test_alpha_conversion_arbitrary_two_labels_different_names_same_output():
     # Original: X first, Y second in tree, constraint, and methods.
     tree_xy = Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
     constraint_xy = Ne(ref("X"), ref("Y"))
-    result_xy = generate(tree_xy, constraint_xy, {"X": "arbitrary", "Y": "arbitrary"})
+    result_xy = set(generate(tree_xy, constraint_xy, {"X": "arbitrary", "Y": "arbitrary"}))
 
     # Alpha conversion: rename X -> "B" (second alpha), Y -> "A" (first alpha).
     # The structural order of labels in the tree now has "B" before "A",
     # which mirrors the original ordering of X before Y.
     tree_ba = Tuple[Annotated[bool, Name("B")], Annotated[bool, Name("A")]]
     constraint_ba = Ne(ref("B"), ref("A"))
-    result_ba = generate(tree_ba, constraint_ba, {"B": "arbitrary", "A": "arbitrary"})
+    result_ba = set(generate(tree_ba, constraint_ba, {"B": "arbitrary", "A": "arbitrary"}))
 
     assert result_xy == result_ba
 
@@ -1598,12 +1598,12 @@ def test_alpha_conversion_mixed_methods_preserved_under_renaming():
     # Original: X uses "all", Y uses "arbitrary".
     tree_xy = Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
     constraint_xy = Ne(ref("X"), ref("Y"))
-    result_xy = generate(tree_xy, constraint_xy, {"X": "all", "Y": "arbitrary"})
+    result_xy = set(generate(tree_xy, constraint_xy, {"X": "all", "Y": "arbitrary"}))
 
     # Alpha conversion: X -> "B", Y -> "A" (structural order preserved: B before A).
     tree_ba = Tuple[Annotated[bool, Name("B")], Annotated[bool, Name("A")]]
     constraint_ba = Ne(ref("B"), ref("A"))
-    result_ba = generate(tree_ba, constraint_ba, {"B": "all", "A": "arbitrary"})
+    result_ba = set(generate(tree_ba, constraint_ba, {"B": "all", "A": "arbitrary"}))
 
     assert result_xy == result_ba
 
@@ -1615,7 +1615,7 @@ def test_generate_non_empty_for_all_super_methods_when_satisfiable():
     tree = Annotated[int, Name("X")]
     constraint = And(Ge(ref("X"), int_const(1)), Le(ref("X"), int_const(5)))
     for method in ["all", "arbitrary", "uniform_random"]:
-        result = generate(tree, constraint, {"X": method})
+        result = set(generate(tree, constraint, {"X": method}))
         assert result, f"Expected non-empty result for method={method!r}"
 
 
@@ -1641,13 +1641,13 @@ def test_normalize_rejects_bytes_literal():
 def test_normalize_accepts_none_literal():
     """Literal[None] must be accepted as a singleton domain."""
     generate = core_attr("generate")
-    assert generate(Literal[None]) == {None}
+    assert set(generate(Literal[None])) == {None}
 
 
 def test_normalize_accepts_all_supported_scalar_literals():
     """Literal with mixed supported scalar types must be accepted."""
     generate = core_attr("generate")
-    assert generate(Literal[True, 0, "hi"]) == {True, 0, "hi"}
+    assert set(generate(Literal[True, 0, "hi"])) == {True, 0, "hi"}
 
 
 # --------------------------------------------------------------------------
@@ -1681,7 +1681,7 @@ def test_search_sorted_domain_precomputation_produces_correct_results():
     Eq = core_attr("Eq")
     tree = Annotated[int, Name("X")]
     constraint = And(_int_bounds("X", 0, 4), Eq(ref("X"), int_const(3)))
-    assert generate(tree, constraint, {}) == {3}
+    assert set(generate(tree, constraint, {})) == {3}
 
 
 # --------------------------------------------------------------------------
@@ -1913,7 +1913,7 @@ def _generate_interval_relation_representative(
     methods = {label: "arbitrary" for label in labels}
     bounds_constraint = _int_range_bounds_constraint(labels, 0, 99)
     full_constraint = And(bounds_constraint, _interval_signature_constraint(signature))
-    result = generate(_interval_tree(count), full_constraint, methods)
+    result = set(generate(_interval_tree(count), full_constraint, methods))
     assert len(result) == 1
     representative = next(iter(result))
     assert _canonical_interval_relation_signature(representative) == signature
@@ -1980,7 +1980,7 @@ def _generate_integer_equality_representative(
     methods = {label: "arbitrary" for label in int_labels}
     bounds_constraint = _int_range_bounds_constraint(int_labels, 0, 99)
     full_constraint = And(bounds_constraint, _integer_equality_signature_constraint(signature))
-    result = generate(_integer_tree(count), full_constraint, methods)
+    result = set(generate(_integer_tree(count), full_constraint, methods))
     assert len(result) == 1
     representative = next(iter(result))
     assert _canonical_integer_equality_signature(representative) == signature
@@ -2033,13 +2033,13 @@ _ThreeIntervalsUpTo10 = intervals(on=(0, 10), n=3)
 
 def test_line_intervals_set_zero_intervals_yields_one_empty_representative():
     generate = core_attr("generate")
-    result = generate(_ZeroIntervalsUpTo5)
+    result = set(generate(_ZeroIntervalsUpTo5))
     assert result == {_ZeroIntervalsUpTo5(())}
 
 
 def test_line_intervals_set_one_interval_yields_one_representative():
     generate = core_attr("generate")
-    result = generate(_OneIntervalUpTo5)
+    result = set(generate(_OneIntervalUpTo5))
     assert len(result) == 1
     only = next(iter(result))
     assert isinstance(only, _OneIntervalUpTo5)
@@ -2051,16 +2051,16 @@ def test_line_intervals_set_one_interval_yields_one_representative():
 def test_line_intervals_set_two_intervals_yields_four_representatives():
     """Two intervals produce exactly 4 equivalence classes: touch, kiss, overlap, disjoint."""
     generate = core_attr("generate")
-    result = generate(_TwoIntervalsUpTo5)
+    result = set(generate(_TwoIntervalsUpTo5))
     assert len(result) == 4
     signatures = {_canonical_signature(r.intervals) for r in result}
     assert len(signatures) == 4
 
 
 def test_line_intervals_set_representatives_are_all_distinct_equivalence_classes():
-    """No two representatives from generate() share the same canonical signature."""
+    """No two representatives from set(generate()) share the same canonical signature."""
     generate = core_attr("generate")
-    result = generate(_TwoIntervalsUpTo5)
+    result = set(generate(_TwoIntervalsUpTo5))
     signatures = [_canonical_signature(r.intervals) for r in result]
     assert len(signatures) == len(set(signatures))
 
@@ -2068,7 +2068,7 @@ def test_line_intervals_set_representatives_are_all_distinct_equivalence_classes
 def test_line_intervals_set_three_intervals_covers_expected_equivalence_classes():
     """Three-interval representatives match the equivalence classes from the manual computation."""
     generate = core_attr("generate")
-    result = generate(_ThreeIntervalsUpTo10)
+    result = set(generate(_ThreeIntervalsUpTo10))
     # Each representative must have valid intervals (start <= end, in range)
     for rep in result:
         assert isinstance(rep, _ThreeIntervalsUpTo10)
@@ -2083,7 +2083,7 @@ def test_line_intervals_set_three_intervals_covers_expected_equivalence_classes(
 def test_line_intervals_set_three_intervals_count_matches_manual_computation():
     """LineIntervalsSet with 3 intervals must produce the same number of classes as the manual approach."""
     generate = core_attr("generate")
-    result = generate(_ThreeIntervalsUpTo10)
+    result = set(generate(_ThreeIntervalsUpTo10))
     # Expected: signatures for 3-interval sets using _independent_interval_relation_signatures
     expected_3_interval_signatures = {
         sig for sig in _independent_interval_relation_signatures(reduced_coordinate_max=10) if sig[0] == 3
@@ -2103,7 +2103,7 @@ def test_line_intervals_set_arbitrary_returns_one_result():
     Name = core_attr("Name")
 
     tree = Annotated[_TwoIntervalsUpTo5, Name("I")]  # type: ignore[valid-type]
-    result = generate(tree, methods={"I": "arbitrary"})
+    result = set(generate(tree, methods={"I": "arbitrary"}))
     assert len(result) == 1
     only = next(iter(result))
     assert isinstance(only, _TwoIntervalsUpTo5)
@@ -2116,7 +2116,7 @@ def test_line_intervals_set_uniform_random_returns_one_result():
 
     tree = Annotated[_TwoIntervalsUpTo5, Name("I")]  # type: ignore[valid-type]
     with random_seed(0):
-        result = generate(tree, methods={"I": "uniform_random"})
+        result = set(generate(tree, methods={"I": "uniform_random"}))
     assert len(result) == 1
     only = next(iter(result))
     assert isinstance(only, _TwoIntervalsUpTo5)
@@ -2215,7 +2215,7 @@ def test_example13():
     Name = core_attr("Name")
     tree = Tuple[Annotated[bool, Name("X")], Annotated[Union[Literal["a"], Literal["b"]], Name("E")]]
     constraint = BooleanConstant(True)
-    assert generate(tree, constraint, {"X": "arbitrary", "E": "arbitrary"}) == {
+    assert set(generate(tree, constraint, {"X": "arbitrary", "E": "arbitrary"})) == {
         (False, "a"),
     }
 
@@ -2227,7 +2227,7 @@ def test_example12():
     tree = Tuple[Annotated[int, Name("X")], Annotated[int, Name("Y")]]
     constraint = And(And(_int_bounds("X", 0, 9), _int_bounds("Y", 0, 9)), Gt(ref("X"), ref("Y")))
     with random_seed(7):
-        assert generate(tree, constraint, {"Y": "uniform_random", "X": "all"}) == {
+        assert set(generate(tree, constraint, {"Y": "uniform_random", "X": "all"})) == {
             (5, 4),
             (6, 4),
             (7, 4),
@@ -2243,7 +2243,7 @@ def test_example11():
     tree = Tuple[Annotated[int, Name("X")], Annotated[int, Name("Y")]]
     constraint = And(And(_int_bounds("X", 0, 9), _int_bounds("Y", 0, 9)), Gt(ref("X"), ref("Y")))
     with random_seed(7):
-        assert generate(tree, constraint, {"X": "all", "Y": "uniform_random"}) == {
+        assert set(generate(tree, constraint, {"X": "all", "Y": "uniform_random"})) == {
             (5, 4),
             (6, 4),
             (7, 4),
@@ -2259,7 +2259,7 @@ def test_example10():
     tree = Tuple[Annotated[int, Name("X")], Annotated[int, Name("Y")]]
     constraint = And(And(_int_bounds("X", 0, 99), _int_bounds("Y", 0, 99)), Gt(ref("X"), ref("Y")))
     with random_seed(42):
-        assert generate(tree, constraint, {"X": "uniform_random", "Y": "uniform_random"}) == {(80, 2)}
+        assert set(generate(tree, constraint, {"X": "uniform_random", "Y": "uniform_random"})) == {(80, 2)}
 
 
 def test_example9():
@@ -2268,43 +2268,43 @@ def test_example9():
     Gt = core_attr("Gt")
     tree = Tuple[Annotated[int, Name("X")], Annotated[int, Name("Y")]]
     constraint = And(And(_int_bounds("X", 0, 2), _int_bounds("Y", 0, 2)), Gt(ref("X"), ref("Y")))
-    assert generate(tree, constraint, {"X": "arbitrary"}) == {(1, 0)}
+    assert set(generate(tree, constraint, {"X": "arbitrary"})) == {(1, 0)}
 
 
 def test_example8():
     generate = core_attr("generate")
     tree = Union[Literal[1, 2, 3], Literal[True, False]]
-    assert generate(tree) == {False, True, 1, 2, 3}
+    assert set(generate(tree)) == {False, True, 1, 2, 3}
 
 
 def test_example7():
     generate = core_attr("generate")
     tree = Union[Literal[0, 1, 2, 3], Literal[True, False]]
-    assert generate(tree) == {False, 1, 2, 3}
+    assert set(generate(tree)) == {False, 1, 2, 3}
 
 
 def test_example6():
     generate = core_attr("generate")
     tree = Union[Literal[1, 2, 3], bool]
-    assert generate(tree) == {False, True, 1, 2, 3}
+    assert set(generate(tree)) == {False, True, 1, 2, 3}
 
 
 def test_example5():
     generate = core_attr("generate")
     tree = Union[Literal[3, 4, 5], bool]
-    assert generate(tree) == {3, 4, 5, True, False}
+    assert set(generate(tree)) == {3, 4, 5, True, False}
 
 
 def test_example4():
     generate = core_attr("generate")
     tree = bool
-    assert generate(tree) == {False, True}
+    assert set(generate(tree)) == {False, True}
 
 
 def test_example3():
     generate = core_attr("generate")
     tree = Union[Literal[0, 1, 2], bool]
-    assert generate(tree) == {0, 1, 2, False, True}
+    assert set(generate(tree)) == {0, 1, 2, False, True}
 
 
 def test_example2():
@@ -2313,7 +2313,7 @@ def test_example2():
     Gt = core_attr("Gt")
     tree = Tuple[Annotated[int, Name("X")], Annotated[int, Name("Y")]]
     constraint = And(And(_int_bounds("X", 0, 2), _int_bounds("Y", 0, 2)), Gt(ref("X"), ref("Y")))
-    assert generate(tree, constraint, {}) == {(1, 0), (2, 0), (2, 1)}
+    assert set(generate(tree, constraint, {})) == {(1, 0), (2, 0), (2, 1)}
 
 
 # ==========================================================================
@@ -2330,7 +2330,7 @@ def test_bool_reference_as_constraint_direct():
     generate = core_attr("generate")
     Name = core_attr("Name")
     # Constraint is just ref("X") — must select X=True assignments only.
-    result = generate(Annotated[bool, Name("X")], ref("X"), {})
+    result = set(generate(Annotated[bool, Name("X")], ref("X"), {}))
     assert result == {True}
 
 
@@ -2341,7 +2341,7 @@ def test_bool_reference_in_and_constraint():
     And = core_attr("And")
     tree = Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
     constraint = And(ref("X"), ref("Y"))
-    assert generate(tree, constraint, {}) == {(True, True)}
+    assert set(generate(tree, constraint, {})) == {(True, True)}
 
 
 def test_bool_reference_in_or_constraint():
@@ -2351,7 +2351,7 @@ def test_bool_reference_in_or_constraint():
     Or = core_attr("Or")
     tree = Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]]
     constraint = Or(ref("X"), ref("Y"))
-    result = generate(tree, constraint, {})
+    result = set(generate(tree, constraint, {}))
     assert result == {(True, True), (True, False), (False, True)}
 
 
@@ -2385,7 +2385,7 @@ def test_mod_with_negative_constant_divisor():
         Name("X"),
     ]
     constraint = Eq(Mod(ref("X"), int_const(-3)), int_const(-1))
-    result = generate(tree, constraint, {})
+    result = set(generate(tree, constraint, {}))
     expected = {v for v in range(-3, 4) if v % -3 == -1}
     assert result == expected, f"Expected {expected}, got {result}"
 
@@ -2418,7 +2418,7 @@ def test_mod_bounds_do_not_exclude_negative_remainders():
         Name("X"),
     ]
     constraint = Eq(Mod(ref("X"), int_const(-5)), int_const(-2))
-    result = generate(tree, constraint, {})
+    result = set(generate(tree, constraint, {}))
     expected = {v for v in range(-5, 6) if v % -5 == -2}
     assert result == expected, f"Expected {expected}, got {result}"
 
@@ -2436,7 +2436,7 @@ def test_floordiv_by_zero_constant_yields_empty():
     FloorDiv = core_attr("FloorDiv")
     tree = Annotated[int, Name("X")]
     constraint = And(_int_bounds("X", 0, 3), Eq(FloorDiv(ref("X"), int_const(0)), int_const(1)))
-    assert generate(tree, constraint, {}) == set()
+    assert set(generate(tree, constraint, {})) == set()
 
 
 def test_mod_by_zero_constant_yields_empty():
@@ -2447,7 +2447,7 @@ def test_mod_by_zero_constant_yields_empty():
     Mod = core_attr("Mod")
     tree = Annotated[int, Name("X")]
     constraint = And(_int_bounds("X", 0, 3), Eq(Mod(ref("X"), int_const(0)), int_const(1)))
-    assert generate(tree, constraint, {}) == set()
+    assert set(generate(tree, constraint, {})) == set()
 
 
 # --------------------------------------------------------------------------
@@ -2469,7 +2469,7 @@ def test_floordiv_python_semantics_negative_dividend():
     FloorDiv = core_attr("FloorDiv")
     tree = Annotated[int, Name("X")]
     constraint = And(_int_bounds("X", -3, 3), Eq(FloorDiv(ref("X"), int_const(2)), int_const(-1)))
-    result = generate(tree, constraint, {})
+    result = set(generate(tree, constraint, {}))
     expected = {v for v in range(-3, 4) if v // 2 == -1}
     assert result == expected, f"Expected {expected}, got {result}"
 
@@ -2482,7 +2482,7 @@ def test_floordiv_python_semantics_negative_divisor():
     FloorDiv = core_attr("FloorDiv")
     tree = Annotated[int, Name("X")]
     constraint = And(_int_bounds("X", -3, 3), Eq(FloorDiv(ref("X"), int_const(-2)), int_const(0)))
-    result = generate(tree, constraint, {})
+    result = set(generate(tree, constraint, {}))
     expected = {v for v in range(-3, 4) if v // -2 == 0}
     assert result == expected, f"Expected {expected}, got {result}"
 
@@ -2498,7 +2498,7 @@ def test_mod_python_semantics_negative_dividend():
     Mod = core_attr("Mod")
     tree = Annotated[int, Name("X")]
     constraint = And(_int_bounds("X", -3, 3), Eq(Mod(ref("X"), int_const(3)), int_const(2)))
-    result = generate(tree, constraint, {})
+    result = set(generate(tree, constraint, {}))
     expected = {v for v in range(-3, 4) if v % 3 == 2}
     assert result == expected, f"Expected {expected}, got {result}"
 
@@ -2511,7 +2511,7 @@ def test_mod_python_semantics_negative_dividend_positive_divisor():
     Mod = core_attr("Mod")
     tree = Annotated[int, Name("X")]
     constraint = And(_int_bounds("X", -4, 4), Eq(Mod(ref("X"), int_const(3)), int_const(1)))
-    result = generate(tree, constraint, {})
+    result = set(generate(tree, constraint, {}))
     expected = {v for v in range(-4, 5) if v % 3 == 1}
     assert result == expected, f"Expected {expected}, got {result}"
 
@@ -2539,7 +2539,7 @@ def test_floordiv_bounds_negative_dividend_variable_divisor():
         And(_int_bounds("X", -5, -3), _int_bounds("Y", 2, 3)),
         Eq(FloorDiv(ref("X"), ref("Y")), int_const(-3))
     )
-    result = generate(tree, constraint, {})
+    result = set(generate(tree, constraint, {}))
     expected = {(x, y) for x in range(-5, -2) for y in range(2, 4) if x // y == -3}
     assert result == expected, f"Expected {expected}, got {result}"
 
@@ -2552,7 +2552,7 @@ def test_floordiv_bounds_negative_both():
     FloorDiv = core_attr("FloorDiv")
     tree = Annotated[int, Name("X")]
     constraint = And(_int_bounds("X", -5, -1), Eq(FloorDiv(ref("X"), int_const(2)), int_const(-3)))
-    result = generate(tree, constraint, {})
+    result = set(generate(tree, constraint, {}))
     expected = {v for v in range(-5, 0) if v // 2 == -3}
     assert result == expected, f"Expected {expected}, got {result}"
 
@@ -2576,7 +2576,7 @@ def test_floordiv_by_zero_under_or_does_not_block_valid_solutions():
     tree = Tuple[Annotated[bool, Name("B")], Annotated[int, Name("X")]]
     bounds = _int_bounds("X", 0, 2)
     constraint = And(bounds, Or(ref("B"), Eq(FloorDiv(ref("X"), int_const(0)), int_const(1))))
-    result = generate(tree, constraint, {})
+    result = set(generate(tree, constraint, {}))
     # B=True satisfies the Or regardless of X; B=False requires FloorDiv(X,0)==1 (impossible)
     expected = {(True, x) for x in range(0, 3)}
     assert result == expected, f"Expected {expected}, got {result}"
@@ -2592,7 +2592,7 @@ def test_mod_by_zero_under_or_does_not_block_valid_solutions():
     tree = Tuple[Annotated[bool, Name("B")], Annotated[int, Name("X")]]
     bounds = _int_bounds("X", 0, 2)
     constraint = And(bounds, Or(ref("B"), Eq(Mod(ref("X"), int_const(0)), int_const(1))))
-    result = generate(tree, constraint, {})
+    result = set(generate(tree, constraint, {}))
     expected = {(True, x) for x in range(0, 3)}
     assert result == expected, f"Expected {expected}, got {result}"
 
@@ -2611,7 +2611,7 @@ def test_floordiv_variable_zero_divisor_under_or_short_circuit():
     tree = Tuple[Annotated[bool, Name("B")], Annotated[int, Name("Y")]]
     bounds = _int_bounds("Y", 0, 1)
     constraint = And(bounds, Or(ref("B"), Eq(FloorDiv(int_const(1), ref("Y")), int_const(0))))
-    result = generate(tree, constraint, {})
+    result = set(generate(tree, constraint, {}))
     # B=True satisfies the Or regardless of Y; B=False requires FloorDiv(1,Y)==0
     # which is impossible for Y in {0,1} (Y=0 undefined, Y=1 gives 1!=0).
     expected = {(True, y) for y in range(0, 2)}
@@ -2628,7 +2628,7 @@ def test_mod_variable_zero_divisor_under_or_short_circuit():
     tree = Tuple[Annotated[bool, Name("B")], Annotated[int, Name("Y")]]
     bounds = _int_bounds("Y", 0, 1)
     constraint = And(bounds, Or(ref("B"), Eq(Mod(int_const(1), ref("Y")), int_const(0))))
-    result = generate(tree, constraint, {})
+    result = set(generate(tree, constraint, {}))
     # Y=0: Mod(1, 0) is undefined → Eq=False → Or(B, False)=B → only B=True
     # Y=1: Mod(1, 1)=0 → Eq(0,0)=True → Or(B, True)=True → both B=True and B=False
     expected: set[object] = {(True, 0), (True, 1), (False, 1)}
@@ -2654,7 +2654,7 @@ def test_ne_type_mismatch_with_undefined_operand_under_or():
     # Or(B, Ne(...)): Y=0 → Ne=False → Or(B,False)=B → only B=True
     #                 Y=1 → FloorDiv(1,1)=1 vs True → Ne=True → Or=True → both B
     constraint = And(bounds, Or(ref("B"), Ne(FloorDiv(int_const(1), ref("Y")), bool_const(True))))
-    result = generate(tree, constraint, {})
+    result = set(generate(tree, constraint, {}))
     expected: set[object] = {(True, 0), (True, 1), (False, 1)}
     assert result == expected, f"Expected {expected}, got {result}"
 
@@ -2679,7 +2679,7 @@ def test_zero_div_sentinel_propagates_through_add():
     # FloorDiv(X, 0) is undefined; Add(undefined, 1) must also be undefined,
     # so Eq(undefined, 1) is always False → no solutions.
     constraint = And(_int_bounds("X", 0, 2), Eq(Add(FloorDiv(ref("X"), int_const(0)), int_const(1)), int_const(1)))
-    result = generate(tree, constraint, {})
+    result = set(generate(tree, constraint, {}))
     expected: set[object] = set()
     assert result == expected, f"Expected {expected}, got {result}"
 
@@ -2693,7 +2693,7 @@ def test_zero_div_sentinel_propagates_through_neg():
     FloorDiv = core_attr("FloorDiv")
     tree = Annotated[int, Name("X")]
     constraint = And(_int_bounds("X", 0, 2), Eq(Neg(FloorDiv(ref("X"), int_const(0))), int_const(0)))
-    result = generate(tree, constraint, {})
+    result = set(generate(tree, constraint, {}))
     expected: set[object] = set()
     assert result == expected, f"Expected {expected}, got {result}"
 
@@ -2712,7 +2712,7 @@ def test_zero_div_sentinel_propagates_through_add_under_or():
     tree = Tuple[Annotated[bool, Name("B")], Annotated[int, Name("X")]]
     bounds = _int_bounds("X", 0, 1)
     constraint = And(bounds, Or(ref("B"), Eq(Add(FloorDiv(ref("X"), int_const(0)), int_const(1)), int_const(1))))
-    result = generate(tree, constraint, {})
+    result = set(generate(tree, constraint, {}))
     expected: set[object] = {(True, 0), (True, 1)}
     assert result == expected, f"Expected {expected}, got {result}"
 
@@ -2735,7 +2735,7 @@ def test_eq_of_eq_and_bool_const():
     Eq = core_attr("Eq")
     tree = Annotated[int, Name("X")]
     constraint = And(_int_bounds("X", 0, 2), Eq(Eq(ref("X"), int_const(1)), bool_const(True)))
-    result = generate(tree, constraint, {})
+    result = set(generate(tree, constraint, {}))
     expected: set[object] = {1}
     assert result == expected, f"Expected {expected}, got {result}"
 
@@ -2751,7 +2751,7 @@ def test_eq_of_and_and_bool_const():
         And(_int_bounds("X", 0, 2), _int_bounds("Y", 0, 2)),
         Eq(And(Eq(ref("X"), int_const(1)), Eq(ref("Y"), int_const(2))), bool_const(True))
     )
-    result = generate(tree, constraint, {})
+    result = set(generate(tree, constraint, {}))
     expected: set[object] = {(1, 2)}
     assert result == expected, f"Expected {expected}, got {result}"
 
