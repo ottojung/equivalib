@@ -14,11 +14,11 @@
 ```python
 from equivalib.core import generate
 
-values = generate(bool)
+values = set(generate(bool))
 # => {False, True}
 ```
 
-The simplest case is still useful: this is full exhaustive generation for `bool`.
+The simplest case is still useful: this is full exhaustive generation for `bool`.  `generate` returns a lazy iterator, so values are produced on demand.  Collect into `set(...)` when you need set semantics.
 
 ---
 
@@ -27,7 +27,7 @@ The simplest case is still useful: this is full exhaustive generation for `bool`
 ```python
 from equivalib.core import generate
 
-values = generate(tuple[bool, bool])
+values = set(generate(tuple[bool, bool]))
 # => {
 #      (False, False),
 #      (False, True),
@@ -45,12 +45,11 @@ Cartesian products are generated automatically for unnamed tuple trees.
 ```python
 from equivalib.core import generate
 
-values = generate(tuple[bool, bool])
-only_true_first = {item for item in values if item[0] != item[1]}
+only_true_first = {item for item in generate(tuple[bool, bool]) if item[0] != item[1]}
 # => {(False, True), (True, False)}
 ```
 
-Great for demos, quick checks, and building intuition.
+Because `generate` is a lazy iterator, you can filter directly in a comprehension without materialising all values first.
 
 ---
 
@@ -59,7 +58,7 @@ Great for demos, quick checks, and building intuition.
 ```python
 from equivalib.core import generate
 
-values = generate(tuple[bool, bool], "[0] != [1]")
+values = set(generate(tuple[bool, bool], "[0] != [1]"))
 # => {(False, True), (True, False)}
 ```
 
@@ -73,7 +72,7 @@ Instead of filtering after generation, we encode relationships directly as a str
 from typing import Literal, Union
 from equivalib.core import generate
 
-values = generate(Union[Literal[2, 3, 4], bool])
+values = set(generate(Union[Literal[2, 3, 4], bool]))
 # => {False, True, 2, 3, 4}
 ```
 
@@ -86,7 +85,7 @@ Union deduplicates across branches using normal Python set semantics (hash/equal
 ```python
 from equivalib.core import regex, generate
 
-codes = generate(regex(r"(AB|CD)\d{2}"))
+codes = list(generate(regex(r"(AB|CD)\d{2}")))
 # => 200 values: AB00..AB99 and CD00..CD99
 ```
 
@@ -110,7 +109,7 @@ def generate_pythagorean_triples(limit: int):
     pythagorean = "[0]*[0] + [1]*[1] == [2]*[2]"
     return generate(tree, f"{bounds} and {ordered} and {pythagorean}")
 
-triples = generate_pythagorean_triples(limit=30)
+triples = list(generate_pythagorean_triples(limit=30))
 # includes (3, 4, 5), (5, 12, 13), (20, 21, 29), ...
 ```
 
@@ -121,11 +120,11 @@ SAT-backed integer constraints scale to large search spaces with precise semanti
 ## Slide 11 — Canonical witness on huge spaces
 
 ```python
-values = generate_sum_to_hundred_witness()
-# => exactly one tuple witness (10 binary values summing to 5)
+witness = next(iter(generate_sum_to_hundred_witness()))
+# => one tuple witness (10 binary values summing to 5)
 ```
 
-Using `{"[0]": "arbitrary", "[1]": "arbitrary", ...}` asks for one deterministic witness instead of exhaustive enumeration.
+Using `{"[0]": "arbitrary", "[1]": "arbitrary", ...}` asks for one deterministic witness instead of exhaustive enumeration.  Because `generate` is lazy, iterating once retrieves just the first yielded value without computing the rest.
 
 ---
 
@@ -138,7 +137,7 @@ from equivalib.core import generate, Name
 tree = tuple[Annotated[int, Name("X")], Annotated[int, Name("Y")]]
 constraint = "X >= 0 and X <= 9 and Y >= 0 and Y <= 9 and X > Y"
 
-result = generate(tree, constraint, {"X": "all", "Y": "arbitrary"})
+result = set(generate(tree, constraint, {"X": "all", "Y": "arbitrary"}))
 # => {(1,0), (2,0), (3,0), (4,0), (5,0), (6,0), (7,0), (8,0), (9,0)}
 ```
 
@@ -186,7 +185,7 @@ class Greeting(Extension):
     def uniform_random(tree, constraint, address):
         return random.choice([Greeting("hello"), Greeting("hi")])
 
-greetings = generate(Greeting)
+greetings = set(generate(Greeting))
 # => {Greeting("hello"), Greeting("hi")}
 ```
 
@@ -199,7 +198,7 @@ Any class can become a generation leaf by implementing the four `Extension` hook
 ```python
 from equivalib.core import intervals, generate
 
-representatives = generate(intervals(on=(0, 50), n=2))
+representatives = list(generate(intervals(on=(0, 50), n=2)))
 # => 4 representatives, one per equivalence class:
 #    touch   – one interval ends exactly where the other begins, e.g. ([0,1], [1,2])
 #    kiss    – endpoints differ by exactly 1, e.g. ([0,0], [1,1])
@@ -208,7 +207,7 @@ representatives = generate(intervals(on=(0, 50), n=2))
 ```
 
 `intervals` returns a concrete :class:`LineIntervalsSet` subclass for the given range and
-count. ``generate`` then returns exactly one representative from every equivalence class of
+count. ``generate`` then yields exactly one representative from every equivalence class of
 *n* integer line intervals, where two sets are equivalent when one is a permutation of
 the other with the same pairwise relations (touch / kiss / overlap / disjoint).
 

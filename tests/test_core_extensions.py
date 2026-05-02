@@ -43,7 +43,7 @@ def generate_core(
         constraint = true_expr()
     if methods is None:
         methods = {}
-    return cast(set[object], generate(tree, constraint, methods))
+    return set(generate(tree, constraint, methods))
 
 
 @dataclass(frozen=True)

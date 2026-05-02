@@ -1,13 +1,13 @@
 """Public API for the new core: ``generate``.
 
 Public entry point:
-    generate(tree: Type[T], constraint: Expression = BooleanExpression(True), methods: Optional[Mapping[Label, Method]] = None) -> Set[T]
+    generate(tree: Type[T], constraint: Expression = BooleanExpression(True), methods: Optional[Mapping[Label, Method]] = None) -> Iterator[T]
 """
 
 from __future__ import annotations
 
 import random
-from typing import Mapping, Optional, Type, TypeVar, cast
+from typing import Iterator, Mapping, Optional, Type, TypeVar, cast
 
 from equivalib.core.extension import Extension
 from equivalib.core.expression import (
@@ -263,8 +263,12 @@ def generate(
     tree: Type[GenerateT],
     constraint: Expression = _DEFAULT_CONSTRAINT,
     methods: Optional[Mapping[Label, Method]] = None,
-) -> set[GenerateT]:
+) -> Iterator[GenerateT]:
     """Generate all runtime values of type ``tree`` satisfying ``constraint``.
+
+    Returns a lazy iterator that yields satisfying values as soon as they are
+    found.  No deduplication is performed; extension generators are encouraged
+    to avoid yielding duplicates, but this is not required.
 
     ``constraint`` may be a string expression (``RawExpression``) or an
     already-constructed ``ParsedExpression`` AST node.  String expressions are
@@ -300,53 +304,70 @@ def generate(
 
     # 6. Validate methods against the unfilled tree so that invalid method
     #    keys/values are always reported, even when bounds are contradictory
-    #    and generate() would otherwise return early with an empty set.
+    #    and generate() would otherwise return early with an empty iterator.
     validate_methods(node, methods)
 
     # 7. Infer and fill integer bounds from the constraint
     bounds = infer_int_bounds(node, constraint_eff)
     if bounds:
-        # Contradictory bounds (lo > hi) -> no solutions possible
+        # Check for contradictory bounds (lo > hi) BEFORE filling, so that
+        # validate_tree (step 8) always receives a structurally valid filled
+        # node.  Structural issues (nested names, root-label placement, etc.)
+        # are already caught by normalize() and validate_expression() above, so
+        # returning early here does not skip any relevant validation.
         for _label, (lo, hi) in bounds.items():
             if lo > hi:
-                return set()
+                return iter(())
         node = fill_int_bounds(node, bounds)
 
     # 8. Validate tree (requires bounds to have been filled)
     validate_tree(node)
 
-    # 9. Unnamed-tree path (no named nodes): enumerate satisfying values.
-    #    When no index/root filtering is needed we stream directly into a set
-    #    to avoid a redundant list allocation; otherwise we materialize a list
-    #    so that _apply_unnamed_methods can select a positional witness.
+    # 9. Return a lazy iterator over satisfying values.
+    return cast(Iterator[GenerateT], _generate_lazy(node, constraint_eff, methods))
+
+
+def _generate_lazy(
+    node: IRNode,
+    constraint_eff: ParsedExpression,
+    methods: Mapping[Label, Method],
+) -> Iterator[object]:
+    """Yield values satisfying the constraint, lazily.
+
+    For unnamed trees values are produced as soon as they pass the constraint
+    filter.  For named trees the SAT search runs first (it is inherently
+    eager), then concrete values are yielded assignment-by-assignment.
+
+    No deduplication is performed; callers that need a set should use
+    ``set(generate(...))``.
+    """
+    # Unnamed-tree path (no named nodes): enumerate satisfying values.
     if not contains_name(node):
         satisfying_iter = (
             value for value in _values_node(node)
             if eval_expression(constraint_eff, {None: value}) is True
         )
-        if not _needs_unnamed_filtering(methods):
-            return cast(set[GenerateT], set(satisfying_iter))
-        satisfying = list(satisfying_iter)
-        return cast(set[GenerateT], set(_apply_unnamed_methods(satisfying, methods, node)))
+        if _needs_unnamed_filtering(methods):
+            # Materialise so _apply_unnamed_methods can select a positional witness.
+            satisfying = list(satisfying_iter)
+            yield from _apply_unnamed_methods(satisfying, methods, node)
+        else:
+            yield from satisfying_iter
+        return
 
-    # 10. Exact satisfying-assignment search (S0)
+    # Named-tree path: exact satisfying-assignment search (S0).
     assignments = search(node, constraint_eff, methods)
-
     if not assignments:
-        return set()
+        return
 
-    # 11. Apply super-method reductions (S*)
+    # Apply super-method reductions (S*).
     reduced = apply_methods(assignments, methods, labels_in_order(node))
-
     if not reduced:
-        return set()
+        return
 
-    # 12. Concretize each assignment into runtime values.
-    concrete_results: set[object] = set()
+    # Concretize each assignment into runtime values.
     for asgn in reduced:
-        concrete_results.update(concretize(node, asgn))
-
-    return concrete_results  # type: ignore[return-value]
+        yield from concretize(node, asgn)
 
 
 def _effective_constraint(node: IRNode, tree: Type[GenerateT], constraint: ParsedExpression) -> ParsedExpression:

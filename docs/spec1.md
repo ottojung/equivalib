@@ -60,7 +60,7 @@ ParsedExpression: TypeAlias = Union[
 RawExpression: TypeAlias = str
 Expression: TypeAlias = Union[ParsedExpression, RawExpression]
 
-generate(tree: Type[T], constraint: Expression = BooleanExpression(True), methods: Optional[Mapping[Label, Method]] = None) -> Set[T]
+generate(tree: Type[T], constraint: Expression = BooleanExpression(True), methods: Optional[Mapping[Label, Method]] = None) -> Iterator[T]
 ```
 
 The extension-aware superset of this interface adds an optional `extensions` registry; see [extensions.md](extensions.md).
@@ -207,16 +207,16 @@ If a label is exhaustive, the generator MUST preserve all satisfying variation o
 
 The choice of whether a value is super therefore depends on `methods`, not on the tree syntax.
 
-## Structural Equality and Sets
+## Structural Equality and Output Semantics
 
-All results in this spec are mathematical sets.
+Output ordering is not specified.
 
-Therefore:
-
-- duplicates MUST be removed by structural equality
-- output ordering is not observable
 - union branch order is not observable
 - tuple element order remains semantically significant
+
+A compliant implementation MAY yield duplicate values.  Callers that need a set of distinct values should wrap the iterator: ``set(generate(...))``.
+
+Extension generators are encouraged to avoid producing duplicate values, but this is not required.
 
 ### bool and int are disjoint types
 
@@ -516,7 +516,7 @@ values(Tuple[t1, t2, ..., tn])
 If a tree is name-free, then:
 
 ```text
-generate(tree, "true", {}) == values(tree)
+set(generate(tree, "true", {})) == values(tree)
 ```
 
 ## Effective Label Domains
@@ -533,7 +533,7 @@ Consequences:
 
 - if a label occurs once, its domain is the denotation of that one occurrence
 - if a label occurs several times, all occurrences must agree on one shared value
-- if the intersection is empty, then `generate(...)` MUST return `{}`
+- if the intersection is empty, then `generate(...)` MUST yield nothing (empty iterator)
 
 ### Example
 
@@ -569,13 +569,7 @@ Sat(tree, constraint)
 
 denote the set of all admissible assignments.
 
-If `Sat(tree, constraint)` is empty, then:
-
-```text
-generate(tree, constraint, methods) == {}
-```
-
-for every method configuration.
+If `Sat(tree, constraint)` is empty, then `generate(tree, constraint, methods)` MUST yield nothing for every method configuration.
 
 ## Concretization Under an Assignment
 
@@ -737,7 +731,7 @@ Methods may change completeness, determinism, and distribution, but they MUST NO
 
 ### High-level description
 
-`generate(tree, constraint, methods)` returns the set of all concrete Python values of the type denoted by `tree` that can be produced by at least one satisfying assignment after applying the chosen witness-selection methods.
+`generate(tree, constraint, methods)` returns an iterator over all concrete Python values of the type denoted by `tree` that can be produced by at least one satisfying assignment after applying the chosen witness-selection methods.  Values are yielded as soon as they are found (lazy); duplicates are removed.
 
 Intuitively:
 
@@ -758,7 +752,7 @@ Named labels are the variables of the system.  Unnamed subtrees always expand ex
 
 **Output:**
 
-- A finite set `R ⊆ 𝒱`, where `𝒱` is the set of all runtime Python values
+- A lazy iterator of distinct elements from `𝒱`, where `𝒱` is the set of all runtime Python values
 
 **Notation:** let `𝒱(t)` denote `values(t)` (the denotation of an unnamed tree `t`).
 
@@ -848,61 +842,61 @@ The `"all"` examples below are exact.
 The examples using `"arbitrary"` or `"uniform_random"` show one compliant outcome unless stated otherwise.
 
 ```python
-generate(Literal[True], "true", {})
+set(generate(Literal[True], "true", {}))
 == { True }
 
-generate(Tuple[bool, Literal["N\\A"]], "true", {})
+set(generate(Tuple[bool, Literal["N\\A"]], "true", {}))
 == { (True, "N\\A"), (False, "N\\A") }
 
-generate(Annotated[bool, Name("X")], "true", {"X": "all"})
+set(generate(Annotated[bool, Name("X")], "true", {"X": "all"}))
 == { True, False }
 
-generate(Annotated[bool, Name("X")], "true", {"X": "arbitrary"})
+set(generate(Annotated[bool, Name("X")], "true", {"X": "arbitrary"}))
 == { False }
 
-generate(Annotated[Tuple[bool, bool], Name("X")], "true", {"X": "arbitrary"})
+set(generate(Annotated[Tuple[bool, bool], Name("X")], "true", {"X": "arbitrary"}))
 == { (False, False) }
 
-generate(
+set(generate(
     Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
     "X == Y",
   {"X": "all", "Y": "all"},
-)
+))
 == { (True, True), (False, False) }
 
-generate(
+set(generate(
     Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
     "X != Y",
   {"X": "all", "Y": "all"},
-)
+))
 == { (True, False), (False, True) }
 
-generate(
+set(generate(
     Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
     "X == Y",
   {"X": "all", "Y": "arbitrary"},
-)
+))
 == { (False, False) }
 
-generate(
+set(generate(
     Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
     "X != Y",
   {"X": "all", "Y": "arbitrary"},
-)
+))
 == { (True, False) }
 
-generate(
+set(generate(
     Tuple[Annotated[bool, Name("X")], Annotated[bool, Name("Y")]],
     "X != Y",
   {"X": "arbitrary", "Y": "arbitrary"},
-)
+))
 == { (False, True) }
 
-generate(
+set(generate(
     Annotated[Tuple[bool, bool], Name("X")],
     "X[0] != X[1]",
   {"X": "all"},
-)
+))
 == { (True, False), (False, True) }
 ```
 
@@ -916,7 +910,7 @@ A core implementation is compliant with this spec if it:
 - implements label-domain intersection correctly
 - evaluates `Expression` ASTs according to the constructor semantics above
 - implements super-label semantics and the non-emptiness invariant correctly
-- returns plain runtime values as a set of instances of the denoted runtime type
+- yields plain runtime values one at a time as instances of the denoted runtime type
 
 For randomized methods, compliance has two layers:
 
@@ -925,7 +919,9 @@ For randomized methods, compliance has two layers:
 
 ### Compliance matrix
 
-| ID | Level | Requirement | Input / Operation | Expected result |
+In the table below, "Expected yielded values" shows the set of values that `generate(...)` MUST yield (in any order, without duplicates).  To verify: `set(generate(...)) == expected`.
+
+| ID | Level | Requirement | Input / Operation | Expected yielded values |
 | --- | --- | --- | --- | --- |
 | GEN-01 | MUST | Literal generation | `generate(Literal[True], "true", {})` | `{True}` |
 | GEN-02 | MUST | Unnamed tuple expansion | `generate(Tuple[bool, Literal["N\\A"]], "true", {})` | `{(True, "N\\A"), (False, "N\\A")}` |
